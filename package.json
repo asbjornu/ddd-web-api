@@ -1,7 +1,7 @@
 {
   "name": "ddd-web-api",
   "private": true,
-  "description": "Tooling for the ddd-web-api demo repository (Markdown linting only for now; app-level tooling lives in service-api/, bff/, and frontend/ once scaffolded).",
+  "description": "Tooling for the ddd-web-api demo repository (Markdown linting only for now; app-level tooling lives in elevator-api/ and elevator-ui/).",
   "scripts": {
     "lint:md": "remark . --frail --quiet"
   },

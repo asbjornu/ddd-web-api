@@ -83,12 +83,12 @@ Notes:
 
 ## Repository structure
 
-This is a monorepo with three application layers, described in full in
+This is a monorepo with two applications, described in full in
 [`docs/architecture.md`][1]:
 
-- `service-api/`: Java 21 + Spring Boot 4 (Gradle Kotlin DSL)
-- `bff/`: Nuxt.js 3 (not yet scaffolded)
-- `frontend/`: Vue 3 + TypeScript SPA (not yet scaffolded)
+- `elevator-api/`: Java 21 + Spring Boot 4 (Gradle Kotlin DSL)
+- `elevator-ui/`: Nuxt.js 4 -- serves both the front-end pages and the
+  backend-for-frontend (BFF) routes in one app
 
 See [`AGENTS.md`][2] for coding conventions and more detailed run/test
 instructions.
@@ -102,15 +102,20 @@ repository root:
 docker compose up
 ```
 
-This currently starts only `service-api` (on `http://localhost:8080`); the
-`bff` and `frontend` services are stubbed out (commented) in
-`docker-compose.yml` until those layers are scaffolded.
+This starts `elevator-api` (on `http://localhost:8080`) and `elevator-ui`
+(on `http://localhost:3000`).
 
-To run the service API directly, without Docker:
+To run the applications directly, without Docker:
 
 ```sh
-cd service-api
+cd elevator-api
 ./gradlew bootRun
+```
+
+```sh
+cd elevator-ui
+npm install
+npm run dev
 ```
 
 [1]: docs/architecture.md

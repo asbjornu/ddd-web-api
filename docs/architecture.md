@@ -3,9 +3,9 @@
 Write a web application with code smells building on the ideas presented in
 the talk [What's In A Model][1]. The goal of the application is to
 demonstrate in particular how providing a REST-ish CRUD API that mismatches
-the underlying domain model can lead to code being repeated between
-frontend, bff API, and service API, and how this can lead to code smells in
-the application.
+the underlying domain model can lead to code being repeated between the
+front-end/BFF layer and the API layer, and how this can lead to code smells
+in the application.
 
 In the future, this `architecture.md` file will be rewritten to describe a
 more optimal architecture that the application should then be slowly
@@ -53,7 +53,11 @@ Make sure to include the following code smells:
 
 ## Architecture
 
-The application should consist of three separate layers described below.
+The application consists of two applications: `elevator-api` (the
+Java/Spring Boot domain service) and `elevator-ui` (a single Nuxt.js
+application that serves both the front-end and the backend-for-frontend
+layer -- see "elevator-ui (front-end + BFF)" below for why these two
+traditionally separate layers live in one app here).
 
 ### Domain
 
@@ -163,7 +167,7 @@ and "trigger emergency recall" are behaviors with pre/post-conditions and
 side effects — some of which pre-empt or clear other state — not `PATCH
 /elevator` with a status field.
 
-#### Minimal domain model (service API / domain layer)
+#### Minimal domain model (elevator-api / domain layer)
 
 - `Elevator` (aggregate root): id, currentFloor, state (see above),
   direction (up/down/none), doorState (open/closing/closed), weight
@@ -199,18 +203,32 @@ This is a starting point, not a final schema — flesh it out as needed
 while implementing, but keep the aggregate boundaries above so the
 domain/API mismatch (see below) has something real to mismatch against.
 
-### Front-end
+### elevator-ui (front-end + BFF)
 
-The front-end should be a single-page application (SPA) written in Vue.js
-that consumes a REST-ish backend for frontend API. The code should be
-written in Typescript with Vue 3 Composition API and Pinia for state
-management. Use Vite as the build tool, Vitest for unit tests, and
-Playwright for end-to-end tests. Create an ESLint + Prettier configuration
-that suits the application and enforce it with GitHub Actions. The
-front-end should include unit tests and end-to-end tests that demonstrate
-the code smells in action.
+`elevator-ui` is a single Nuxt.js (v4) application that plays both the
+front-end and backend-for-frontend roles: its pages (Vue 3, TypeScript,
+Composition API, Pinia for state) are the SPA/SSR front-end, and its Nitro
+server routes (under `server/api/`) are the BFF, proxying and reshaping
+requests to `elevator-api`. These are kept as one Nuxt app rather than two
+separate projects because that's how Nuxt is normally used -- splitting
+them into separate front-end and BFF projects would be artificial for this
+stack. Use Vitest for unit tests and Playwright for end-to-end tests.
+Create an ESLint + Prettier configuration that suits the application and
+enforce it with GitHub Actions. `elevator-ui` should include unit tests and
+end-to-end tests that demonstrate the code smells in action.
 
-The front-end should provide a single rider view (for the one seeded
+The Nitro server routes should provide a REST-ish CRUD interface that
+almost, but not quite, matches that of the underlying `elevator-api`. The
+mismatch should be intentional and should be designed to demonstrate the
+code smells in action -- e.g. the server routes may collapse "select
+floor", "call elevator", and "trigger emergency recall" into the same
+generic `PUT /api/elevators/{id}` they expose to the front-end pages,
+forwarding to whichever mismatched `elevator-api` endpoint seems closest,
+and re-deriving business rules (such as which state transitions are legal,
+or whether a call pre-empts the queue) that already exist, differently, in
+`elevator-api`.
+
+The front-end pages should provide a single rider view (for the one seeded
 elevator, even though the underlying API is shaped for several): a call
 panel (per floor, showing up/down call buttons where applicable), an in-car
 panel (floor selection buttons, a weight slider simulating car load, door
@@ -219,26 +237,12 @@ key-switch actions for maintenance/emergency recall gated behind a mock
 "insert key" toggle), and a status display (current floor, direction, door
 state) — plus a public, unauthenticated status page that just shows
 current floor, direction, and door state, so anyone can check whether the
-elevator is working without needing the key. The SPA should poll the status
-endpoint (e.g. every 1-2 seconds) rather than use a push mechanism.
+elevator is working without needing the key. The front-end should poll the
+status endpoint (e.g. every 1-2 seconds) rather than use a push mechanism.
 
-### Backend for frontend API
+### elevator-api
 
-The backend for frontend API should be written in Nuxt.js (v3) using its
-server routes (Nitro) to proxy and reshape requests to the service API. It
-should provide a REST-ish CRUD interface that almost, but not quite,
-matches that of the underlying "service API". The mismatch should be
-intentional and should be designed to demonstrate the code smells in action
-— e.g. the BFF may collapse "select floor", "call elevator", and "trigger
-emergency recall" into the same generic `PUT /api/elevators/{id}` it
-exposes to the SPA, forwarding to whichever mismatched service API endpoint
-seems closest, and re-deriving business rules (such as which state
-transitions are legal, or whether a call pre-empts the queue) that already
-exist, differently, in the service API.
-
-### Service API
-
-The service API should be written in modern Java (21+) and Spring Boot 4,
+`elevator-api` should be written in modern Java (21+) and Spring Boot 4,
 built with Gradle (Kotlin DSL). It should provide a REST-ish API with CRUD
 operations that mismatch the underlying domain model, and it should include
 unit tests (JUnit 5, Mockito, AssertJ) that demonstrate the code smells in
@@ -284,19 +288,19 @@ modeling demo: no login is required for the Rider persona's normal use
 (calling the elevator, selecting floors, operating doors). The Technician's
 key-switch actions (enter/exit maintenance, trigger emergency recall)
 require a hard-coded shared secret, supplied via an environment variable on
-the service API (e.g. `TECHNICIAN_KEY`) and checked against a request
-header (e.g. `X-Technician-Key`) — not a full authenticated role with its
-own login/dashboard, since this represents physical key-switch access, not
-a user account. The SPA's mock "insert key" toggle attaches this header to
-requests once "inserted". Document the default dev value of this secret in
-`readme.md`/`.env.example`, not committed as a real secret. The `GET
+`elevator-api` (e.g. `TECHNICIAN_KEY`) and checked against a request header
+(e.g. `X-Technician-Key`) — not a full authenticated role with its own
+login/dashboard, since this represents physical key-switch access, not a
+user account. `elevator-ui`'s mock "insert key" toggle attaches this header
+to requests once "inserted". Document the default dev value of this secret
+in `readme.md`/`.env.example`, not committed as a real secret. The `GET
 /elevators/{id}/status` endpoint is the only one that should remain fully
 public with no key required.
 
 ### Repository and file structure
 
-Use a monorepo for the application, with separate directories for the
-front-end, backend for frontend API, and service API.
+Use a monorepo for the application, with separate directories for
+`elevator-api` and `elevator-ui`.
 
 The file structure should be based around types (models, controllers,
 services, repositories) rather than features (e.g. "users", "orders",
@@ -318,32 +322,32 @@ not-yet-written refactoring phase).
 ## Devops
 
 The application should be containerized using Docker Compose, with separate
-containers for the front-end, backend for frontend API, service API, and
-(if not embedded) the database. The application does not need to be
-deployed to a real cloud provider for this talk — running locally via
-Docker Compose is sufficient, but the CI/CD pipeline should still build and
-test all three layers, and produce container images as build artifacts.
+containers for `elevator-api`, `elevator-ui`, and (if not embedded) the
+database. The application does not need to be deployed to a real cloud
+provider for this talk — running locally via Docker Compose is sufficient,
+but the CI/CD pipeline should still build and test both applications, and
+produce container images as build artifacts.
 
 GitHub Actions should be used to run tests and enforce linting rules on
-each commit, with one workflow/job per layer (front-end, BFF, service API)
-so that failures are attributable to a specific layer.
+each commit, with one workflow/job per application (`elevator-api`,
+`elevator-ui`) so that failures are attributable to a specific application.
 
 ## Incremental development
 
 The application should be developed incrementally, with each layer being
 developed with accompanying tests before moving on to the next layer.
 
-Features should be added to the service API first, followed by the backend
-for frontend API, and finally the front-end. Each layer should be developed
-in a way that allows for the inclusion of the code smells listed above.
+Features should be added to `elevator-api` first, followed by
+`elevator-ui`. Each layer should be developed in a way that allows for the
+inclusion of the code smells listed above.
 
-Suggested build order (one thin vertical slice at a time, all three layers
-before moving to the next slice). All slices operate against a single
-seeded elevator (id fixed/known ahead of time), in a 9-floor building, even
-though the API is shaped to address elevators by id:
+Suggested build order (one thin vertical slice at a time, through both
+applications before moving to the next slice). All slices operate against a
+single seeded elevator (id fixed/known ahead of time), in a 9-floor
+building, even though the API is shaped to address elevators by id:
 
 1. Rider views elevator status (current floor, direction, door state);
-   public read-only status endpoint, polled by the SPA.
+   public read-only status endpoint, polled by the front-end.
 2. Rider calls the elevator from a floor (landing call queued) and it
    travels to serve it, using real (short) per-floor travel timing.
 3. Rider selects a destination floor from inside the car (car call queued),
@@ -361,7 +365,7 @@ though the API is shaped to address elevators by id:
 
 Each slice above is a natural place to introduce one or two of the code
 smells (e.g. slice 3's request-queue scheduling is the natural home for the
-God Object/Feature Envy contrast described in the Service API section).
+God Object/Feature Envy contrast described in the elevator-api section).
 
 Commit code after each coherent change, and make sure to include a commit
 message that describes the change and the code smell that was introduced.
@@ -382,7 +386,7 @@ instructions, stack overview, and how to run locally.
 ## Definition of done
 
 The application can be considered done when all features are implemented in
-all three layers of the application, it includes the code smells listed
+both `elevator-api` and `elevator-ui`, it includes the code smells listed
 above, and it is structured in a way that makes it easy to identify them.
 All parts of the application should be runnable and should include
 instructions for how to run.

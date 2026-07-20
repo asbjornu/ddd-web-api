@@ -26,17 +26,21 @@ for it.
 ## Repository layout (monorepo)
 
 ```
-/service-api      Java 21 + Spring Boot 4 (Gradle, Kotlin DSL)
-/bff               Nuxt.js 3 (Nitro server routes), TypeScript
-/frontend          Vue 3 + TypeScript SPA (Vite, Pinia, Vue Router)
+/elevator-api      Java 21 + Spring Boot 4 (Gradle, Kotlin DSL)
+/elevator-ui       Nuxt.js 4 (front-end pages + Nitro BFF routes), TypeScript
 /docs              architecture.md and other design docs
 ```
 
 > Note: this structure doesn't exist yet at the time of writing. Create it
-> exactly as above when scaffolding the project; keep these three top-level
+> exactly as above when scaffolding the project; keep these two top-level
 > app directories separate from `docs/`.
 
-Within `service-api`, organize by **type**, not by feature: `controller/`,
+`elevator-ui` is a single Nuxt.js app that plays both the front-end and
+backend-for-frontend roles (pages under `app/`, BFF routes under
+`server/api/`) -- see docs/architecture.md's "elevator-ui (front-end +
+BFF)" section for why these are one app instead of two.
+
+Within `elevator-api`, organize by **type**, not by feature: `controller/`,
 `service/`, `repository/`, `model/` (entities doubling as DTOs — this
 reuse is intentional). Do not reorganize into feature/domain-based packages
 (e.g. `calls/`, `doors/`) — that would remove one of the demonstrated
@@ -53,33 +57,33 @@ structure).
   editors/fonts render them wider than one column. Write links as
   reference-style (`[text][id]` with `[id]: url` definitions collected in a
   footer at the end of the file), not inline (`[text](url)`).
-- **service-api**: Java 21, Spring Boot 4, Gradle Kotlin DSL. Tests with
+- **elevator-api**: Java 21, Spring Boot 4, Gradle Kotlin DSL. Tests with
   JUnit 5, Mockito, AssertJ. Follow standard Spring naming
   (`XxxController`, `XxxService`, `XxxRepository`), but don't be surprised
   by (and don't silently clean up) inconsistent naming elsewhere — that's
   one of the intentional smells.
-- **bff**: Nuxt 3, TypeScript, server routes under `server/api/`.
-- **frontend**: Vue 3 Composition API, `<script setup>`, Pinia for state,
-  TypeScript throughout. ESLint + Prettier config is enforced in CI — keep
-  code passing lint even where it's intentionally smelly in other ways
-  (naming, structure); lint failures are not part of the demo.
+- **elevator-ui**: Nuxt 4, TypeScript, Vue 3 Composition API, `<script
+  setup>`, Pinia for state, server routes under `server/api/`. ESLint +
+  Prettier config is enforced in CI — keep code passing lint even where
+  it's intentionally smelly in other ways (naming, structure); lint
+  failures are not part of the demo.
 
 ## How to run things
 
-(Fill in the bff/frontend commands once those layers are scaffolded — keep
-this section and the readme's setup instructions in sync.)
+(Fill in the elevator-ui commands once real routes/pages exist beyond the
+initial scaffold — keep this section and the readme's setup instructions
+in sync.)
 
-- Service API: `./gradlew bootRun` (from `service-api/`), serves on
+- elevator-api: `./gradlew bootRun` (from `elevator-api/`), serves on
   `http://localhost:8080`
-- Service API tests: `./gradlew test` (from `service-api/`)
-- BFF dev server: `npm run dev` (from `bff/`)
-- Frontend dev server: `npm run dev` (from `frontend/`)
-- Frontend unit tests: `npm run test:unit` (Vitest)
-- Frontend e2e tests: `npm run test:e2e` (Playwright)
-- Full stack locally: `docker compose up` (from the repo root). Only
-  `service-api` runs this way for now (`http://localhost:8080`); the `bff`
-  and `frontend` services are stubbed out (commented) in
-  `docker-compose.yml` until those layers are scaffolded.
+- elevator-api tests: `./gradlew test` (from `elevator-api/`)
+- elevator-ui dev server: `npm run dev` (from `elevator-ui/`), serves on
+  `http://localhost:3000`
+- elevator-ui unit tests: `npm run test:unit` (Vitest)
+- elevator-ui e2e tests: `npm run test:e2e` (Playwright)
+- Full stack locally: `docker compose up` (from the repo root); starts both
+  `elevator-api` (`http://localhost:8080`) and `elevator-ui`
+  (`http://localhost:3000`)
 - Markdown lint: `npm run lint:md` (from the repo root; see `.remarkrc.mjs`
   for the remark-lint config and its documented deviations from the plugin
   defaults)
@@ -89,10 +93,10 @@ this section and the readme's setup instructions in sync.)
 - Do not refactor away the code smells listed in `docs/architecture.md`. If
   you notice one while working on something else, leave it — or note it in
   the commit message/PR description instead of fixing it.
-- Do not unify the service API's and BFF's REST representations — the
-  mismatch between them is intentional and central to the demo.
-- Do not introduce a shared model/types package between `service-api` and
-  `bff`/`frontend` purely to remove duplication — the duplication is the
+- Do not unify `elevator-api`'s and `elevator-ui`'s REST representations —
+  the mismatch between them is intentional and central to the demo.
+- Do not introduce a shared model/types package between `elevator-api` and
+  `elevator-ui` purely to remove duplication — the duplication is the
   point.
 - `docs/architecture.md` describes the *current, smelly* architecture. A
   future revision of that file will describe the target refactored
@@ -105,9 +109,9 @@ this section and the readme's setup instructions in sync.)
   smell being introduced (e.g. "Add emergency recall endpoint (God Object:
   ElevatorService)"), then stop and pause work until further notice —
   don't start the next change until told to continue.
-- Build features vertically, one slice through all three layers, in the
+- Build features vertically, one slice through both applications, in the
   order given in `docs/architecture.md` under "Incremental development",
-  service API first, then BFF, then front-end.
+  elevator-api first, then elevator-ui.
 - Pause after each suggested commit for human review before continuing —
   don't chain multiple commits' worth of work without a checkpoint.
 - Keep `readme.md` up to date with setup instructions and stack overview as

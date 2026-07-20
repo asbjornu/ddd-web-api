@@ -7,15 +7,12 @@ services:
     environment:
       TECHNICIAN_KEY: dev-secret-key
 
-  # elevator-ui:
-  #   build:
-  #     context: ./elevator-ui
-  #   ports:
-  #     - "3000:3000"
-  #   environment:
-  #     NUXT_SERVICE_API_URL: http://elevator-api:8080
-  #   depends_on:
-  #     - elevator-api
-  #
-  # Uncomment the elevator-ui service above once it's scaffolded (see
-  # docs/architecture.md and AGENTS.md).
+  elevator-ui:
+    build:
+      context: ./elevator-ui
+    ports:
+      - "3000:3000"
+    environment:
+      NUXT_SERVICE_API_URL: http://elevator-api:8080
+    depends_on:
+      - elevator-api
