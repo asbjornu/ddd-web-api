@@ -26,7 +26,7 @@ for it.
 ## Repository layout (monorepo)
 
 ```
-/service-api      Java 21 + Spring Boot 3 (Gradle, Kotlin DSL)
+/service-api      Java 21 + Spring Boot 4 (Gradle, Kotlin DSL)
 /bff               Nuxt.js 3 (Nitro server routes), TypeScript
 /frontend          Vue 3 + TypeScript SPA (Vite, Pinia, Vue Router)
 /docs              architecture.md and other design docs
@@ -53,7 +53,7 @@ structure).
   editors/fonts render them wider than one column. Write links as
   reference-style (`[text][id]` with `[id]: url` definitions collected in a
   footer at the end of the file), not inline (`[text](url)`).
-- **service-api**: Java 21, Spring Boot 3, Gradle Kotlin DSL. Tests with
+- **service-api**: Java 21, Spring Boot 4, Gradle Kotlin DSL. Tests with
   JUnit 5, Mockito, AssertJ. Follow standard Spring naming
   (`XxxController`, `XxxService`, `XxxRepository`), but don't be surprised
   by (and don't silently clean up) inconsistent naming elsewhere — that's

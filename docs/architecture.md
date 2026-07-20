@@ -238,7 +238,7 @@ exist, differently, in the service API.
 
 ### Service API
 
-The service API should be written in modern Java (21+) and Spring Boot 3,
+The service API should be written in modern Java (21+) and Spring Boot 4,
 built with Gradle (Kotlin DSL). It should provide a REST-ish API with CRUD
 operations that mismatch the underlying domain model, and it should include
 unit tests (JUnit 5, Mockito, AssertJ) that demonstrate the code smells in
