@@ -76,6 +76,9 @@ readme's setup instructions in sync.)
 - Frontend unit tests: `npm run test:unit` (Vitest)
 - Frontend e2e tests: `npm run test:e2e` (Playwright)
 - Full stack locally: `docker compose up`
+- Markdown lint: `npm run lint:md` (from the repo root; see `.remarkrc.mjs`
+  for the remark-lint config and its documented deviations from the plugin
+  defaults)
 
 ## Things not to touch / be careful with
 
