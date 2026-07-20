@@ -12,6 +12,7 @@ RUN npm run build
 
 FROM node:22-slim
 WORKDIR /app
+COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/.output ./.output
 
 EXPOSE 3000

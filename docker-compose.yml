@@ -7,6 +7,12 @@ services:
       - "8080:8080"
     environment:
       TECHNICIAN_KEY: dev-secret-key
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+      start_period: 20s
 
   elevator-ui:
     container_name: elevator-ui
@@ -17,4 +23,9 @@ services:
     environment:
       NUXT_SERVICE_API_URL: http://elevator-api:8080
     depends_on:
-      - elevator-api
+      elevator-api:
+        condition: service_healthy
+    volumes:
+      - ./elevator-ui:/app
+      - /app/node_modules
+    command: npm run dev
