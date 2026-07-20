@@ -43,6 +43,12 @@ public class Elevator {
     private int weightCapacityKg;
 
     /**
+     * The floor this elevator is currently travelling towards, if any
+     * (only meaningful while state is movingUp/movingDown).
+     */
+    private Integer targetFloor;
+
+    /**
      * When the elevator last transitioned into its current state. Real-time
      * behaviour (travel, door timing) is computed on read from this
      * timestamp rather than advanced by a background scheduler -- see
