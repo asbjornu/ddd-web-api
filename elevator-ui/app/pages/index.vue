@@ -4,7 +4,10 @@
     <div class="layout">
       <CallPanel />
       <ElevatorShaft />
-      <StatusDisplay />
+      <div class="side">
+        <StatusDisplay />
+        <CarPanel />
+      </div>
     </div>
     <p>
       <NuxtLink to="/status">Public status page</NuxtLink>
@@ -23,5 +26,10 @@ main {
   display: flex;
   gap: 2rem;
   align-items: flex-start;
+}
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 </style>

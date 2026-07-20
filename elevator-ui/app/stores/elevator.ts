@@ -21,6 +21,14 @@ export interface Call {
   servedAt: string | null
 }
 
+export interface CarCall {
+  id: number
+  elevatorId: number
+  floor: number
+  createdAt: string
+  servedAt: string | null
+}
+
 export const ELEVATOR_ID = 1
 export const BUILDING_FLOORS = 9
 
@@ -28,17 +36,30 @@ export const useElevatorStore = defineStore('elevator', {
   state: () => ({
     status: null as ElevatorStatus | null,
     calls: [] as Call[],
+    carCalls: [] as CarCall[],
     loading: false,
     error: null as string | null
   }),
   getters: {
     pendingCalls: (state) => state.calls.filter((c) => c.servedAt === null),
+    pendingCarCalls: (state) => state.carCalls.filter((c) => c.servedAt === null),
     floorsWithPendingCalls: (state) =>
       new Set(
         state.calls
           .filter((c) => c.servedAt === null)
           .map((c) => c.floor)
       ),
+    floorsWithPendingCarCalls: (state) =>
+      new Set(
+        state.carCalls
+          .filter((c) => c.servedAt === null)
+          .map((c) => c.floor)
+      ),
+    allPendingFloors(): Set<number> {
+      const floors = new Set(this.floorsWithPendingCalls)
+      for (const f of this.floorsWithPendingCarCalls) floors.add(f)
+      return floors
+    },
   },
   actions: {
     async fetchStatus() {
@@ -56,6 +77,13 @@ export const useElevatorStore = defineStore('elevator', {
         // calls list is secondary; don't overwrite a more meaningful error
       }
     },
+    async fetchCarCalls() {
+      try {
+        this.carCalls = await $fetch<CarCall[]>(`/api/elevators/${ELEVATOR_ID}/car-calls`)
+      } catch {
+        // car calls list is secondary
+      }
+    },
     async callElevator(floor: number, direction: 'UP' | 'DOWN') {
       this.loading = true
       try {
@@ -67,6 +95,21 @@ export const useElevatorStore = defineStore('elevator', {
         this.error = null
       } catch {
         this.error = 'Unable to call the elevator.'
+      } finally {
+        this.loading = false
+      }
+    },
+    async selectFloor(floor: number) {
+      this.loading = true
+      try {
+        await $fetch(`/api/elevators/${ELEVATOR_ID}/car-calls`, {
+          method: 'POST',
+          body: { floor }
+        })
+        await Promise.all([this.fetchStatus(), this.fetchCarCalls()])
+        this.error = null
+      } catch {
+        this.error = 'Unable to select floor.'
       } finally {
         this.loading = false
       }

@@ -9,4 +9,6 @@ public interface CallRepository extends JpaRepository<Call, Long> {
     List<Call> findByElevatorIdOrderByCreatedAtAsc(Long elevatorId);
 
     List<Call> findByElevatorIdAndServedAtIsNullOrderByCreatedAtAsc(Long elevatorId);
+
+    List<Call> findByElevatorIdAndServedAtIsNullAndFloor(Long elevatorId, int floor);
 }

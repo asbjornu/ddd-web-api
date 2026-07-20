@@ -6,9 +6,11 @@ let poller: ReturnType<typeof setInterval> | undefined
 onMounted(() => {
   store.fetchStatus()
   store.fetchCalls()
+  store.fetchCarCalls()
   poller = setInterval(() => {
     store.fetchStatus()
     store.fetchCalls()
+    store.fetchCarCalls()
   }, 1500)
 })
 
@@ -39,6 +41,9 @@ onUnmounted(() => {
 
       <dt>Pending calls</dt>
       <dd>{{ store.pendingCalls.length }}</dd>
+
+      <dt>Pending floors</dt>
+      <dd>{{ store.allPendingFloors.size }}</dd>
     </dl>
     <p v-else>Loading...</p>
   </section>
@@ -49,8 +54,8 @@ onUnmounted(() => {
   border: 1px solid #ccc;
   border-radius: 8px;
   padding: 1rem;
-  width: 16rem;
-  min-height: 16rem;
+  width: 17rem;
+  min-height: 18rem;
   box-sizing: border-box;
 }
 dl {
