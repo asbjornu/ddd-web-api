@@ -34,8 +34,8 @@ and more adaptable to change.
 ## Domain
 
 The demo application models a single elevator (lift) control system. See
-[`docs/architecture.md`][1] for the full domain description, personas,
-and layered architecture.
+[`docs/architecture.md`][1] for the full domain description, personas, and
+layered architecture.
 
 ### Elevator state machine
 
@@ -81,4 +81,37 @@ Notes:
   elevator to `idle`, whether it got to `outOfService` via maintenance or
   via a cleared emergency recall.
 
+## Repository structure
+
+This is a monorepo with three application layers, described in full in
+[`docs/architecture.md`][1]:
+
+- `service-api/`: Java 21 + Spring Boot 4 (Gradle Kotlin DSL)
+- `bff/`: Nuxt.js 3 (not yet scaffolded)
+- `frontend/`: Vue 3 + TypeScript SPA (not yet scaffolded)
+
+See [`AGENTS.md`][2] for coding conventions and more detailed run/test
+instructions.
+
+## Running locally
+
+The easiest way to run the whole stack is via Docker Compose from the
+repository root:
+
+```sh
+docker compose up
+```
+
+This currently starts only `service-api` (on `http://localhost:8080`); the
+`bff` and `frontend` services are stubbed out (commented) in
+`docker-compose.yml` until those layers are scaffolded.
+
+To run the service API directly, without Docker:
+
+```sh
+cd service-api
+./gradlew bootRun
+```
+
 [1]: docs/architecture.md
+[2]: AGENTS.md

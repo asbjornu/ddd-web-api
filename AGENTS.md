@@ -66,16 +66,20 @@ structure).
 
 ## How to run things
 
-(Fill in once each layer is scaffolded — keep this section and the
-readme's setup instructions in sync.)
+(Fill in the bff/frontend commands once those layers are scaffolded — keep
+this section and the readme's setup instructions in sync.)
 
-- Service API: `./gradlew bootRun` (from `service-api/`)
-- Service API tests: `./gradlew test`
+- Service API: `./gradlew bootRun` (from `service-api/`), serves on
+  `http://localhost:8080`
+- Service API tests: `./gradlew test` (from `service-api/`)
 - BFF dev server: `npm run dev` (from `bff/`)
 - Frontend dev server: `npm run dev` (from `frontend/`)
 - Frontend unit tests: `npm run test:unit` (Vitest)
 - Frontend e2e tests: `npm run test:e2e` (Playwright)
-- Full stack locally: `docker compose up`
+- Full stack locally: `docker compose up` (from the repo root). Only
+  `service-api` runs this way for now (`http://localhost:8080`); the `bff`
+  and `frontend` services are stubbed out (commented) in
+  `docker-compose.yml` until those layers are scaffolded.
 - Markdown lint: `npm run lint:md` (from the repo root; see `.remarkrc.mjs`
   for the remark-lint config and its documented deviations from the plugin
   defaults)
