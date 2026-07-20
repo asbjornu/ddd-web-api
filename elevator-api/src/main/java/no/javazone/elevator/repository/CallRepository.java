@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface CallRepository extends JpaRepository<Call, Long> {
 
     List<Call> findByElevatorIdOrderByCreatedAtAsc(Long elevatorId);
+
+    List<Call> findByElevatorIdAndServedAtIsNullOrderByCreatedAtAsc(Long elevatorId);
 }

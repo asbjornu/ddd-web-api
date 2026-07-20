@@ -14,13 +14,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-/**
- * Elevator state derivation and call handling. State is computed on
- * read from elapsed wall-clock time rather than advanced by a
- * background scheduler -- see "Timing" in docs/architecture.md.
- */
 @Service
 public class ElevatorService {
+
+    private static final long DOOR_CLOSE_DURATION_SECONDS = 2;
 
     private final ElevatorRepository elevatorRepository;
     private final CallRepository callRepository;
@@ -60,26 +57,13 @@ public class ElevatorService {
         call.setCreatedAt(Instant.now());
 
         if (elevator.getState() == ElevatorState.IDLE) {
-            if (call.getFloor() == elevator.getCurrentFloor()) {
-                elevator.setState(ElevatorState.DOORS_OPEN);
-                elevator.setDirection(Direction.NONE);
-                elevator.setDoorState(DoorState.OPEN);
-                elevator.setStateSince(Instant.now());
-                call.setServedAt(Instant.now());
-            } else {
-                Direction direction = call.getFloor() > elevator.getCurrentFloor()
-                        ? Direction.UP
-                        : Direction.DOWN;
-                elevator.setDirection(direction);
-                elevator.setState(
-                        direction == Direction.UP ? ElevatorState.MOVING_UP : ElevatorState.MOVING_DOWN);
-                elevator.setTargetFloor(call.getFloor());
-                elevator.setStateSince(Instant.now());
-            }
+            dispatchToFloor(elevator, call);
+        } else if (elevator.getState() == ElevatorState.DOORS_OPEN
+                && call.getFloor() == elevator.getCurrentFloor()) {
+            call.setServedAt(Instant.now());
+            elevator.setStateSince(Instant.now());
             elevatorRepository.save(elevator);
         }
-        // Else: elevator is busy: the call is left pending, to be picked up
-        // by request-queue scheduling (see build-order slice 3).
 
         return callRepository.save(call);
     }
@@ -95,25 +79,34 @@ public class ElevatorService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
-    /**
-     * If the elevator is mid-travel, derive whether it has now arrived
-     * based on elapsed time since stateSince. If arrived, finalize and
-     * persist the arrival (mark the call served, open the doors). If
-     * not yet arrived, mutate the in-memory (detached) entity's
-     * currentFloor to reflect interim position for display, without
-     * persisting it -- the persisted currentFloor remains the departure
-     * floor until arrival.
-     */
     private void recomputeState(Elevator elevator) {
-        if (elevator.getState() != ElevatorState.MOVING_UP
-                && elevator.getState() != ElevatorState.MOVING_DOWN) {
-            return;
-        }
+        long elapsedSeconds = Duration.between(elevator.getStateSince(), Instant.now()).getSeconds();
 
+        if (elevator.getState() == ElevatorState.MOVING_UP
+                || elevator.getState() == ElevatorState.MOVING_DOWN) {
+            recomputeMovement(elevator, elapsedSeconds);
+        } else if (elevator.getState() == ElevatorState.DOORS_OPEN) {
+            if (elapsedSeconds >= properties.doorOpenTimeoutSeconds()) {
+                elevator.setDoorState(DoorState.CLOSING);
+                elevator.setState(ElevatorState.DOORS_CLOSING);
+                elevator.setStateSince(Instant.now());
+                elevatorRepository.save(elevator);
+            }
+        } else if (elevator.getState() == ElevatorState.DOORS_CLOSING) {
+            if (elapsedSeconds >= DOOR_CLOSE_DURATION_SECONDS) {
+                elevator.setDoorState(DoorState.CLOSED);
+                elevator.setState(ElevatorState.IDLE);
+                elevator.setStateSince(Instant.now());
+                elevatorRepository.save(elevator);
+                serveNextPendingCall(elevator);
+            }
+        }
+    }
+
+    private void recomputeMovement(Elevator elevator, long elapsedSeconds) {
         int departureFloor = elevator.getCurrentFloor();
         int targetFloor = elevator.getTargetFloor();
         int distance = Math.abs(targetFloor - departureFloor);
-        long elapsedSeconds = Duration.between(elevator.getStateSince(), Instant.now()).getSeconds();
         long floorsTraveled = elapsedSeconds / properties.travelSecondsPerFloor();
 
         if (floorsTraveled >= distance) {
@@ -136,5 +129,35 @@ public class ElevatorService {
             int sign = targetFloor > departureFloor ? 1 : -1;
             elevator.setCurrentFloor(departureFloor + sign * (int) floorsTraveled);
         }
+    }
+
+    private void dispatchToFloor(Elevator elevator, Call call) {
+        if (call.getFloor() == elevator.getCurrentFloor()) {
+            elevator.setState(ElevatorState.DOORS_OPEN);
+            elevator.setDirection(Direction.NONE);
+            elevator.setDoorState(DoorState.OPEN);
+            elevator.setStateSince(Instant.now());
+            call.setServedAt(Instant.now());
+        } else {
+            Direction direction = call.getFloor() > elevator.getCurrentFloor()
+                    ? Direction.UP
+                    : Direction.DOWN;
+            elevator.setDirection(direction);
+            elevator.setState(
+                    direction == Direction.UP ? ElevatorState.MOVING_UP : ElevatorState.MOVING_DOWN);
+            elevator.setTargetFloor(call.getFloor());
+            elevator.setStateSince(Instant.now());
+        }
+        elevatorRepository.save(elevator);
+    }
+
+    private void serveNextPendingCall(Elevator elevator) {
+        callRepository.findByElevatorIdAndServedAtIsNullOrderByCreatedAtAsc(elevator.getId())
+                .stream()
+                .findFirst()
+                .ifPresent(call -> {
+                    elevator.setStateSince(Instant.now());
+                    dispatchToFloor(elevator, call);
+                });
     }
 }
