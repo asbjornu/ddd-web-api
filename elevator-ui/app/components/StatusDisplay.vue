@@ -49,7 +49,9 @@ onUnmounted(() => {
   border: 1px solid #ccc;
   border-radius: 8px;
   padding: 1rem;
-  max-width: 20rem;
+  width: 16rem;
+  min-height: 16rem;
+  box-sizing: border-box;
 }
 dl {
   display: grid;

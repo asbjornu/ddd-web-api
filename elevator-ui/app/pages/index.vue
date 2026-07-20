@@ -2,11 +2,9 @@
   <main>
     <h1>Elevator</h1>
     <div class="layout">
+      <CallPanel />
       <ElevatorShaft />
-      <div class="panels">
-        <StatusDisplay />
-        <CallPanel />
-      </div>
+      <StatusDisplay />
     </div>
     <p>
       <NuxtLink to="/status">Public status page</NuxtLink>
@@ -25,10 +23,5 @@ main {
   display: flex;
   gap: 2rem;
   align-items: flex-start;
-}
-.panels {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
 }
 </style>
