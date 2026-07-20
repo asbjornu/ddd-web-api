@@ -1,5 +1,6 @@
 services:
   elevator-api:
+    container_name: elevator-api
     build:
       context: ./elevator-api
     ports:
@@ -8,6 +9,7 @@ services:
       TECHNICIAN_KEY: dev-secret-key
 
   elevator-ui:
+    container_name: elevator-ui
     build:
       context: ./elevator-ui
     ports:
