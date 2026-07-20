@@ -5,7 +5,11 @@ let poller: ReturnType<typeof setInterval> | undefined
 
 onMounted(() => {
   store.fetchStatus()
-  poller = setInterval(() => store.fetchStatus(), 1500)
+  store.fetchCalls()
+  poller = setInterval(() => {
+    store.fetchStatus()
+    store.fetchCalls()
+  }, 1500)
 })
 
 onUnmounted(() => {
@@ -29,6 +33,12 @@ onUnmounted(() => {
 
       <dt>Doors</dt>
       <dd>{{ store.status.doorState }}</dd>
+
+      <dt>Target floor</dt>
+      <dd>{{ store.status.targetFloor ?? '—' }}</dd>
+
+      <dt>Pending calls</dt>
+      <dd>{{ store.pendingCalls.length }}</dd>
     </dl>
     <p v-else>Loading...</p>
   </section>

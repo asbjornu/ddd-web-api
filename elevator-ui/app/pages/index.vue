@@ -1,9 +1,12 @@
 <template>
   <main>
     <h1>Elevator</h1>
-    <div class="panels">
-      <StatusDisplay />
-      <CallPanel />
+    <div class="layout">
+      <ElevatorShaft />
+      <div class="panels">
+        <StatusDisplay />
+        <CallPanel />
+      </div>
     </div>
     <p>
       <NuxtLink to="/status">Public status page</NuxtLink>
@@ -17,6 +20,11 @@ main {
   margin: 2rem auto;
   padding: 0 1rem;
   font-family: system-ui, sans-serif;
+}
+.layout {
+  display: flex;
+  gap: 2rem;
+  align-items: flex-start;
 }
 .panels {
   display: flex;

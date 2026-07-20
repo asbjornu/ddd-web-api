@@ -12,15 +12,34 @@ export interface ElevatorStatus {
   targetFloor: number | null
 }
 
+export interface Call {
+  id: number
+  elevatorId: number
+  floor: number
+  direction: string
+  createdAt: string
+  servedAt: string | null
+}
+
 export const ELEVATOR_ID = 1
 export const BUILDING_FLOORS = 9
 
 export const useElevatorStore = defineStore('elevator', {
   state: () => ({
     status: null as ElevatorStatus | null,
+    calls: [] as Call[],
     loading: false,
     error: null as string | null
   }),
+  getters: {
+    pendingCalls: (state) => state.calls.filter((c) => c.servedAt === null),
+    floorsWithPendingCalls: (state) =>
+      new Set(
+        state.calls
+          .filter((c) => c.servedAt === null)
+          .map((c) => c.floor)
+      ),
+  },
   actions: {
     async fetchStatus() {
       try {
@@ -30,6 +49,13 @@ export const useElevatorStore = defineStore('elevator', {
         this.error = 'Unable to reach the elevator.'
       }
     },
+    async fetchCalls() {
+      try {
+        this.calls = await $fetch<Call[]>(`/api/elevators/${ELEVATOR_ID}/calls`)
+      } catch {
+        // calls list is secondary; don't overwrite a more meaningful error
+      }
+    },
     async callElevator(floor: number, direction: 'UP' | 'DOWN') {
       this.loading = true
       try {
@@ -37,7 +63,7 @@ export const useElevatorStore = defineStore('elevator', {
           method: 'POST',
           body: { floor, direction }
         })
-        await this.fetchStatus()
+        await Promise.all([this.fetchStatus(), this.fetchCalls()])
         this.error = null
       } catch {
         this.error = 'Unable to call the elevator.'
