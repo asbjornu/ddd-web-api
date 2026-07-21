@@ -61,6 +61,19 @@ watch(
 
 const carBottom = computed(() => (animatedFloor.value - 1) * FLOOR_HEIGHT)
 
+const panelRef = ref<HTMLElement | null>(null)
+const panelHeight = ref(FLOOR_HEIGHT)
+
+onMounted(() => {
+  if (panelRef.value) {
+    panelHeight.value = panelRef.value.offsetHeight
+  }
+})
+
+const followerBottom = computed(() => {
+  return carBottom.value - (panelHeight.value - FLOOR_HEIGHT) / 2
+})
+
 const delayedDoorState = ref('closed')
 let doorTimeout: ReturnType<typeof setTimeout> | null = null
 
@@ -167,8 +180,8 @@ const isEmergency = computed(() =>
       class="car-panel-track"
       :style="{ height: `${FLOOR_HEIGHT * BUILDING_FLOORS}px` }"
     >
-      <div class="car-panel-follower" :style="{ bottom: `${carBottom}px` }">
-        <CarPanel />
+      <div class="car-panel-follower" :style="{ bottom: `${followerBottom}px` }">
+        <CarPanel ref="panelRef" />
       </div>
     </div>
   </div>
@@ -395,6 +408,7 @@ const isEmergency = computed(() =>
   position: relative;
   width: 12rem;
   flex-shrink: 0;
+  margin-left: 0.75rem;
 }
 .car-panel-follower {
   position: absolute;
