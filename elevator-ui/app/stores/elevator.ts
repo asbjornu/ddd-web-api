@@ -9,6 +9,7 @@ export interface ElevatorStatus {
   direction: string
   doorState: string
   weightCapacityKg: number
+  departureFloor: number
   targetFloor: number | null
 }
 

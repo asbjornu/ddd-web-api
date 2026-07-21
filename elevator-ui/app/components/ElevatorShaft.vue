@@ -15,7 +15,6 @@ const TRAVEL_SECONDS_PER_FLOOR = 2
 const animatedFloor = ref(store.status?.currentFloor ?? 1)
 let animFrameId: number | null = null
 let animTarget = -1
-let animLastFloor = -1
 
 function startCarAnimation(from: number, to: number) {
   animTarget = to
@@ -48,14 +47,12 @@ watch(
     if (isMoving && status.targetFloor != null) {
       const from = status.currentFloor
       const to = status.targetFloor
-      if (to !== animTarget || from !== animLastFloor) {
-        animLastFloor = from
+      if (to !== animTarget) {
         startCarAnimation(from, to)
       }
     } else if (!isMoving) {
       if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null }
       animTarget = -1
-      animLastFloor = status.currentFloor
       animatedFloor.value = status.currentFloor
     }
   },
