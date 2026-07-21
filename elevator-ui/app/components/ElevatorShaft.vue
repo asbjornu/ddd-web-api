@@ -10,8 +10,58 @@ const floors = computed(() =>
 )
 
 const currentFloor = computed(() => store.status?.currentFloor ?? 1)
+const TRAVEL_SECONDS_PER_FLOOR = 2
 
-const carBottom = computed(() => (currentFloor.value - 1) * FLOOR_HEIGHT)
+const animatedFloor = ref(store.status?.currentFloor ?? 1)
+let animFrameId: number | null = null
+let animTarget = -1
+let animLastFloor = -1
+
+function startCarAnimation(from: number, to: number) {
+  animTarget = to
+  const distance = Math.abs(to - from)
+  if (distance === 0) { animatedFloor.value = from; return }
+  const sign = to > from ? 1 : -1
+  const startTime = performance.now()
+  const duration = distance * TRAVEL_SECONDS_PER_FLOOR * 1000
+
+  function frame() {
+    const elapsed = performance.now() - startTime
+    const t = Math.min(elapsed / duration, 1)
+    animatedFloor.value = from + sign * distance * t
+    if (t < 1) {
+      animFrameId = requestAnimationFrame(frame)
+    } else {
+      animFrameId = null
+    }
+  }
+  if (animFrameId) cancelAnimationFrame(animFrameId)
+  animFrameId = requestAnimationFrame(frame)
+}
+
+watch(
+  () => store.status,
+  (status) => {
+    if (!status) return
+    const isMoving = status.state === 'MOVING_UP' || status.state === 'MOVING_DOWN'
+
+    if (isMoving && status.targetFloor != null) {
+      const from = status.currentFloor
+      const to = status.targetFloor
+      if (to !== animTarget || from !== animLastFloor) {
+        animLastFloor = from
+        startCarAnimation(from, to)
+      }
+    } else if (!isMoving) {
+      if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null }
+      animTarget = -1
+      animLastFloor = status.currentFloor
+      animatedFloor.value = status.currentFloor
+    }
+  },
+)
+
+const carBottom = computed(() => (animatedFloor.value - 1) * FLOOR_HEIGHT)
 
 const delayedDoorState = ref('closed')
 let doorTimeout: ReturnType<typeof setTimeout> | null = null
@@ -210,7 +260,6 @@ const isEmergency = computed(() =>
   right: 7px;
   display: flex;
   flex-direction: column;
-  transition: bottom 2s linear;
   z-index: 2;
 }
 .car-roof {
