@@ -181,7 +181,9 @@ const isEmergency = computed(() =>
       :style="{ height: `${FLOOR_HEIGHT * BUILDING_FLOORS}px` }"
     >
       <div class="car-panel-follower" :style="{ bottom: `${followerBottom}px` }">
-        <CarPanel ref="panelRef" />
+        <div ref="panelRef">
+          <CarPanel />
+        </div>
       </div>
     </div>
   </div>
