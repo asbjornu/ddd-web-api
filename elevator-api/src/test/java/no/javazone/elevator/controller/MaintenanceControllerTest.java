@@ -100,4 +100,63 @@ class MaintenanceControllerTest {
                         .content("{\"maintenance\": true}"))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void emergencyRecallSetsDirectionToRecallFloor() throws Exception {
+        mockMvc.perform(post("/elevators/1/calls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"floor\": 3, \"direction\": \"UP\"}"));
+
+        Thread.sleep(5000);
+
+        mockMvc.perform(post("/elevators/1/emergency-recall")
+                        .header(AUTH_HEADER, VALID_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state", is("EMERGENCY_RECALL")))
+                .andExpect(jsonPath("$.direction", is("DOWN")))
+                .andExpect(jsonPath("$.targetFloor", is(1)));
+    }
+
+    @Test
+    void emergencyRecallAtRecallFloorGoesDirectlyToOutOfService() throws Exception {
+        // Move elevator to floor 1 (the recall floor)
+        mockMvc.perform(post("/elevators/1/emergency-recall")
+                        .header(AUTH_HEADER, VALID_TOKEN));
+
+        // Already at recall floor — should go straight to OUT_OF_SERVICE
+        mockMvc.perform(post("/elevators/1/emergency-recall")
+                        .header(AUTH_HEADER, VALID_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state", is("OUT_OF_SERVICE")))
+                .andExpect(jsonPath("$.doorState", is("CLOSED")));
+    }
+
+    @Test
+    void emergencyRecallArrivesAtOutOfServiceAfterTravel() throws Exception {
+        mockMvc.perform(post("/elevators/1/calls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"floor\": 2, \"direction\": \"UP\"}"));
+
+        Thread.sleep(2500);
+
+        mockMvc.perform(post("/elevators/1/emergency-recall")
+                        .header(AUTH_HEADER, VALID_TOKEN))
+                .andExpect(jsonPath("$.state", is("EMERGENCY_RECALL")))
+                .andExpect(jsonPath("$.direction", is("DOWN")))
+                .andExpect(jsonPath("$.targetFloor", is(1)));
+
+        Thread.sleep(2500);
+
+        mockMvc.perform(get("/elevators/1/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state", is("OUT_OF_SERVICE")))
+                .andExpect(jsonPath("$.currentFloor", is(1)));
+    }
+
+    @Test
+    void emergencyRecallRejectsInvalidKey() throws Exception {
+        mockMvc.perform(post("/elevators/1/emergency-recall")
+                        .header(AUTH_HEADER, "Bearer wrong-key"))
+                .andExpect(status().isUnauthorized());
+    }
 }

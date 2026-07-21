@@ -12,9 +12,9 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Technician key-switch actions: enter/exit maintenance.
- * Gated by a shared secret passed via Authorization: Bearer header.
- * See "Authentication and authorization" in docs/architecture.md.
+ * Technician key-switch actions: enter/exit maintenance and emergency
+ * recall. Gated by a shared secret passed via Authorization: Bearer
+ * header. See "Authentication and authorization" in docs/architecture.md.
  */
 @RestController
 public class MaintenanceController {
@@ -34,14 +34,25 @@ public class MaintenanceController {
     public Elevator maintenance(@PathVariable Long id,
             @RequestHeader("Authorization") String authorization,
             @RequestBody MaintenanceRequest body) {
-        String token = extractToken(authorization);
-        if (token == null || !properties.technicianKey().equals(token)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid technician key");
-        }
+        requireValidKey(authorization);
         if (body.maintenance()) {
             return elevatorService.enterMaintenance(id);
         } else {
             return elevatorService.exitMaintenance(id);
+        }
+    }
+
+    @PostMapping("/elevators/{id}/emergency-recall")
+    public Elevator emergencyRecall(@PathVariable Long id,
+            @RequestHeader("Authorization") String authorization) {
+        requireValidKey(authorization);
+        return elevatorService.triggerEmergencyRecall(id);
+    }
+
+    private void requireValidKey(String authorization) {
+        String token = extractToken(authorization);
+        if (token == null || !properties.technicianKey().equals(token)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid technician key");
         }
     }
 

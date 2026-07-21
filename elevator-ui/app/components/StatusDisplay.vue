@@ -111,6 +111,12 @@ onUnmounted(() => {
         >
           Exit maintenance
         </button>
+        <button
+          @click="store.triggerEmergencyRecall()"
+          class="emergency-btn"
+        >
+          Emergency recall
+        </button>
       </div>
     </div>
   </section>
@@ -191,5 +197,9 @@ dd {
 .tech-actions button {
   padding: 0.4rem 0.8rem;
   cursor: pointer;
+}
+.emergency-btn {
+  color: #b00020;
+  font-weight: bold;
 }
 </style>

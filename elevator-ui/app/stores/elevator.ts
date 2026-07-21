@@ -192,6 +192,18 @@ export const useElevatorStore = defineStore('elevator', {
       } catch {
         this.error = 'Unable to exit maintenance.'
       }
+    },
+    async triggerEmergencyRecall() {
+      try {
+        await $fetch(`/api/elevators/${ELEVATOR_ID}/emergency-recall`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${TECHNICIAN_KEY}` }
+        })
+        await this.fetchStatus()
+        this.error = null
+      } catch {
+        this.error = 'Unable to trigger emergency recall.'
+      }
     }
   }
 })

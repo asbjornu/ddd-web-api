@@ -221,6 +221,34 @@ public class ElevatorService {
         return elevatorRepository.save(elevator);
     }
 
+    public Elevator triggerEmergencyRecall(Long id) {
+        Elevator elevator = findElevator(id);
+        recomputeState(elevator);
+
+        int recallFloor = properties.recallFloor();
+        clearPendingCalls(elevator);
+        clearPendingCarCalls(elevator);
+        elevator.setObstructed(false);
+        elevator.setCurrentWeightKg(0);
+
+        if (elevator.getCurrentFloor() == recallFloor) {
+            elevator.setState(ElevatorState.OUT_OF_SERVICE);
+            elevator.setDirection(Direction.NONE);
+            elevator.setDoorState(DoorState.CLOSED);
+            elevator.setTargetFloor(null);
+        } else {
+            Direction direction = recallFloor > elevator.getCurrentFloor()
+                    ? Direction.UP : Direction.DOWN;
+            elevator.setDepartureFloor(elevator.getCurrentFloor());
+            elevator.setDirection(direction);
+            elevator.setDoorState(DoorState.CLOSED);
+            elevator.setState(ElevatorState.EMERGENCY_RECALL);
+            elevator.setTargetFloor(recallFloor);
+        }
+        elevator.setStateSince(Instant.now());
+        return elevatorRepository.save(elevator);
+    }
+
     private boolean isOverloaded(Elevator elevator) {
         return elevator.getCurrentWeightKg() > elevator.getWeightCapacityKg();
     }
@@ -262,7 +290,8 @@ public class ElevatorService {
             long elapsedSeconds = Duration.between(elevator.getStateSince(), Instant.now()).getSeconds();
 
             if (elevator.getState() == ElevatorState.MOVING_UP
-                    || elevator.getState() == ElevatorState.MOVING_DOWN) {
+                    || elevator.getState() == ElevatorState.MOVING_DOWN
+                    || elevator.getState() == ElevatorState.EMERGENCY_RECALL) {
                 changed = recomputeMovement(elevator, elapsedSeconds);
             } else if (elevator.getState() == ElevatorState.DOORS_OPEN) {
                 if (isOverloaded(elevator)) {
@@ -302,17 +331,29 @@ public class ElevatorService {
         long floorsTraveled = elapsedSeconds / properties.travelSecondsPerFloor();
 
         if (floorsTraveled >= distance) {
-            serveFloor(elevator, targetFloor);
+            if (elevator.getState() == ElevatorState.EMERGENCY_RECALL) {
+                elevator.setCurrentFloor(targetFloor);
+                elevator.setState(ElevatorState.OUT_OF_SERVICE);
+                elevator.setDirection(Direction.NONE);
+                elevator.setDoorState(DoorState.CLOSED);
+                elevator.setTargetFloor(null);
+                elevator.setStateSince(Instant.now());
+                elevatorRepository.save(elevator);
+            } else {
+                serveFloor(elevator, targetFloor);
+            }
             return true;
         }
 
         int interimFloor = departureFloor + sign * (int) floorsTraveled;
 
-        Integer extraStop = findPendingFloorOnPath(elevator, departureFloor,
-                interimFloor, sign);
-        if (extraStop != null) {
-            serveFloor(elevator, extraStop);
-            return true;
+        if (elevator.getState() != ElevatorState.EMERGENCY_RECALL) {
+            Integer extraStop = findPendingFloorOnPath(elevator, departureFloor,
+                    interimFloor, sign);
+            if (extraStop != null) {
+                serveFloor(elevator, extraStop);
+                return true;
+            }
         }
 
         elevator.setCurrentFloor(interimFloor);
