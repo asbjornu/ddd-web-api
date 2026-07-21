@@ -3,7 +3,7 @@ import { BUILDING_FLOORS } from '~/stores/elevator'
 
 const store = useElevatorStore()
 
-const FLOOR_HEIGHT = 60
+const FLOOR_HEIGHT = 108
 
 const floors = computed(() =>
   Array.from({ length: BUILDING_FLOORS }, (_, i) => BUILDING_FLOORS - i)
@@ -131,14 +131,14 @@ const isEmergency = computed(() =>
   display: grid;
   grid-template-rows: repeat(9, 1fr);
   flex-shrink: 0;
-  width: 2rem;
+  width: 3.6rem;
 }
 .floor-label {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding-right: 6px;
-  font-size: 0.75rem;
+  gap: 7px;
+  padding-right: 11px;
+  font-size: 1.2rem;
   font-weight: 600;
   color: #888;
   letter-spacing: 0.02em;
@@ -152,41 +152,41 @@ const isEmergency = computed(() =>
   text-align: right;
 }
 .floor-dot {
-  width: 6px;
-  height: 6px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
   background: #4caf50;
-  box-shadow: 0 0 4px rgba(76, 175, 80, 0.5);
+  box-shadow: 0 0 7px rgba(76, 175, 80, 0.5);
   flex-shrink: 0;
 }
 
 /* ── Shaft ── */
 .shaft {
   position: relative;
-  width: 100px;
+  width: 180px;
   background: #e8e8e8;
-  border: 1px solid #bbb;
-  border-radius: 4px;
+  border: 2px solid #bbb;
+  border-radius: 7px;
   overflow: hidden;
-  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.06);
+  box-shadow: inset 0 0 11px rgba(0, 0, 0, 0.06);
 }
 .floor-line {
   position: absolute;
   left: 0;
   right: 0;
   height: 0;
-  border-top: 1px solid #ccc;
+  border-top: 2px solid #ccc;
   transition: border-color 0.3s;
 }
 .floor-line.active-line {
-  border-top: 2px solid #4caf50;
+  border-top: 4px solid #4caf50;
 }
 .target-marker {
   position: absolute;
-  left: -6px;
-  width: calc(100% + 12px);
+  left: -11px;
+  width: calc(100% + 22px);
   height: 0;
-  border-top: 2px dashed #ff9800;
+  border-top: 4px dashed #ff9800;
   z-index: 1;
   opacity: 0.7;
   transition: bottom 1.5s linear;
@@ -194,29 +194,29 @@ const isEmergency = computed(() =>
 .target-marker::before {
   content: '';
   position: absolute;
-  top: -5px;
-  right: -2px;
+  top: -10px;
+  right: -4px;
   width: 0;
   height: 0;
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-top: 10px solid #ff9800;
+  border-left: 14px solid transparent;
+  border-right: 14px solid transparent;
+  border-top: 18px solid #ff9800;
 }
 
 /* ── Car ── */
 .car {
   position: absolute;
-  left: 4px;
-  right: 4px;
+  left: 7px;
+  right: 7px;
   display: flex;
   flex-direction: column;
   transition: bottom 2s linear;
   z-index: 2;
 }
 .car-roof {
-  height: 3px;
+  height: 6px;
   background: linear-gradient(to bottom, #888, #666);
-  border-radius: 2px 2px 0 0;
+  border-radius: 4px 4px 0 0;
   flex-shrink: 0;
 }
 .car-body {
@@ -227,9 +227,9 @@ const isEmergency = computed(() =>
   overflow: hidden;
 }
 .car-floor-bar {
-  height: 3px;
+  height: 6px;
   background: linear-gradient(to bottom, #666, #555);
-  border-radius: 0 0 2px 2px;
+  border-radius: 0 0 4px 4px;
   flex-shrink: 0;
 }
 
@@ -240,13 +240,13 @@ const isEmergency = computed(() =>
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 7px;
   z-index: 3;
   pointer-events: none;
 }
 .car-direction {
   color: #fff;
-  font-size: 1rem;
+  font-size: 1.4rem;
   line-height: 1;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
   transition: color 0.3s;
@@ -259,11 +259,11 @@ const isEmergency = computed(() =>
 }
 .car-direction.none {
   color: #aaa;
-  font-size: 0.7rem;
+  font-size: 1.1rem;
 }
 .car-floor {
   color: #fff;
-  font-size: 0.9rem;
+  font-size: 1.3rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
@@ -286,7 +286,7 @@ const isEmergency = computed(() =>
   position: absolute;
   top: 20%;
   bottom: 20%;
-  width: 2px;
+  width: 4px;
   background: rgba(255, 255, 255, 0.25);
 }
 .door.left {
@@ -295,7 +295,7 @@ const isEmergency = computed(() =>
   border-right: 1px solid rgba(0, 0, 0, 0.2);
 }
 .door.left::before {
-  right: 6px;
+  right: 11px;
 }
 .door.right {
   right: 0;
@@ -303,7 +303,7 @@ const isEmergency = computed(() =>
   border-left: 1px solid rgba(0, 0, 0, 0.2);
 }
 .door.right::before {
-  left: 6px;
+  left: 11px;
 }
 
 /* door states */
