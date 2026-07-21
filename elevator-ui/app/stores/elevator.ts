@@ -9,6 +9,7 @@ export interface ElevatorStatus {
   direction: string
   doorState: string
   weightCapacityKg: number
+  currentWeightKg: number
   departureFloor: number
   targetFloor: number | null
   obstructed: boolean
@@ -147,6 +148,18 @@ export const useElevatorStore = defineStore('elevator', {
         this.error = null
       } catch {
         this.error = 'Unable to toggle obstruction.'
+      }
+    },
+    async setWeight(weightKg: number) {
+      try {
+        await $fetch(`/api/elevators/${ELEVATOR_ID}/weight`, {
+          method: 'POST',
+          body: { weightKg }
+        })
+        await this.fetchStatus()
+        this.error = null
+      } catch {
+        this.error = 'Unable to set weight.'
       }
     }
   }

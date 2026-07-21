@@ -5,6 +5,12 @@ const floors = Array.from({ length: BUILDING_FLOORS }, (_, i) => BUILDING_FLOORS
 
 const currentFloor = computed(() => store.status?.currentFloor ?? 1)
 
+const maxWeight = computed(() => store.status?.weightCapacityKg ?? 800)
+
+const overloaded = computed(() =>
+  (store.status?.currentWeightKg ?? 0) > (store.status?.weightCapacityKg ?? 0)
+)
+
 function isPending(floor: number) {
   return store.allPendingFloors.has(floor)
 }
@@ -39,6 +45,21 @@ function select(floor: number) {
       >
         {{ floor }}
       </button>
+    </div>
+    <div class="weight-section">
+      <label>
+        Weight: {{ store.status?.currentWeightKg ?? 0 }} / {{ maxWeight }} kg
+        <input
+          type="range"
+          :min="0"
+          :max="maxWeight + 200"
+          :value="store.status?.currentWeightKg ?? 0"
+          @input="store.setWeight(Number(($event.target as HTMLInputElement).value))"
+        />
+      </label>
+      <p v-if="overloaded" class="overload-warning">
+        Overloaded — reduce weight to close doors
+      </p>
     </div>
   </section>
 </template>
@@ -89,5 +110,26 @@ button.pending {
   background: #c8e6c9;
   border-color: #4caf50;
   box-shadow: 0 0 4px rgba(76, 175, 80, 0.4);
+}
+.weight-section {
+  margin-top: 1rem;
+  border-top: 1px solid #ccc;
+  padding-top: 0.75rem;
+}
+.weight-section label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+}
+.weight-section input[type='range'] {
+  width: 100%;
+  cursor: pointer;
+}
+.overload-warning {
+  color: #b00020;
+  font-size: 0.8rem;
+  font-weight: bold;
+  margin: 0.4rem 0 0;
 }
 </style>

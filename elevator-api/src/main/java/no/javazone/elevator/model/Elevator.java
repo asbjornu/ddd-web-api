@@ -65,4 +65,6 @@ public class Elevator {
     private Instant stateSince;
 
     private boolean obstructed;
+
+    private int currentWeightKg;
 }

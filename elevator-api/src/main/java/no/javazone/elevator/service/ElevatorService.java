@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import no.javazone.elevator.config.ElevatorProperties;
 import no.javazone.elevator.model.Call;
@@ -65,7 +66,9 @@ public class ElevatorService {
         call.setCreatedAt(Instant.now());
 
         if (elevator.getState() == ElevatorState.IDLE) {
-            dispatchToFloor(elevator, call.getFloor());
+            if (!isOverloaded(elevator)) {
+                dispatchToFloor(elevator, call.getFloor());
+            }
         } else if (elevator.getState() == ElevatorState.DOORS_OPEN
                 && call.getFloor() == elevator.getCurrentFloor()) {
             call.setServedAt(Instant.now());
@@ -90,6 +93,9 @@ public class ElevatorService {
         if (request.getFloor() == elevator.getCurrentFloor()
                 && elevator.getState() == ElevatorState.DOORS_OPEN) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Already at this floor");
+        }
+        if (isOverloaded(elevator)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Overload detected");
         }
 
         CarCall carCall = new CarCall();
@@ -143,6 +149,9 @@ public class ElevatorService {
         if (elevator.isObstructed()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Obstruction detected");
         }
+        if (isOverloaded(elevator)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Overload detected");
+        }
 
         elevator.setDoorState(DoorState.CLOSING);
         elevator.setState(ElevatorState.DOORS_CLOSING);
@@ -157,6 +166,33 @@ public class ElevatorService {
             recomputeState(elevator);
         }
         return elevatorRepository.save(elevator);
+    }
+
+    public Elevator setWeight(Long id, int weightKg) {
+        Elevator elevator = findElevator(id);
+        elevator.setCurrentWeightKg(weightKg);
+        if (isOverloaded(elevator)) {
+            clearPendingCarCalls(elevator);
+            if (elevator.getState() == ElevatorState.DOORS_OPEN) {
+                elevator.setStateSince(Instant.now());
+            }
+            recomputeState(elevator);
+        }
+        return elevatorRepository.save(elevator);
+    }
+
+    private boolean isOverloaded(Elevator elevator) {
+        return elevator.getCurrentWeightKg() > elevator.getWeightCapacityKg();
+    }
+
+    private void clearPendingCarCalls(Elevator elevator) {
+        List<CarCall> pending = carCallRepository
+                .findByElevatorIdAndServedAtIsNullOrderByCreatedAtAsc(elevator.getId());
+        Instant now = Instant.now();
+        pending.forEach(cc -> {
+            cc.setServedAt(now);
+            carCallRepository.save(cc);
+        });
     }
 
     private Elevator findElevator(Long id) {
@@ -179,7 +215,10 @@ public class ElevatorService {
                     || elevator.getState() == ElevatorState.MOVING_DOWN) {
                 changed = recomputeMovement(elevator, elapsedSeconds);
             } else if (elevator.getState() == ElevatorState.DOORS_OPEN) {
-                if (elapsedSeconds >= properties.doorOpenTimeoutSeconds()) {
+                if (isOverloaded(elevator)) {
+                    elevator.setStateSince(Instant.now());
+                    elevatorRepository.save(elevator);
+                } else if (elapsedSeconds >= properties.doorOpenTimeoutSeconds()) {
                     elevator.setDoorState(DoorState.CLOSING);
                     elevator.setState(ElevatorState.DOORS_CLOSING);
                     elevator.setStateSince(Instant.now());
@@ -254,6 +293,11 @@ public class ElevatorService {
     private void serveNextPendingCall(Elevator elevator) {
         Set<Integer> pendingFloors = getPendingFloors(elevator.getId());
         if (pendingFloors.isEmpty()) return;
+
+        if (isOverloaded(elevator)) {
+            clearPendingCarCalls(elevator);
+            return;
+        }
 
         int currentFloor = elevator.getCurrentFloor();
         Direction direction = elevator.getDirection();
