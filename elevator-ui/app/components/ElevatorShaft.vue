@@ -13,10 +13,34 @@ const currentFloor = computed(() => store.status?.currentFloor ?? 1)
 
 const carBottom = computed(() => (currentFloor.value - 1) * FLOOR_HEIGHT)
 
-const doorStateClass = computed(() => {
-  const doorState = store.status?.doorState ?? 'CLOSED'
-  return doorState.toLowerCase()
-})
+const delayedDoorState = ref('closed')
+let doorTimeout: ReturnType<typeof setTimeout> | null = null
+
+watch(
+  () => store.status,
+  (newStatus, oldStatus) => {
+    if (!newStatus) return
+
+    const wasMoving = oldStatus?.state === 'MOVING_UP' || oldStatus?.state === 'MOVING_DOWN'
+    const nowNotMoving = newStatus.state !== 'MOVING_UP' && newStatus.state !== 'MOVING_DOWN'
+    const floorChanged = oldStatus != null && newStatus.currentFloor !== oldStatus.currentFloor
+    const justArrived = wasMoving && nowNotMoving && floorChanged
+
+    if (justArrived) {
+      delayedDoorState.value = 'closed'
+      if (doorTimeout) clearTimeout(doorTimeout)
+      doorTimeout = setTimeout(() => {
+        delayedDoorState.value = (store.status?.doorState ?? 'CLOSED').toLowerCase()
+        doorTimeout = null
+      }, 3000)
+    } else if (delayedDoorState.value !== 'closed' || !doorTimeout) {
+      if (doorTimeout) { clearTimeout(doorTimeout); doorTimeout = null }
+      delayedDoorState.value = (newStatus.doorState ?? 'CLOSED').toLowerCase()
+    }
+  },
+)
+
+const doorStateClass = computed(() => delayedDoorState.value)
 
 const directionArrow = computed(() => {
   switch (store.status?.direction) {
@@ -27,7 +51,7 @@ const directionArrow = computed(() => {
 })
 
 const isCarOpen = computed(() =>
-  store.status?.doorState === 'OPEN' || store.status?.doorState === 'CLOSING'
+  delayedDoorState.value === 'open' || delayedDoorState.value === 'closing'
 )
 
 const targetFloor = computed(() => store.status?.targetFloor)
