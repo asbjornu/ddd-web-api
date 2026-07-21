@@ -69,11 +69,33 @@ function select(floor: number) {
 
 <style scoped>
 .car-panel {
+  position: relative;
   border: 1px solid #ccc;
   border-radius: 8px;
   padding: 1rem;
   width: 10rem;
   box-sizing: border-box;
+  background: #fff;
+}
+.car-panel::before {
+  content: '';
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 10px solid transparent;
+  border-right-color: #ccc;
+  border-left: 0;
+}
+.car-panel::after {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 9px solid transparent;
+  border-right-color: #fff;
+  border-left: 0;
 }
 h2 {
   margin: 0 0 0.5rem;
