@@ -360,10 +360,6 @@ const isEmergency = computed(() =>
 .door.open::before {
   opacity: 0;
 }
-.door.closing {
-  transform: scaleX(0.55);
-  background: #808080;
-}
 .door.closed {
   transform: scaleX(1);
 }
