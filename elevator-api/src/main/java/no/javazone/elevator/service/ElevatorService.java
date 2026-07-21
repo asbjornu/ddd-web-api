@@ -114,6 +114,51 @@ public class ElevatorService {
         return carCallRepository.findByElevatorIdOrderByCreatedAtAsc(elevatorId);
     }
 
+    public Elevator openDoors(Long id) {
+        Elevator elevator = findElevator(id);
+        recomputeState(elevator);
+
+        if (elevator.getState() == ElevatorState.MOVING_UP
+                || elevator.getState() == ElevatorState.MOVING_DOWN) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot open doors while moving");
+        }
+        if (elevator.getState() == ElevatorState.OUT_OF_SERVICE
+                || elevator.getState() == ElevatorState.EMERGENCY_RECALL) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Elevator is not in service");
+        }
+
+        elevator.setDoorState(DoorState.OPEN);
+        elevator.setState(ElevatorState.DOORS_OPEN);
+        elevator.setStateSince(Instant.now());
+        return elevatorRepository.save(elevator);
+    }
+
+    public Elevator closeDoors(Long id) {
+        Elevator elevator = findElevator(id);
+        recomputeState(elevator);
+
+        if (elevator.getState() != ElevatorState.DOORS_OPEN) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Doors are not open");
+        }
+        if (elevator.isObstructed()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Obstruction detected");
+        }
+
+        elevator.setDoorState(DoorState.CLOSING);
+        elevator.setState(ElevatorState.DOORS_CLOSING);
+        elevator.setStateSince(Instant.now());
+        return elevatorRepository.save(elevator);
+    }
+
+    public Elevator setObstruction(Long id, boolean obstructed) {
+        Elevator elevator = findElevator(id);
+        elevator.setObstructed(obstructed);
+        if (obstructed) {
+            recomputeState(elevator);
+        }
+        return elevatorRepository.save(elevator);
+    }
+
     private Elevator findElevator(Long id) {
         return elevatorRepository
                 .findById(id)
@@ -125,30 +170,42 @@ public class ElevatorService {
     // ──────────────────────────────────────────────
 
     private void recomputeState(Elevator elevator) {
-        long elapsedSeconds = Duration.between(elevator.getStateSince(), Instant.now()).getSeconds();
+        boolean changed;
+        do {
+            changed = false;
+            long elapsedSeconds = Duration.between(elevator.getStateSince(), Instant.now()).getSeconds();
 
-        if (elevator.getState() == ElevatorState.MOVING_UP
-                || elevator.getState() == ElevatorState.MOVING_DOWN) {
-            recomputeMovement(elevator, elapsedSeconds);
-        } else if (elevator.getState() == ElevatorState.DOORS_OPEN) {
-            if (elapsedSeconds >= properties.doorOpenTimeoutSeconds()) {
-                elevator.setDoorState(DoorState.CLOSING);
-                elevator.setState(ElevatorState.DOORS_CLOSING);
-                elevator.setStateSince(Instant.now());
-                elevatorRepository.save(elevator);
+            if (elevator.getState() == ElevatorState.MOVING_UP
+                    || elevator.getState() == ElevatorState.MOVING_DOWN) {
+                changed = recomputeMovement(elevator, elapsedSeconds);
+            } else if (elevator.getState() == ElevatorState.DOORS_OPEN) {
+                if (elapsedSeconds >= properties.doorOpenTimeoutSeconds()) {
+                    elevator.setDoorState(DoorState.CLOSING);
+                    elevator.setState(ElevatorState.DOORS_CLOSING);
+                    elevator.setStateSince(Instant.now());
+                    elevatorRepository.save(elevator);
+                    changed = true;
+                }
+            } else if (elevator.getState() == ElevatorState.DOORS_CLOSING) {
+                if (elevator.isObstructed()) {
+                    elevator.setDoorState(DoorState.OPEN);
+                    elevator.setState(ElevatorState.DOORS_OPEN);
+                    elevator.setStateSince(Instant.now());
+                    elevatorRepository.save(elevator);
+                    changed = true;
+                } else if (elapsedSeconds >= DOOR_CLOSE_DURATION_SECONDS) {
+                    elevator.setDoorState(DoorState.CLOSED);
+                    elevator.setState(ElevatorState.IDLE);
+                    elevator.setStateSince(Instant.now());
+                    elevatorRepository.save(elevator);
+                    changed = true;
+                    serveNextPendingCall(elevator);
+                }
             }
-        } else if (elevator.getState() == ElevatorState.DOORS_CLOSING) {
-            if (elapsedSeconds >= DOOR_CLOSE_DURATION_SECONDS) {
-                elevator.setDoorState(DoorState.CLOSED);
-                elevator.setState(ElevatorState.IDLE);
-                elevator.setStateSince(Instant.now());
-                elevatorRepository.save(elevator);
-                serveNextPendingCall(elevator);
-            }
-        }
+        } while (changed);
     }
 
-    private void recomputeMovement(Elevator elevator, long elapsedSeconds) {
+    private boolean recomputeMovement(Elevator elevator, long elapsedSeconds) {
         int departureFloor = elevator.getDepartureFloor();
         int targetFloor = elevator.getTargetFloor();
         int sign = targetFloor > departureFloor ? 1 : -1;
@@ -157,20 +214,20 @@ public class ElevatorService {
 
         if (floorsTraveled >= distance) {
             serveFloor(elevator, targetFloor);
-            return;
+            return true;
         }
 
         int interimFloor = departureFloor + sign * (int) floorsTraveled;
 
-        // Check if we've reached or passed any pending floor in the current direction
         Integer extraStop = findPendingFloorOnPath(elevator, departureFloor,
                 interimFloor, sign);
         if (extraStop != null) {
             serveFloor(elevator, extraStop);
-            return;
+            return true;
         }
 
         elevator.setCurrentFloor(interimFloor);
+        return false;
     }
 
     // ──────────────────────────────────────────────

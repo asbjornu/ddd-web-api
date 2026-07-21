@@ -1,6 +1,19 @@
 <script setup lang="ts">
 const store = useElevatorStore()
 
+const canOpenDoors = computed(() => {
+  const state = store.status?.state
+  return state === 'IDLE' || state === 'DOORS_OPEN' || state === 'DOORS_CLOSING'
+})
+
+const canCloseDoors = computed(() => {
+  return store.status?.state === 'DOORS_OPEN' && !store.status?.obstructed
+})
+
+const obstructionWarning = computed(() => {
+  return store.status?.obstructed ? 'Doors blocked — cannot close' : ''
+})
+
 let poller: ReturnType<typeof setInterval> | undefined
 
 onMounted(() => {
@@ -23,7 +36,7 @@ onUnmounted(() => {
   <section class="status">
     <h2>Elevator status</h2>
     <p v-if="store.error" class="error">{{ store.error }}</p>
-    <dl v-else-if="store.status">
+    <dl v-if="store.status">
       <dt>Current floor</dt>
       <dd>{{ store.status.currentFloor }}</dd>
 
@@ -45,7 +58,32 @@ onUnmounted(() => {
       <dt>Pending floors</dt>
       <dd>{{ store.allPendingFloors.size }}</dd>
     </dl>
-    <p v-else>Loading...</p>
+
+    <div class="actions">
+      <button
+        :disabled="!canOpenDoors"
+        @click="store.openDoors()"
+      >
+        Open doors
+      </button>
+      <button
+        :disabled="!canCloseDoors"
+        @click="store.closeDoors()"
+      >
+        Close doors
+      </button>
+      <p v-if="obstructionWarning" class="obstruction-warning">
+        {{ obstructionWarning }}
+      </p>
+      <label class="obstruction-toggle">
+        <input
+          type="checkbox"
+          :checked="store.status?.obstructed ?? false"
+          @change="store.toggleObstruction()"
+        />
+        Obstruction
+      </label>
+    </div>
   </section>
 </template>
 
@@ -72,5 +110,32 @@ dd {
 }
 .error {
   color: #b00020;
+}
+.actions {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.actions button {
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+}
+.actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.obstruction-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.obstruction-warning {
+  color: #b00020;
+  font-size: 0.85rem;
+  font-weight: bold;
+  margin: 0;
 }
 </style>

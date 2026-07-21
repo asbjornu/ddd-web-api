@@ -63,4 +63,6 @@ public class Elevator {
      * "Timing" in docs/architecture.md.
      */
     private Instant stateSince;
+
+    private boolean obstructed;
 }

@@ -11,6 +11,7 @@ export interface ElevatorStatus {
   weightCapacityKg: number
   departureFloor: number
   targetFloor: number | null
+  obstructed: boolean
 }
 
 export interface Call {
@@ -113,6 +114,39 @@ export const useElevatorStore = defineStore('elevator', {
         this.error = 'Unable to select floor.'
       } finally {
         this.loading = false
+      }
+    },
+    async openDoors() {
+      try {
+        await $fetch(`/api/elevators/${ELEVATOR_ID}/open-doors`, { method: 'POST' })
+        await this.fetchStatus()
+        this.error = null
+      } catch {
+        this.error = 'Unable to open doors.'
+      }
+    },
+    async closeDoors() {
+      try {
+        this.error = null
+        await $fetch(`/api/elevators/${ELEVATOR_ID}/close-doors`, { method: 'POST' })
+        await this.fetchStatus()
+      } catch (e: any) {
+        const msg = e?.data?.message || e?.message || 'Unable to close doors.'
+        this.error = msg
+        await this.fetchStatus()
+      }
+    },
+    async toggleObstruction() {
+      const obstructed = !this.status?.obstructed
+      try {
+        await $fetch(`/api/elevators/${ELEVATOR_ID}/obstruction`, {
+          method: 'POST',
+          body: { obstructed }
+        })
+        await this.fetchStatus()
+        this.error = null
+      } catch {
+        this.error = 'Unable to toggle obstruction.'
       }
     }
   }
