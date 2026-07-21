@@ -104,11 +104,16 @@ in sync.)
 
 ## Process
 
+- Commit message headers must be at most 50 characters. If the header
+  needs to be cut for brevity, repeat the full header (wrapped at 72
+  characters) in the commit body.
 - After making a coherent set of changes, commit them yourself with a
   suggested commit message describing the change **and** naming the code
   smell being introduced (e.g. "Add emergency recall endpoint (God Object:
-  ElevatorService)"), then stop and pause work until further notice —
-  don't start the next change until told to continue.
+  ElevatorService)"). Immediately after each commit, run lint and test
+  commands for both projects; fix any failures and amend them into the
+  commit before considering it complete. Then stop and pause work until
+  further notice — don't start the next change until told to continue.
 - Build features vertically, one slice through both applications, in the
   order given in `docs/architecture.md` under "Incremental development",
   elevator-api first, then elevator-ui.
