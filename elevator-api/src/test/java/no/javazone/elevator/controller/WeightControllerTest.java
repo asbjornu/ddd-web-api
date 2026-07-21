@@ -25,11 +25,21 @@ class WeightControllerTest {
 
     @Test
     void setWeightBelowCapacityIsAccepted() throws Exception {
+        mockMvc.perform(post("/elevators/1/open-doors"));
+
         mockMvc.perform(post("/elevators/1/weight")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"weightKg\": 500}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentWeightKg", is(500)));
+    }
+
+    @Test
+    void setWeightWhenDoorsClosedReturnsConflict() throws Exception {
+        mockMvc.perform(post("/elevators/1/weight")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"weightKg\": 500}"))
+                .andExpect(status().isConflict());
     }
 
     @Test

@@ -170,6 +170,10 @@ public class ElevatorService {
 
     public Elevator setWeight(Long id, int weightKg) {
         Elevator elevator = findElevator(id);
+        recomputeState(elevator);
+        if (elevator.getState() != ElevatorState.DOORS_OPEN) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Doors must be open to change weight");
+        }
         elevator.setCurrentWeightKg(weightKg);
         if (isOverloaded(elevator)) {
             clearPendingCarCalls(elevator);

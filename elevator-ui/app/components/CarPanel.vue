@@ -11,6 +11,8 @@ const overloaded = computed(() =>
   (store.status?.currentWeightKg ?? 0) > (store.status?.weightCapacityKg ?? 0)
 )
 
+const doorsOpen = computed(() => store.status?.doorState === 'OPEN')
+
 function isPending(floor: number) {
   return store.allPendingFloors.has(floor)
 }
@@ -54,6 +56,7 @@ function select(floor: number) {
           :min="0"
           :max="maxWeight + 200"
           :value="store.status?.currentWeightKg ?? 0"
+          :disabled="!doorsOpen"
           @input="store.setWeight(Number(($event.target as HTMLInputElement).value))"
         />
       </label>
