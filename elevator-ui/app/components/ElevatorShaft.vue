@@ -414,6 +414,5 @@ const isEmergency = computed(() =>
   position: absolute;
   left: 0;
   right: 0;
-  transition: bottom 1.5s linear;
 }
 </style>
