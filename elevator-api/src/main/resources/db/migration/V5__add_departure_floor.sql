@@ -1,0 +1,1 @@
+ALTER TABLE elevators ADD COLUMN departure_floor INT NOT NULL DEFAULT 1;

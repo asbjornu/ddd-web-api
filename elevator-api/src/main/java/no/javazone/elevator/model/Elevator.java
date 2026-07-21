@@ -1,5 +1,6 @@
 package no.javazone.elevator.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -41,6 +42,15 @@ public class Elevator {
     private DoorState doorState;
 
     private int weightCapacityKg;
+
+    /**
+     * The floor the elevator departed from on the current dispatch (only
+     * meaningful while state is MOVING_UP/MOVING_DOWN). Stored separately
+     * from currentFloor so that interim position computation remains
+     * accurate across multiple recomputeMovement calls.
+     */
+    @JsonIgnore
+    private int departureFloor;
 
     /**
      * The floor this elevator is currently travelling towards, if any

@@ -149,8 +149,9 @@ public class ElevatorService {
     }
 
     private void recomputeMovement(Elevator elevator, long elapsedSeconds) {
-        int departureFloor = elevator.getCurrentFloor();
+        int departureFloor = elevator.getDepartureFloor();
         int targetFloor = elevator.getTargetFloor();
+        int sign = targetFloor > departureFloor ? 1 : -1;
         int distance = Math.abs(targetFloor - departureFloor);
         long floorsTraveled = elapsedSeconds / properties.travelSecondsPerFloor();
 
@@ -159,7 +160,6 @@ public class ElevatorService {
             return;
         }
 
-        int sign = targetFloor > departureFloor ? 1 : -1;
         int interimFloor = departureFloor + sign * (int) floorsTraveled;
 
         // Check if we've reached or passed any pending floor in the current direction
@@ -183,6 +183,7 @@ public class ElevatorService {
         } else {
             Direction direction = floor > elevator.getCurrentFloor()
                     ? Direction.UP : Direction.DOWN;
+            elevator.setDepartureFloor(elevator.getCurrentFloor());
             elevator.setDirection(direction);
             elevator.setDoorState(DoorState.CLOSED);
             elevator.setState(direction == Direction.UP
@@ -236,6 +237,7 @@ public class ElevatorService {
         }
 
         if (nextFloor != null) {
+            elevator.setDepartureFloor(elevator.getCurrentFloor());
             elevator.setTargetFloor(nextFloor);
             elevator.setState(nextFloor > currentFloor
                     ? ElevatorState.MOVING_UP : ElevatorState.MOVING_DOWN);
