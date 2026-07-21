@@ -34,6 +34,7 @@ export interface CarCall {
 
 export const ELEVATOR_ID = 1
 export const BUILDING_FLOORS = 9
+const TECHNICIAN_KEY = 'dev-secret-key'
 
 export const useElevatorStore = defineStore('elevator', {
   state: () => ({
@@ -41,7 +42,8 @@ export const useElevatorStore = defineStore('elevator', {
     calls: [] as Call[],
     carCalls: [] as CarCall[],
     loading: false,
-    error: null as string | null
+    error: null as string | null,
+    technicianKeyInserted: false
   }),
   getters: {
     pendingCalls: (state) => state.calls.filter((c) => c.servedAt === null),
@@ -160,6 +162,35 @@ export const useElevatorStore = defineStore('elevator', {
         this.error = null
       } catch {
         this.error = 'Unable to set weight.'
+      }
+    },
+    toggleTechnicianKey() {
+      this.technicianKeyInserted = !this.technicianKeyInserted
+    },
+    async enterMaintenance() {
+      try {
+        await $fetch(`/api/elevators/${ELEVATOR_ID}/maintenance`, {
+          method: 'POST',
+          headers: { 'X-Technician-Key': TECHNICIAN_KEY },
+          body: { maintenance: true }
+        })
+        await this.fetchStatus()
+        this.error = null
+      } catch {
+        this.error = 'Unable to enter maintenance.'
+      }
+    },
+    async exitMaintenance() {
+      try {
+        await $fetch(`/api/elevators/${ELEVATOR_ID}/maintenance`, {
+          method: 'POST',
+          headers: { 'X-Technician-Key': TECHNICIAN_KEY },
+          body: { maintenance: false }
+        })
+        await this.fetchStatus()
+        this.error = null
+      } catch {
+        this.error = 'Unable to exit maintenance.'
       }
     }
   }

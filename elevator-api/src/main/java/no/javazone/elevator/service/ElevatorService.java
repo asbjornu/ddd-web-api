@@ -185,6 +185,42 @@ public class ElevatorService {
         return elevatorRepository.save(elevator);
     }
 
+    public Elevator enterMaintenance(Long id) {
+        Elevator elevator = findElevator(id);
+        recomputeState(elevator);
+        if (elevator.getState() == ElevatorState.OUT_OF_SERVICE) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Already in maintenance");
+        }
+        if (elevator.getState() == ElevatorState.EMERGENCY_RECALL) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot enter maintenance during emergency recall");
+        }
+
+        clearPendingCalls(elevator);
+        clearPendingCarCalls(elevator);
+
+        elevator.setState(ElevatorState.OUT_OF_SERVICE);
+        elevator.setDirection(Direction.NONE);
+        elevator.setDoorState(DoorState.CLOSED);
+        elevator.setTargetFloor(null);
+        elevator.setStateSince(Instant.now());
+        return elevatorRepository.save(elevator);
+    }
+
+    public Elevator exitMaintenance(Long id) {
+        Elevator elevator = findElevator(id);
+        recomputeState(elevator);
+        if (elevator.getState() != ElevatorState.OUT_OF_SERVICE) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Not in maintenance");
+        }
+
+        elevator.setState(ElevatorState.IDLE);
+        elevator.setDirection(Direction.NONE);
+        elevator.setDoorState(DoorState.CLOSED);
+        elevator.setTargetFloor(null);
+        elevator.setStateSince(Instant.now());
+        return elevatorRepository.save(elevator);
+    }
+
     private boolean isOverloaded(Elevator elevator) {
         return elevator.getCurrentWeightKg() > elevator.getWeightCapacityKg();
     }
@@ -196,6 +232,16 @@ public class ElevatorService {
         pending.forEach(cc -> {
             cc.setServedAt(now);
             carCallRepository.save(cc);
+        });
+    }
+
+    private void clearPendingCalls(Elevator elevator) {
+        List<Call> pending = callRepository
+                .findByElevatorIdAndServedAtIsNullOrderByCreatedAtAsc(elevator.getId());
+        Instant now = Instant.now();
+        pending.forEach(c -> {
+            c.setServedAt(now);
+            callRepository.save(c);
         });
     }
 

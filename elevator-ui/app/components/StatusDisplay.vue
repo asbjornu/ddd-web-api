@@ -14,6 +14,8 @@ const obstructionWarning = computed(() => {
   return store.status?.obstructed ? 'Doors blocked — cannot close' : ''
 })
 
+const inMaintenance = computed(() => store.status?.state === 'OUT_OF_SERVICE')
+
 let poller: ReturnType<typeof setInterval> | undefined
 
 onMounted(() => {
@@ -84,6 +86,33 @@ onUnmounted(() => {
         Obstruction
       </label>
     </div>
+
+    <hr class="divider" />
+
+    <div class="tech-section">
+      <label class="tech-toggle">
+        <input
+          type="checkbox"
+          :checked="store.technicianKeyInserted"
+          @change="store.toggleTechnicianKey()"
+        />
+        Insert key
+      </label>
+      <div v-if="store.technicianKeyInserted" class="tech-actions">
+        <button
+          v-if="!inMaintenance"
+          @click="store.enterMaintenance()"
+        >
+          Enter maintenance
+        </button>
+        <button
+          v-if="inMaintenance"
+          @click="store.exitMaintenance()"
+        >
+          Exit maintenance
+        </button>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -137,5 +166,30 @@ dd {
   font-size: 0.85rem;
   font-weight: bold;
   margin: 0;
+}
+.divider {
+  border: none;
+  border-top: 1px solid #ccc;
+  margin: 1rem 0 0.5rem;
+}
+.tech-section {
+  margin-top: 0.5rem;
+}
+.tech-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.tech-actions {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.tech-actions button {
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
 }
 </style>
