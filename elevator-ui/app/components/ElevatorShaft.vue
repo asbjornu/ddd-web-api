@@ -323,8 +323,8 @@ const isEmergency = computed(() =>
   width: 50%;
   background: #b0b0b0;
   transition:
-    transform 0.5s ease,
-    background 0.5s ease;
+    transform 1s ease,
+    background 1s ease;
   z-index: 1;
 }
 .door::before {
