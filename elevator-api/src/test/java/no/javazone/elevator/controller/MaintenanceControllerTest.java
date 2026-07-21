@@ -23,13 +23,13 @@ class MaintenanceControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    private static final String KEY_HEADER = "X-Technician-Key";
-    private static final String VALID_KEY = "dev-secret-key";
+    private static final String AUTH_HEADER = "Authorization";
+    private static final String VALID_TOKEN = "Bearer dev-secret-key";
 
     @Test
     void enterMaintenanceTransitionsToOutOfService() throws Exception {
         mockMvc.perform(post("/elevators/1/maintenance")
-                        .header(KEY_HEADER, VALID_KEY)
+                        .header(AUTH_HEADER, VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"maintenance\": true}"))
                 .andExpect(status().isOk())
@@ -41,12 +41,12 @@ class MaintenanceControllerTest {
     @Test
     void exitMaintenanceReturnsToIdle() throws Exception {
         mockMvc.perform(post("/elevators/1/maintenance")
-                        .header(KEY_HEADER, VALID_KEY)
+                        .header(AUTH_HEADER, VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"maintenance\": true}"));
 
         mockMvc.perform(post("/elevators/1/maintenance")
-                        .header(KEY_HEADER, VALID_KEY)
+                        .header(AUTH_HEADER, VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"maintenance\": false}"))
                 .andExpect(status().isOk())
@@ -65,7 +65,7 @@ class MaintenanceControllerTest {
                         .content("{\"floor\": 7}"));
 
         mockMvc.perform(post("/elevators/1/maintenance")
-                        .header(KEY_HEADER, VALID_KEY)
+                        .header(AUTH_HEADER, VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"maintenance\": true}"));
 
@@ -78,17 +78,26 @@ class MaintenanceControllerTest {
     @Test
     void enterMaintenanceRejectsInvalidKey() throws Exception {
         mockMvc.perform(post("/elevators/1/maintenance")
-                        .header(KEY_HEADER, "wrong-key")
+                        .header(AUTH_HEADER, "Bearer wrong-key")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"maintenance\": true}"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void enterMaintenanceRejectsMissingKey() throws Exception {
+    void enterMaintenanceRejectsMissingAuthHeader() throws Exception {
         mockMvc.perform(post("/elevators/1/maintenance")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"maintenance\": true}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void enterMaintenanceRejectsNonBearerAuth() throws Exception {
+        mockMvc.perform(post("/elevators/1/maintenance")
+                        .header(AUTH_HEADER, "Basic dGVzdDp0ZXN0")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"maintenance\": true}"))
+                .andExpect(status().isUnauthorized());
     }
 }

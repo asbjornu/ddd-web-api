@@ -288,8 +288,9 @@ modeling demo: no login is required for the Rider persona's normal use
 (calling the elevator, selecting floors, operating doors). The Technician's
 key-switch actions (enter/exit maintenance, trigger emergency recall)
 require a hard-coded shared secret, supplied via an environment variable on
-`elevator-api` (e.g. `TECHNICIAN_KEY`) and checked against a request header
-(e.g. `X-Technician-Key`) — not a full authenticated role with its own
+`elevator-api` (e.g. `TECHNICIAN_KEY`) and checked against the standard
+`Authorization` request header as a `Bearer` token — not a full
+authenticated role with its own
 login/dashboard, since this represents physical key-switch access, not a
 user account. `elevator-ui`'s mock "insert key" toggle attaches this header
 to requests once "inserted". Document the default dev value of this secret

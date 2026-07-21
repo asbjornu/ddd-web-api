@@ -171,7 +171,7 @@ export const useElevatorStore = defineStore('elevator', {
       try {
         await $fetch(`/api/elevators/${ELEVATOR_ID}/maintenance`, {
           method: 'POST',
-          headers: { 'X-Technician-Key': TECHNICIAN_KEY },
+          headers: { Authorization: `Bearer ${TECHNICIAN_KEY}` },
           body: { maintenance: true }
         })
         await this.fetchStatus()
@@ -184,7 +184,7 @@ export const useElevatorStore = defineStore('elevator', {
       try {
         await $fetch(`/api/elevators/${ELEVATOR_ID}/maintenance`, {
           method: 'POST',
-          headers: { 'X-Technician-Key': TECHNICIAN_KEY },
+          headers: { Authorization: `Bearer ${TECHNICIAN_KEY}` },
           body: { maintenance: false }
         })
         await this.fetchStatus()
