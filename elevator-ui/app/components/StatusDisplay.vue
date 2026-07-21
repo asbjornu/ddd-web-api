@@ -92,7 +92,7 @@ onUnmounted(() => {
   border: 1px solid #ccc;
   border-radius: 8px;
   padding: 1rem;
-  width: 17rem;
+  width: 100%;
   min-height: 18rem;
   box-sizing: border-box;
 }

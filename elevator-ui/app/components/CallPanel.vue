@@ -55,7 +55,7 @@ function call(floor: number, dir: 'UP' | 'DOWN') {
   border: 1px solid #ccc;
   border-radius: 8px;
   padding: 1rem;
-  width: 14rem;
+  width: 100%;
   box-sizing: border-box;
 }
 .error {
