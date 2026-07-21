@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { BUILDING_FLOORS } from '~/stores/elevator'
+import CarPanel from '~/components/CarPanel.vue'
 
 const store = useElevatorStore()
 
@@ -160,6 +161,14 @@ const isEmergency = computed(() =>
           <div class="door right" :class="doorStateClass" />
         </div>
         <div class="car-floor-bar" />
+      </div>
+    </div>
+    <div
+      class="car-panel-track"
+      :style="{ height: `${FLOOR_HEIGHT * BUILDING_FLOORS}px` }"
+    >
+      <div class="car-panel-follower" :style="{ bottom: `${carBottom}px` }">
+        <CarPanel />
       </div>
     </div>
   </div>
@@ -379,5 +388,18 @@ const isEmergency = computed(() =>
 }
 .car.doors-open .car-body {
   background: #2a2a2a;
+}
+
+/* ── Car panel follower ── */
+.car-panel-track {
+  position: relative;
+  width: 12rem;
+  flex-shrink: 0;
+}
+.car-panel-follower {
+  position: absolute;
+  left: 0;
+  right: 0;
+  transition: bottom 1.5s linear;
 }
 </style>

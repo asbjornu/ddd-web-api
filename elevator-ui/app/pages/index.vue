@@ -2,12 +2,9 @@
   <main>
     <h1>Elevator</h1>
     <div class="layout">
-      <CallPanel />
+      <StatusDisplay />
       <ElevatorShaft />
-      <div class="side">
-        <StatusDisplay />
-        <CarPanel />
-      </div>
+      <CallPanel />
     </div>
     <p>
       <NuxtLink to="/status">Public status page</NuxtLink>
