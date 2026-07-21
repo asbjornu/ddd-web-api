@@ -17,6 +17,6 @@ elevator:
   floors: 9
   recall-floor: 1
   travel-seconds-per-floor: 2
-  door-open-timeout-seconds: 4
+  door-open-timeout-seconds: 6
   weight-capacity-kg: 800
   technician-key: dev-secret-key
