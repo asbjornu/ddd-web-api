@@ -39,6 +39,7 @@ const isOutOfService = computed(() =>
 const isEmergency = computed(() =>
   store.status?.state === 'EMERGENCY_RECALL'
 )
+
 </script>
 
 <template>
@@ -185,7 +186,7 @@ const isEmergency = computed(() =>
   right: 4px;
   display: flex;
   flex-direction: column;
-  transition: bottom 1.5s linear;
+  transition: bottom 2s linear;
   z-index: 2;
 }
 .car-roof {
@@ -250,8 +251,10 @@ const isEmergency = computed(() =>
   top: 0;
   bottom: 0;
   width: 50%;
-  background: linear-gradient(135deg, #b0b0b0 0%, #909090 50%, #b0b0b0 100%);
-  transition: transform 0.35s ease;
+  background: #b0b0b0;
+  transition:
+    transform 0.5s ease,
+    background 0.5s ease;
   z-index: 1;
 }
 .door::before {
@@ -289,7 +292,7 @@ const isEmergency = computed(() =>
 }
 .door.closing {
   transform: scaleX(0.55);
-  background: linear-gradient(135deg, #999 0%, #808080 50%, #999 100%);
+  background: #808080;
 }
 .door.closed {
   transform: scaleX(1);

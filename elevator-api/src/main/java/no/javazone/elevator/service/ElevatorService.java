@@ -184,6 +184,7 @@ public class ElevatorService {
             Direction direction = floor > elevator.getCurrentFloor()
                     ? Direction.UP : Direction.DOWN;
             elevator.setDirection(direction);
+            elevator.setDoorState(DoorState.CLOSED);
             elevator.setState(direction == Direction.UP
                     ? ElevatorState.MOVING_UP : ElevatorState.MOVING_DOWN);
             elevator.setTargetFloor(floor);
