@@ -118,5 +118,18 @@ npm install
 npm run dev
 ```
 
+## Technician key
+
+The elevator's key-switch actions (enter/exit maintenance and emergency
+recall) are not tied to a login -- they simulate physical key-switch
+access. Requests carry the shared secret as an `Authorization: Bearer`
+token; the default dev value is `dev-secret-key`.
+
+On the API side it is configured via the `elevator.technician-key`
+property, overridable with the `TECHNICIAN_KEY` environment variable. On
+the UI side the "Insert key" toggle attaches it to requests, overridable
+via `NUXT_PUBLIC_TECHNICIAN_KEY` in `elevator-ui/.env` (see
+`elevator-ui/.env.example`).
+
 [1]: docs/architecture.md
 [2]: AGENTS.md

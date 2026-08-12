@@ -34,7 +34,9 @@ export interface CarCall {
 
 export const ELEVATOR_ID = 1
 export const BUILDING_FLOORS = 9
-const TECHNICIAN_KEY = 'dev-secret-key'
+
+const config = useRuntimeConfig()
+const technicianKey = config.public.technicianKey
 
 export const useElevatorStore = defineStore('elevator', {
   state: () => ({
@@ -171,7 +173,7 @@ export const useElevatorStore = defineStore('elevator', {
       try {
         await $fetch(`/api/elevators/${ELEVATOR_ID}/maintenance`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${TECHNICIAN_KEY}` },
+          headers: { Authorization: `Bearer ${technicianKey}` },
           body: { maintenance: true }
         })
         await this.fetchStatus()
@@ -184,7 +186,7 @@ export const useElevatorStore = defineStore('elevator', {
       try {
         await $fetch(`/api/elevators/${ELEVATOR_ID}/maintenance`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${TECHNICIAN_KEY}` },
+          headers: { Authorization: `Bearer ${technicianKey}` },
           body: { maintenance: false }
         })
         await this.fetchStatus()
@@ -197,7 +199,7 @@ export const useElevatorStore = defineStore('elevator', {
       try {
         await $fetch(`/api/elevators/${ELEVATOR_ID}/emergency-recall`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${TECHNICIAN_KEY}` }
+          headers: { Authorization: `Bearer ${technicianKey}` }
         })
         await this.fetchStatus()
         this.error = null
