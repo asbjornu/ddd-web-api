@@ -70,17 +70,14 @@ structure).
 
 ## How to run things
 
-(Fill in the elevator-ui commands once real routes/pages exist beyond the
-initial scaffold — keep this section and the readme's setup instructions
-in sync.)
-
 - elevator-api: `./gradlew bootRun` (from `elevator-api/`), serves on
   `http://localhost:8080`
 - elevator-api tests: `./gradlew test` (from `elevator-api/`)
 - elevator-ui dev server: `npm run dev` (from `elevator-ui/`), serves on
   `http://localhost:3000`
-- elevator-ui unit tests: `npm run test:unit` (Vitest)
-- elevator-ui e2e tests: `npm run test:e2e` (Playwright)
+- elevator-ui unit tests: `npm run test:unit` (Vitest, from `elevator-ui/`)
+- elevator-ui e2e tests: `npm run test:e2e` (Playwright, from
+  `elevator-ui/`; requires `npx playwright install chromium` once)
 - Full stack locally: `docker compose up` (from the repo root); starts both
   `elevator-api` (`http://localhost:8080`) and `elevator-ui`
   (`http://localhost:3000`)

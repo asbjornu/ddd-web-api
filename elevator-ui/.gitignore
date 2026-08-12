@@ -5,6 +5,7 @@
 .nitro
 .cache
 dist
+.nuxtrc
 
 # Node dependencies
 node_modules
@@ -17,6 +18,12 @@ logs
 .DS_Store
 .fleet
 .idea
+
+# Test artifacts
+playwright-report
+test-results
+blob-report
+coverage
 
 # Local env files
 .env
