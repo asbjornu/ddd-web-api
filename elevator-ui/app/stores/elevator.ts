@@ -35,10 +35,6 @@ export interface CarCall {
 export const ELEVATOR_ID = 1
 export const BUILDING_FLOORS = 9
 
-function getTechnicianKey() {
-  return useRuntimeConfig().public.technicianKey
-}
-
 export const useElevatorStore = defineStore('elevator', {
   state: () => ({
     status: null as ElevatorStatus | null,
@@ -167,14 +163,41 @@ export const useElevatorStore = defineStore('elevator', {
         this.error = 'Unable to set weight.'
       }
     },
-    toggleTechnicianKey() {
-      this.technicianKeyInserted = !this.technicianKeyInserted
+    // The technician cookie is HttpOnly, so the client cannot read it and
+    // has to ask the BFF whether the key is still inserted. This mirrored
+    // boolean is a second copy of authorization state the server already
+    // holds -- see docs/architecture.md.
+    async refreshKeyState() {
+      try {
+        const res = await $fetch<{ inserted: boolean }>('/api/key')
+        this.technicianKeyInserted = res.inserted
+      } catch {
+        this.technicianKeyInserted = false
+      }
+    },
+    async insertKey(secret: string) {
+      try {
+        await $fetch('/api/key', { method: 'POST', body: { secret } })
+        this.technicianKeyInserted = true
+        this.error = null
+      } catch {
+        this.technicianKeyInserted = false
+        this.error = 'Invalid technician key.'
+      }
+    },
+    async withdrawKey() {
+      try {
+        await $fetch('/api/key', { method: 'DELETE' })
+      } catch {
+        // Withdrawing is best-effort; the local flag is cleared regardless.
+      }
+      this.technicianKeyInserted = false
+      this.error = null
     },
     async enterMaintenance() {
       try {
         await $fetch(`/api/elevators/${ELEVATOR_ID}/maintenance`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${getTechnicianKey()}` },
           body: { maintenance: true }
         })
         await this.fetchStatus()
@@ -187,7 +210,6 @@ export const useElevatorStore = defineStore('elevator', {
       try {
         await $fetch(`/api/elevators/${ELEVATOR_ID}/maintenance`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${getTechnicianKey()}` },
           body: { maintenance: false }
         })
         await this.fetchStatus()
@@ -199,8 +221,7 @@ export const useElevatorStore = defineStore('elevator', {
     async triggerEmergencyRecall() {
       try {
         await $fetch(`/api/elevators/${ELEVATOR_ID}/emergency-recall`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${getTechnicianKey()}` }
+          method: 'POST'
         })
         await this.fetchStatus()
         this.error = null

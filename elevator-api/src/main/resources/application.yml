@@ -19,4 +19,4 @@ elevator:
   travel-seconds-per-floor: 2
   door-open-timeout-seconds: 6
   weight-capacity-kg: 800
-  technician-key: dev-secret-key
+  technician-key: ${TECHNICIAN_KEY:dev-secret-key}

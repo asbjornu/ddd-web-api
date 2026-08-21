@@ -16,9 +16,17 @@ const obstructionWarning = computed(() => {
 
 const inMaintenance = computed(() => store.status?.state === 'OUT_OF_SERVICE')
 
+const keyInput = ref('')
+
+async function submitKey() {
+  await store.insertKey(keyInput.value)
+  if (store.technicianKeyInserted) keyInput.value = ''
+}
+
 let poller: ReturnType<typeof setInterval> | undefined
 
 onMounted(() => {
+  store.refreshKeyState()
   store.fetchStatus()
   store.fetchCalls()
   store.fetchCarCalls()
@@ -90,14 +98,25 @@ onUnmounted(() => {
     <hr class="divider" />
 
     <div class="tech-section">
-      <label class="tech-toggle">
+      <form
+        v-if="!store.technicianKeyInserted"
+        class="key-form"
+        @submit.prevent="submitKey"
+      >
         <input
-          type="checkbox"
-          :checked="store.technicianKeyInserted"
-          @change="store.toggleTechnicianKey()"
+          v-model="keyInput"
+          type="password"
+          class="key-input"
+          placeholder="Technician key"
+          autocomplete="off"
+          aria-label="Technician key"
         />
-        Insert key
-      </label>
+        <button type="submit">Insert key</button>
+      </form>
+      <div v-else class="key-inserted">
+        <span>Key inserted</span>
+        <button @click="store.withdrawKey()">Withdraw key</button>
+      </div>
       <div v-if="store.technicianKeyInserted" class="tech-actions">
         <button
           v-if="!inMaintenance"
@@ -181,12 +200,22 @@ dd {
 .tech-section {
   margin-top: 0.5rem;
 }
-.tech-toggle {
+.key-form {
+  display: flex;
+  gap: 0.4rem;
+}
+.key-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.85rem;
+}
+.key-inserted {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  justify-content: space-between;
+  gap: 0.5rem;
   font-size: 0.9rem;
-  cursor: pointer;
 }
 .tech-actions {
   margin-top: 0.5rem;

@@ -22,6 +22,7 @@ services:
       - "3000:3000"
     environment:
       NUXT_SERVICE_API_URL: http://elevator-api:8080
+      NUXT_TECHNICIAN_KEY: dev-secret-key
     depends_on:
       elevator-api:
         condition: service_healthy

@@ -9,11 +9,14 @@ export default defineNuxtConfig({
     // SERVICE_API_URL would only apply at build time, not in the built
     // output running in a container.
     serviceApiUrl: 'http://localhost:8080',
-    public: {
-      // Overridable via NUXT_PUBLIC_TECHNICIAN_KEY. Kept public because the
-      // key-switch secret is shared between the front-end and the service
-      // API (mock physical key access, not a user credential).
-      technicianKey: 'dev-secret-key'
-    }
+
+    // Server-only, overridable via NUXT_TECHNICIAN_KEY. This must never be
+    // moved under `public`: anything there is inlined into the client
+    // bundle and readable by anyone with devtools, which would let them
+    // call elevator-api's key-switch endpoints directly on port 8080,
+    // bypassing this BFF entirely. The browser exchanges the key for an
+    // HttpOnly cookie (see server/api/key.post.ts); only the BFF ever
+    // attaches the Bearer token to elevator-api.
+    technicianKey: 'dev-secret-key'
   }
 })

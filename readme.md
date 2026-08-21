@@ -122,14 +122,19 @@ npm run dev
 
 The elevator's key-switch actions (enter/exit maintenance and emergency
 recall) are not tied to a login -- they simulate physical key-switch
-access. Requests carry the shared secret as an `Authorization: Bearer`
-token; the default dev value is `dev-secret-key`.
+access. The default dev value of the shared secret is `dev-secret-key`.
 
 On the API side it is configured via the `elevator.technician-key`
-property, overridable with the `TECHNICIAN_KEY` environment variable. On
-the UI side the "Insert key" toggle attaches it to requests, overridable
-via `NUXT_PUBLIC_TECHNICIAN_KEY` in `elevator-ui/.env` (see
-`elevator-ui/.env.example`).
+property, overridable with the `TECHNICIAN_KEY` environment variable.
+`elevator-api` expects it as an `Authorization: Bearer` token.
+
+The secret is held **server-side only**. `elevator-ui` reads it from
+`NUXT_TECHNICIAN_KEY` (see `elevator-ui/.env.example`) into its private
+runtime config, never `runtimeConfig.public`. The browser types the key
+into the "Insert key" field once; the BFF verifies it and returns an
+`HttpOnly` cookie. Privileged BFF routes check that cookie and attach the
+Bearer token to `elevator-api` themselves, so the secret is never present
+in the client bundle and cannot be read out of the browser.
 
 [1]: docs/architecture.md
 [2]: AGENTS.md

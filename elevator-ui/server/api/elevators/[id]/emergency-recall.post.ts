@@ -1,13 +1,17 @@
 // Emergency recall: proxies POST /elevators/{id}/emergency-recall.
-// Requires Authorization: Bearer token from the client.
+//
+// Authorisation comes from the HttpOnly technician cookie, not from a
+// client-supplied Authorization header -- the browser never holds the
+// shared secret. The Bearer token is attached here, server-side.
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
   const config = useRuntimeConfig()
-  const auth = getHeader(event, 'authorization')
+
+  requireTechnicianKey(event, config.technicianKey)
 
   return await $fetch(`${config.serviceApiUrl}/elevators/${id}/emergency-recall`, {
     method: 'POST',
-    headers: auth ? { Authorization: auth } : undefined
+    headers: { Authorization: `Bearer ${config.technicianKey}` }
   })
 })
