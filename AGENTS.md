@@ -85,6 +85,48 @@ structure).
   for the remark-lint config and its documented deviations from the plugin
   defaults)
 
+## Toolchain
+
+This machine uses [Homebrew][1]. Everything needed is already installed —
+`node`, `openjdk@21`, `openjdk`, `openjdk@8` and `gnupg`. Install anything
+missing with `brew install <formula>`.
+
+| Tool    | Formula      | Needed for                                  |
+| ------- | ------------ | ------------------------------------------- |
+| Node.js | `node`       | elevator-ui dev server, Vitest, Playwright  |
+| JDK 21  | `openjdk@21` | elevator-api — the Gradle toolchain pins 21 |
+| GnuPG   | `gnupg`      | signed commits (`commit.gpgsign` is `true`) |
+
+**`PATH` first.** A non-interactive shell may start with a minimal `PATH`
+of `/usr/bin:/bin:/usr/sbin:/sbin`, which excludes Homebrew's
+`/usr/local/bin`. `node`, `npm`, `brew` and `gpg` then look uninstalled
+when they are merely unreachable. Before concluding a tool is missing:
+
+```sh
+export PATH="/usr/local/bin:$PATH"
+```
+
+Without this, `git commit` fails with `cannot run gpg: No such file or
+directory` rather than anything mentioning `PATH`.
+
+**Java 21 specifically.** `elevator-api`'s Gradle toolchain requires
+exactly Java 21, so a newer JDK on `PATH` will not do. Point `JAVA_HOME`
+at the Homebrew symlink, which survives patch upgrades:
+
+```sh
+export JAVA_HOME=/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+```
+
+Prefer `/usr/local/opt/openjdk@21/...` over a `/usr/local/Cellar/...`
+path: Cellar paths embed the exact version and break on every upgrade.
+The *global* `~/.gradle/gradle.properties` on this machine sets
+`org.gradle.java.installations.paths` to Cellar paths that no longer
+exist. Gradle only warns about those, so exporting `JAVA_HOME` is
+sufficient — that file is outside the repository, so leave it alone.
+
+Playwright's browsers are already downloaded; `npx playwright install
+chromium` is only needed on a fresh machine.
+
 ## Things not to touch / be careful with
 
 - Do not refactor away the code smells listed in `docs/architecture.md`. If
@@ -119,3 +161,5 @@ structure).
 - Keep `readme.md` up to date with setup instructions and stack overview as
   things change. Keep this file (`AGENTS.md`) up to date with the "How to
   run things" section as soon as real scripts/commands exist.
+
+[1]: https://brew.sh
