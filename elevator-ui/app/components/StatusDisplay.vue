@@ -70,18 +70,8 @@ onUnmounted(() => {
     </dl>
 
     <div class="actions">
-      <button
-        :disabled="!canOpenDoors"
-        @click="store.openDoors()"
-      >
-        Open doors
-      </button>
-      <button
-        :disabled="!canCloseDoors"
-        @click="store.closeDoors()"
-      >
-        Close doors
-      </button>
+      <button :disabled="!canOpenDoors" @click="store.openDoors()">Open doors</button>
+      <button :disabled="!canCloseDoors" @click="store.closeDoors()">Close doors</button>
       <p v-if="obstructionWarning" class="obstruction-warning">
         {{ obstructionWarning }}
       </p>
@@ -98,11 +88,7 @@ onUnmounted(() => {
     <hr class="divider" />
 
     <div class="tech-section">
-      <form
-        v-if="!store.technicianKeyInserted"
-        class="key-form"
-        @submit.prevent="submitKey"
-      >
+      <form v-if="!store.technicianKeyInserted" class="key-form" @submit.prevent="submitKey">
         <input
           v-model="keyInput"
           type="password"
@@ -118,22 +104,9 @@ onUnmounted(() => {
         <button @click="store.withdrawKey()">Withdraw key</button>
       </div>
       <div v-if="store.technicianKeyInserted" class="tech-actions">
-        <button
-          v-if="!inMaintenance"
-          @click="store.enterMaintenance()"
-        >
-          Enter maintenance
-        </button>
-        <button
-          v-if="inMaintenance"
-          @click="store.exitMaintenance()"
-        >
-          Exit maintenance
-        </button>
-        <button
-          @click="store.triggerEmergencyRecall()"
-          class="emergency-btn"
-        >
+        <button v-if="!inMaintenance" @click="store.enterMaintenance()">Enter maintenance</button>
+        <button v-if="inMaintenance" @click="store.exitMaintenance()">Exit maintenance</button>
+        <button class="emergency-btn" @click="store.triggerEmergencyRecall()">
           Emergency recall
         </button>
       </div>

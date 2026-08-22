@@ -73,7 +73,14 @@ describe('useElevatorStore getters', () => {
     const store = useElevatorStore()
     store.calls = [
       { id: 1, elevatorId: 1, floor: 3, direction: 'UP', createdAt: '', servedAt: null },
-      { id: 2, elevatorId: 1, floor: 5, direction: 'DOWN', createdAt: '', servedAt: '2024-01-01T00:00:00Z' }
+      {
+        id: 2,
+        elevatorId: 1,
+        floor: 5,
+        direction: 'DOWN',
+        createdAt: '',
+        servedAt: '2024-01-01T00:00:00Z'
+      }
     ]
 
     expect(store.pendingCalls).toHaveLength(1)
@@ -96,9 +103,7 @@ describe('useElevatorStore getters', () => {
     store.calls = [
       { id: 1, elevatorId: 1, floor: 3, direction: 'UP', createdAt: '', servedAt: null }
     ]
-    store.carCalls = [
-      { id: 2, elevatorId: 1, floor: 9, createdAt: '', servedAt: null }
-    ]
+    store.carCalls = [{ id: 2, elevatorId: 1, floor: 9, createdAt: '', servedAt: null }]
 
     expect(store.allPendingFloors).toEqual(new Set([3, 9]))
   })

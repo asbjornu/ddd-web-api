@@ -7,8 +7,8 @@ const currentFloor = computed(() => store.status?.currentFloor ?? 1)
 
 const maxWeight = computed(() => store.status?.weightCapacityKg ?? 800)
 
-const overloaded = computed(() =>
-  (store.status?.currentWeightKg ?? 0) > (store.status?.weightCapacityKg ?? 0)
+const overloaded = computed(
+  () => (store.status?.currentWeightKg ?? 0) > (store.status?.weightCapacityKg ?? 0)
 )
 
 const doorsOpen = computed(() => store.status?.doorState === 'OPEN')
@@ -40,7 +40,7 @@ function select(floor: number) {
         type="button"
         :class="{
           current: isCurrent(floor),
-          pending: isPending(floor),
+          pending: isPending(floor)
         }"
         :disabled="!canSelect(floor)"
         @click="select(floor)"
@@ -60,9 +60,7 @@ function select(floor: number) {
           @input="store.setWeight(Number(($event.target as HTMLInputElement).value))"
         />
       </label>
-      <p v-if="overloaded" class="overload-warning">
-        Overloaded — reduce weight to close doors
-      </p>
+      <p v-if="overloaded" class="overload-warning">Overloaded — reduce weight to close doors</p>
     </div>
   </section>
 </template>

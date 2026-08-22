@@ -20,7 +20,10 @@ let animTarget = -1
 function startCarAnimation(from: number, to: number) {
   animTarget = to
   const distance = Math.abs(to - from)
-  if (distance === 0) { animatedFloor.value = from; return }
+  if (distance === 0) {
+    animatedFloor.value = from
+    return
+  }
   const sign = to > from ? 1 : -1
   const startTime = performance.now()
   const duration = distance * TRAVEL_SECONDS_PER_FLOOR * 1000
@@ -52,11 +55,14 @@ watch(
         startCarAnimation(from, to)
       }
     } else if (!isMoving) {
-      if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null }
+      if (animFrameId) {
+        cancelAnimationFrame(animFrameId)
+        animFrameId = null
+      }
       animTarget = -1
       animatedFloor.value = status.currentFloor
     }
-  },
+  }
 )
 
 const carBottom = computed(() => (animatedFloor.value - 1) * FLOOR_HEIGHT)
@@ -95,55 +101,53 @@ watch(
         doorTimeout = null
       }, 3000)
     } else if (delayedDoorState.value !== 'closed' || !doorTimeout) {
-      if (doorTimeout) { clearTimeout(doorTimeout); doorTimeout = null }
+      if (doorTimeout) {
+        clearTimeout(doorTimeout)
+        doorTimeout = null
+      }
       delayedDoorState.value = (newStatus.doorState ?? 'CLOSED').toLowerCase()
     }
-  },
+  }
 )
 
 const doorStateClass = computed(() => delayedDoorState.value)
 
 const directionArrow = computed(() => {
   switch (store.status?.direction) {
-    case 'UP': return '\u25B2'
-    case 'DOWN': return '\u25BC'
-    default: return '\u25A0'
+    case 'UP':
+      return '\u25B2'
+    case 'DOWN':
+      return '\u25BC'
+    default:
+      return '\u25A0'
   }
 })
 
-const isCarOpen = computed(() =>
-  delayedDoorState.value === 'open' || delayedDoorState.value === 'closing'
+const isCarOpen = computed(
+  () => delayedDoorState.value === 'open' || delayedDoorState.value === 'closing'
 )
 
 const targetFloor = computed(() => store.status?.targetFloor)
 
-const isOutOfService = computed(() =>
-  store.status?.state === 'OUT_OF_SERVICE'
-)
+const isOutOfService = computed(() => store.status?.state === 'OUT_OF_SERVICE')
 
-const isEmergency = computed(() =>
-  store.status?.state === 'EMERGENCY_RECALL'
-)
-
+const isEmergency = computed(() => store.status?.state === 'EMERGENCY_RECALL')
 </script>
 
 <template>
   <div class="shaft-wrapper">
+    <div class="floor-labels" :style="{ height: `${FLOOR_HEIGHT * BUILDING_FLOORS}px` }">
       <div
-        class="floor-labels"
-        :style="{ height: `${FLOOR_HEIGHT * BUILDING_FLOORS}px` }"
+        v-for="floor in floors"
+        :key="floor"
+        class="floor-label"
+        :style="{ height: `${FLOOR_HEIGHT}px` }"
+        :class="{ current: floor === currentFloor }"
       >
-        <div
-          v-for="floor in floors"
-          :key="floor"
-          class="floor-label"
-          :style="{ height: `${FLOOR_HEIGHT}px` }"
-          :class="{ current: floor === currentFloor }"
-        >
-          <span class="floor-num">{{ floor }}</span>
-          <span v-if="floor === currentFloor" class="floor-dot" />
-        </div>
+        <span class="floor-num">{{ floor }}</span>
+        <span v-if="floor === currentFloor" class="floor-dot" />
       </div>
+    </div>
     <div class="shaft" :style="{ height: `${FLOOR_HEIGHT * BUILDING_FLOORS}px` }">
       <div
         v-for="floor in floors"
@@ -159,7 +163,7 @@ const isEmergency = computed(() =>
       />
       <div
         class="car"
-        :class="{ 'doors-open': isCarOpen, 'oos': isOutOfService, 'emergency': isEmergency }"
+        :class="{ 'doors-open': isCarOpen, oos: isOutOfService, emergency: isEmergency }"
         :style="{ height: `${FLOOR_HEIGHT}px`, bottom: `${carBottom}px` }"
       >
         <div class="car-roof" />
@@ -176,10 +180,7 @@ const isEmergency = computed(() =>
         <div class="car-floor-bar" />
       </div>
     </div>
-    <div
-      class="car-panel-track"
-      :style="{ height: `${FLOOR_HEIGHT * BUILDING_FLOORS}px` }"
-    >
+    <div class="car-panel-track" :style="{ height: `${FLOOR_HEIGHT * BUILDING_FLOORS}px` }">
       <div class="car-panel-follower" :style="{ bottom: `${followerBottom}px` }">
         <div ref="panelRef">
           <CarPanel />

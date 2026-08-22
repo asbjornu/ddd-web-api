@@ -48,22 +48,14 @@ export const useElevatorStore = defineStore('elevator', {
     pendingCalls: (state) => state.calls.filter((c) => c.servedAt === null),
     pendingCarCalls: (state) => state.carCalls.filter((c) => c.servedAt === null),
     floorsWithPendingCalls: (state) =>
-      new Set(
-        state.calls
-          .filter((c) => c.servedAt === null)
-          .map((c) => c.floor)
-      ),
+      new Set(state.calls.filter((c) => c.servedAt === null).map((c) => c.floor)),
     floorsWithPendingCarCalls: (state) =>
-      new Set(
-        state.carCalls
-          .filter((c) => c.servedAt === null)
-          .map((c) => c.floor)
-      ),
+      new Set(state.carCalls.filter((c) => c.servedAt === null).map((c) => c.floor)),
     allPendingFloors(): Set<number> {
       const floors = new Set(this.floorsWithPendingCalls)
       for (const f of this.floorsWithPendingCarCalls) floors.add(f)
       return floors
-    },
+    }
   },
   actions: {
     async fetchStatus() {
@@ -132,8 +124,12 @@ export const useElevatorStore = defineStore('elevator', {
         this.error = null
         await $fetch(`/api/elevators/${ELEVATOR_ID}/close-doors`, { method: 'POST' })
         await this.fetchStatus()
-      } catch (e: any) {
-        const msg = e?.data?.message || e?.message || 'Unable to close doors.'
+      } catch (e) {
+        // The API answers 409 with a domain reason ("Obstruction detected",
+        // "Overload detected"), which is the one place a server-side rule
+        // reaches the user verbatim.
+        const err = e as { data?: { message?: string }; message?: string }
+        const msg = err.data?.message || err.message || 'Unable to close doors.'
         this.error = msg
         await this.fetchStatus()
       }

@@ -9,7 +9,11 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "test:unit": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@pinia/nuxt": "^1.0.1",
@@ -19,10 +23,14 @@
     "vue-router": "^5.2.0"
   },
   "devDependencies": {
+    "@nuxt/eslint": "^1.17.0",
     "@nuxt/test-utils": "^4.1.0",
     "@playwright/test": "^1.62.1",
     "@vue/test-utils": "^2.4.11",
+    "eslint": "^10.9.0",
+    "eslint-config-prettier": "^10.1.8",
     "happy-dom": "^20.11.2",
+    "prettier": "^3.9.6",
     "vitest": "^4.1.10"
   }
 }
