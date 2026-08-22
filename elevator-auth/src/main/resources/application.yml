@@ -1,0 +1,44 @@
+spring:
+  application:
+    name: elevator-auth
+
+  security:
+    oauth2:
+      authorizationserver:
+        # Tokens carry this as their issuer, and elevator-api validates
+        # against it, so the two must agree and the name must resolve from
+        # inside the compose network.
+        issuer: ${OAUTH_ISSUER:http://localhost:9000}
+
+        client:
+          elevator-technician:
+            registration:
+              client-id: ${TECHNICIAN_CLIENT_ID:elevator-technician}
+              # The credential a technician types into the key-switch field.
+              # Using an OAuth client secret as a human-typed credential is a
+              # simplification, and a deliberate one: it replaces the shared
+              # string elevator-api used to compare by hand, without inventing
+              # a user account for something that represents physical key
+              # possession. See docs/architecture.md.
+              client-secret: "{noop}${TECHNICIAN_CLIENT_SECRET:dev-secret-key}"
+              client-authentication-methods:
+                - client_secret_basic
+              authorization-grant-types:
+                - client_credentials
+              # Two scopes, not one. In a real installation fire recall is
+              # initiated by the building's alarm system or the fire brigade's
+              # own key, while maintenance belongs to the lift service company,
+              # and a holder of the former must never be able to take the lift
+              # in or out of service. Only one client is registered today.
+              scopes:
+                - elevator:maintenance
+                - elevator:recall
+            token:
+              access-token-time-to-live: 15m
+
+server:
+  port: 9000
+
+logging:
+  level:
+    org.springframework.security: INFO
