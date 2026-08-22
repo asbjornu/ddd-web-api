@@ -292,11 +292,43 @@ require a hard-coded shared secret, supplied via an environment variable on
 `Authorization` request header as a `Bearer` token — not a full
 authenticated role with its own
 login/dashboard, since this represents physical key-switch access, not a
-user account. `elevator-ui`'s mock "insert key" toggle attaches this header
-to requests once "inserted". Document the default dev value of this secret
-in `readme.md`/`.env.example`, not committed as a real secret. The `GET
-/elevators/{id}/status` endpoint is the only one that should remain fully
-public with no key required.
+user account. `elevator-ui` holds the secret server-side only: the
+"insert key" field exchanges it for an `HttpOnly` cookie, and the BFF
+attaches the `Bearer` header on the way to `elevator-api`, so the
+browser never sees the secret. Document the default dev value in
+`readme.md`/`.env.example`, not committed as a real secret.
+
+Two properties of this arrangement are worth stating explicitly, because
+they follow from the layering rather than from anyone forgetting
+something.
+
+**The BFF is not a security boundary.** `docker-compose` publishes
+`elevator-api` on port 8080, so the service is independently reachable
+and every check in `elevator-ui`'s server routes can be bypassed by
+addressing it directly. Nothing is exposed by this today: the privileged
+endpoints verify the `Bearer` token themselves, so a direct caller
+without the secret gets a 401. But it does mean `requireTechnicianKey`
+in the BFF is a UX affordance rather than a control, and that the only
+enforcement which counts is `requireValidKey` in
+`MaintenanceController`. Any rule added to the BFF alone — a rate limit,
+an extra precondition — would be silently unenforced, and nothing in the
+code would say so. This is the same duplication the front-end suffers
+from, one layer up, with the additional twist that here the duplicate is
+the copy that does not matter.
+
+**Most of the API is unauthenticated, including endpoints with side
+effects.** Only `maintenance` and `emergency-recall` require the key.
+Landing calls, car calls, door operations and both simulated sensors are
+open, which follows from the Rider persona having no login. The sensors
+are the sharp edge: `POST /elevators/{id}/obstruction` has no
+precondition and sets a flag that persists until explicitly cleared, so
+one unauthenticated request stops the doors closing and therefore stops
+the lift, indefinitely. That is acceptable here because obstruction is a
+simulated sensor with a button in the rider UI — but it is an artefact
+of the simulation, not a design position. A real light curtain does not
+accept HTTP from arbitrary parties; in a production shape these would be
+device-authenticated inputs translated into domain events rather than
+open endpoints.
 
 ### Repository and file structure
 
