@@ -64,9 +64,11 @@ structure).
   one of the intentional smells.
 - **elevator-ui**: Nuxt 4, TypeScript, Vue 3 Composition API, `<script
   setup>`, Pinia for state, server routes under `server/api/`. ESLint +
-  Prettier config is enforced in CI — keep code passing lint even where
-  it's intentionally smelly in other ways (naming, structure); lint
-  failures are not part of the demo.
+  Prettier are configured and enforced in CI — keep code passing lint even
+  where it's intentionally smelly in other ways (naming, structure); lint
+  failures are not part of the demo. Do not add rules that would flag the
+  deliberate smells: lint is here to catch mistakes, not to improve the
+  design.
 
 ## How to run things
 
@@ -75,6 +77,10 @@ structure).
 - elevator-api tests: `./gradlew test` (from `elevator-api/`)
 - elevator-ui dev server: `npm run dev` (from `elevator-ui/`), serves on
   `http://localhost:3000`
+- elevator-ui lint: `npm run lint` (ESLint, from `elevator-ui/`);
+  `npm run lint:fix` to autofix
+- elevator-ui formatting: `npm run format:check` (Prettier, from
+  `elevator-ui/`); `npm run format` to rewrite
 - elevator-ui unit tests: `npm run test:unit` (Vitest, from `elevator-ui/`)
 - elevator-ui e2e tests: `npm run test:e2e` (Playwright, from
   `elevator-ui/`; requires `npx playwright install chromium` once)
@@ -84,6 +90,9 @@ structure).
 - Markdown lint: `npm run lint:md` (from the repo root; see `.remarkrc.mjs`
   for the remark-lint config and its documented deviations from the plugin
   defaults)
+- CI: three GitHub Actions workflows in `.github/workflows` -- one per
+  application plus one for docs, so a red build names what broke.
+  Validate changes to them with `actionlint` from the repo root
 
 ## Toolchain
 
@@ -96,6 +105,7 @@ missing with `brew install <formula>`.
 | Node.js | `node`       | elevator-ui dev server, Vitest, Playwright  |
 | JDK 21  | `openjdk@21` | elevator-api — the Gradle toolchain pins 21 |
 | GnuPG   | `gnupg`      | signed commits (`commit.gpgsign` is `true`) |
+| actionlint | `actionlint` | validating `.github/workflows`            |
 
 **`PATH` first.** A non-interactive shell may start with a minimal `PATH`
 of `/usr/bin:/bin:/usr/sbin:/sbin`, which excludes Homebrew's
