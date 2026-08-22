@@ -1,6 +1,13 @@
 spring:
   application:
     name: elevator-api
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Tokens are validated by signature against the keys this issuer
+          # publishes. elevator-api holds no secret of its own any more.
+          issuer-uri: ${OAUTH_ISSUER:http://localhost:9000}
   datasource:
     url: jdbc:h2:mem:elevator;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
@@ -25,4 +32,3 @@ elevator:
   travel-seconds-per-floor: 2
   door-open-timeout-seconds: 6
   weight-capacity-kg: 800
-  technician-key: ${TECHNICIAN_KEY:dev-secret-key}

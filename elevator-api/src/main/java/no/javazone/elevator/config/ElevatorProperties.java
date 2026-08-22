@@ -13,6 +13,5 @@ public record ElevatorProperties(
         int recallFloor,
         int travelSecondsPerFloor,
         int doorOpenTimeoutSeconds,
-        int weightCapacityKg,
-        String technicianKey) {
+        int weightCapacityKg) {
 }

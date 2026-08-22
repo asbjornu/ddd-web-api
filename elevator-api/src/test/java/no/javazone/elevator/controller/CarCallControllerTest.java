@@ -2,15 +2,19 @@ package no.javazone.elevator.controller;
 
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import no.javazone.elevator.TestJwtDecoderConfig;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
  * {@link WeightControllerTest}.
  */
 @SpringBootTest
+@Import(TestJwtDecoderConfig.class)
 @AutoConfigureMockMvc
 @Transactional
 class CarCallControllerTest {
@@ -90,7 +95,8 @@ class CarCallControllerTest {
     @Test
     void rejectsCarCallsWhileOutOfService() throws Exception {
         mockMvc.perform(post("/elevators/1/maintenance")
-                        .header("Authorization", "Bearer dev-secret-key")
+                        .with(jwt().authorities(
+                                new SimpleGrantedAuthority("SCOPE_elevator:maintenance")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"maintenance\": true}"))
                 .andExpect(status().isOk());

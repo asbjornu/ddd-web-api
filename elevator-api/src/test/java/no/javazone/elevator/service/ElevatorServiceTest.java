@@ -9,7 +9,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import no.javazone.elevator.TestJwtDecoderConfig;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.transaction.annotation.Transactional;
 
 import no.javazone.elevator.model.Call;
@@ -38,6 +40,7 @@ import no.javazone.elevator.repository.ElevatorRepository;
  * advances the machine exactly one step.
  */
 @SpringBootTest
+@Import(TestJwtDecoderConfig.class)
 @Transactional
 class ElevatorServiceTest {
 

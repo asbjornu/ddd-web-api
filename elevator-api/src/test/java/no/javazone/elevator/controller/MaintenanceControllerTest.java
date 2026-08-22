@@ -3,19 +3,25 @@ package no.javazone.elevator.controller;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import no.javazone.elevator.TestJwtDecoderConfig;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
+@Import(TestJwtDecoderConfig.class)
 @AutoConfigureMockMvc
 @Transactional
 class MaintenanceControllerTest {
@@ -23,13 +29,11 @@ class MaintenanceControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    private static final String AUTH_HEADER = "Authorization";
-    private static final String VALID_TOKEN = "Bearer dev-secret-key";
 
     @Test
     void enterMaintenanceTransitionsToOutOfService() throws Exception {
         mockMvc.perform(post("/elevators/1/maintenance")
-                        .header(AUTH_HEADER, VALID_TOKEN)
+                        .with(maintenanceToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"maintenance\": true}"))
                 .andExpect(status().isOk())
@@ -41,12 +45,12 @@ class MaintenanceControllerTest {
     @Test
     void exitMaintenanceReturnsToIdle() throws Exception {
         mockMvc.perform(post("/elevators/1/maintenance")
-                        .header(AUTH_HEADER, VALID_TOKEN)
+                        .with(maintenanceToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"maintenance\": true}"));
 
         mockMvc.perform(post("/elevators/1/maintenance")
-                        .header(AUTH_HEADER, VALID_TOKEN)
+                        .with(maintenanceToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"maintenance\": false}"))
                 .andExpect(status().isOk())
@@ -65,7 +69,7 @@ class MaintenanceControllerTest {
                         .content("{\"floor\": 7}"));
 
         mockMvc.perform(post("/elevators/1/maintenance")
-                        .header(AUTH_HEADER, VALID_TOKEN)
+                        .with(maintenanceToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"maintenance\": true}"));
 
@@ -76,26 +80,26 @@ class MaintenanceControllerTest {
     }
 
     @Test
-    void enterMaintenanceRejectsInvalidKey() throws Exception {
+    void enterMaintenanceRejectsATokenWithoutTheScope() throws Exception {
         mockMvc.perform(post("/elevators/1/maintenance")
-                        .header(AUTH_HEADER, "Bearer wrong-key")
+                        .with(recallToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"maintenance\": true}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void enterMaintenanceRejectsAnAnonymousRequest() throws Exception {
+        mockMvc.perform(post("/elevators/1/maintenance")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"maintenance\": true}"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void enterMaintenanceRejectsMissingAuthHeader() throws Exception {
+    void enterMaintenanceRejectsNonBearerAuthorization() throws Exception {
         mockMvc.perform(post("/elevators/1/maintenance")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"maintenance\": true}"))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void enterMaintenanceRejectsNonBearerAuth() throws Exception {
-        mockMvc.perform(post("/elevators/1/maintenance")
-                        .header(AUTH_HEADER, "Basic dGVzdDp0ZXN0")
+                        .header("Authorization", "Basic dGVzdDp0ZXN0")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"maintenance\": true}"))
                 .andExpect(status().isUnauthorized());
@@ -110,7 +114,7 @@ class MaintenanceControllerTest {
         Thread.sleep(5000);
 
         mockMvc.perform(post("/elevators/1/emergency-recall")
-                        .header(AUTH_HEADER, VALID_TOKEN))
+                        .with(recallToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.state", is("EMERGENCY_RECALL")))
                 .andExpect(jsonPath("$.direction", is("DOWN")))
@@ -121,11 +125,11 @@ class MaintenanceControllerTest {
     void emergencyRecallAtRecallFloorGoesDirectlyToOutOfService() throws Exception {
         // Move elevator to floor 1 (the recall floor)
         mockMvc.perform(post("/elevators/1/emergency-recall")
-                        .header(AUTH_HEADER, VALID_TOKEN));
+                        .with(recallToken()));
 
         // Already at recall floor — should go straight to OUT_OF_SERVICE
         mockMvc.perform(post("/elevators/1/emergency-recall")
-                        .header(AUTH_HEADER, VALID_TOKEN))
+                        .with(recallToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.state", is("OUT_OF_SERVICE")))
                 .andExpect(jsonPath("$.doorState", is("CLOSED")));
@@ -140,7 +144,7 @@ class MaintenanceControllerTest {
         Thread.sleep(2500);
 
         mockMvc.perform(post("/elevators/1/emergency-recall")
-                        .header(AUTH_HEADER, VALID_TOKEN))
+                        .with(recallToken()))
                 .andExpect(jsonPath("$.state", is("EMERGENCY_RECALL")))
                 .andExpect(jsonPath("$.direction", is("DOWN")))
                 .andExpect(jsonPath("$.targetFloor", is(1)));
@@ -154,9 +158,23 @@ class MaintenanceControllerTest {
     }
 
     @Test
-    void emergencyRecallRejectsInvalidKey() throws Exception {
+    void emergencyRecallRejectsATokenWithoutTheScope() throws Exception {
         mockMvc.perform(post("/elevators/1/emergency-recall")
-                        .header(AUTH_HEADER, "Bearer wrong-key"))
-                .andExpect(status().isUnauthorized());
+                        .with(maintenanceToken()))
+                .andExpect(status().isForbidden());
+    }
+
+    /**
+     * A token carrying only {@code elevator:maintenance}. The scopes are not
+     * interchangeable: this one cannot trigger a recall, which is the
+     * separation a single shared secret was incapable of expressing.
+     */
+    private static JwtRequestPostProcessor maintenanceToken() {
+        return jwt().authorities(new SimpleGrantedAuthority("SCOPE_elevator:maintenance"));
+    }
+
+    /** A token carrying only {@code elevator:recall}. */
+    private static JwtRequestPostProcessor recallToken() {
+        return jwt().authorities(new SimpleGrantedAuthority("SCOPE_elevator:recall"));
     }
 }
