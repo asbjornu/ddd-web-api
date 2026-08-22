@@ -1,0 +1,53 @@
+# One workflow per application, so a red build names the application that
+# broke it -- see docs/architecture.md, "Devops".
+name: elevator-api
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+defaults:
+  run:
+    working-directory: elevator-api
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          # The Gradle toolchain pins 21 exactly; a newer JDK will not do.
+          java-version: '21'
+          distribution: temurin
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - run: ./gradlew test
+
+      - name: Publish test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: elevator-api-test-results
+          path: elevator-api/build/reports/tests/test
+
+  image:
+    name: Build image
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build container image
+        uses: docker/build-push-action@v6
+        with:
+          context: elevator-api
+          push: false
+          tags: elevator-api:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

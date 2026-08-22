@@ -1,0 +1,64 @@
+# One workflow per application, so a red build names the application that
+# broke it -- see docs/architecture.md, "Devops".
+name: elevator-ui
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+defaults:
+  run:
+    working-directory: elevator-ui
+
+jobs:
+  check:
+    name: Lint and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: elevator-ui/package-lock.json
+
+      - run: npm ci
+
+      # Nuxt generates .nuxt/eslint.config.mjs, which the flat config layers
+      # on top of. Without it, lint cannot resolve its own base config.
+      - run: npm run postinstall
+
+      - run: npm run lint
+
+      - run: npm run format:check
+
+      - run: npm run test:unit
+
+      - run: npx playwright install --with-deps chromium
+
+      - run: npm run test:e2e
+
+      - name: Publish Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: elevator-ui-playwright-report
+          path: elevator-ui/playwright-report
+
+  image:
+    name: Build image
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build container image
+        uses: docker/build-push-action@v6
+        with:
+          context: elevator-ui
+          push: false
+          tags: elevator-ui:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

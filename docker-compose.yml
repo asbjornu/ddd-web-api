@@ -4,7 +4,15 @@ services:
     build:
       context: ./elevator-api
     ports:
-      - "8080:8080"
+      # Bound to loopback rather than 0.0.0.0. Eight of this API's ten
+      # endpoints are unauthenticated and several have side effects --
+      # POST /elevators/{id}/obstruction needs no credential and sets a flag
+      # that persists until cleared, which stops the lift until someone
+      # clears it. Publishing on all interfaces puts that on whatever
+      # network the host is attached to, which for a conference demo is a
+      # live hazard rather than a theoretical one. See "Authentication and
+      # authorization" in docs/architecture.md.
+      - "127.0.0.1:8080:8080"
     environment:
       TECHNICIAN_KEY: dev-secret-key
     healthcheck:
@@ -19,7 +27,7 @@ services:
     build:
       context: ./elevator-ui
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       NUXT_SERVICE_API_URL: http://elevator-api:8080
       NUXT_TECHNICIAN_KEY: dev-secret-key
