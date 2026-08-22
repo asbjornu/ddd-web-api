@@ -10,13 +10,14 @@ export default defineNuxtConfig({
     // output running in a container.
     serviceApiUrl: 'http://localhost:8080',
 
-    // Server-only, overridable via NUXT_TECHNICIAN_KEY. This must never be
-    // moved under `public`: anything there is inlined into the client
-    // bundle and readable by anyone with devtools, which would let them
-    // call elevator-api's key-switch endpoints directly on port 8080,
-    // bypassing this BFF entirely. The browser exchanges the key for an
-    // HttpOnly cookie (see server/api/key.post.ts); only the BFF ever
-    // attaches the Bearer token to elevator-api.
-    technicianKey: 'dev-secret-key'
+    // Where elevator-auth lives, and which client this BFF presents itself
+    // as. Overridable via NUXT_OAUTH_ISSUER and NUXT_OAUTH_CLIENT_ID.
+    //
+    // Note that the issuer is configuration rather than something this
+    // application discovers, which is the CRUD-shaped part of an otherwise
+    // standards-based arrangement: a client told where to look cannot be
+    // moved without being reconfigured.
+    oauthIssuer: 'http://localhost:9000',
+    oauthClientId: 'elevator-technician'
   }
 })

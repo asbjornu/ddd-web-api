@@ -1,58 +1,91 @@
-// Technician key-switch session, held in an HttpOnly cookie.
+// Technician key-switch session.
 //
-// The shared secret itself stays server-side (runtimeConfig.technicianKey,
-// not runtimeConfig.public). The browser proves it knows the secret once,
-// via POST /api/key, and gets back an opaque cookie. Privileged BFF routes
-// check that cookie and attach the real Bearer token to elevator-api
-// themselves -- the standard BFF token-handler split: cookie between
-// browser and BFF, bearer token between BFF and service.
+// The BFF holds no credential of its own. The technician types the
+// key-switch secret, this module exchanges it at elevator-auth's token
+// endpoint for a scoped access token, and the token itself goes into an
+// HttpOnly cookie. Privileged routes read it back out and forward it to
+// elevator-api as a Bearer token.
 //
-// The cookie value is an HMAC of a fixed label under the secret, so it
-// cannot be forged without knowing the secret, and it carries no useful
-// information if leaked. It is deliberately not a real session store --
-// this represents physical key-switch access, not a user account.
+// The cookie is therefore self-contained: there is no session store, and
+// nothing to invalidate when the key is withdrawn beyond clearing it. That
+// trade is deliberate -- a token stays valid until it expires, which is why
+// the lifetime is short -- and it keeps the cookie on the right side of the
+// line RFC-conscious reviewers draw between a session key and a credential.
+//
+// Note what is hard-coded here and should not be: the token endpoint's
+// location. A client that discovered it from the resource server's own
+// challenge would not need this constant at all. That is the point of the
+// refactoring, not an oversight in it.
 
-import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { H3Event } from 'h3'
 
-export const TECHNICIAN_COOKIE = 'technician_key'
+export const TECHNICIAN_COOKIE = 'technician_token'
 
-const COOKIE_LABEL = 'technician-key-inserted'
+// Scoped to the BFF's own routes. Every route that issues or reads this
+// cookie lives under /api, so it is never attached to anything else.
+const COOKIE_PATH = '/api'
 
-function sign(secret: string): string {
-  return createHmac('sha256', secret).update(COOKIE_LABEL).digest('hex')
+interface TokenResponse {
+  access_token: string
+  token_type: string
+  expires_in: number
+  scope: string
 }
 
-export function issueTechnicianCookie(event: H3Event, secret: string): void {
-  setCookie(event, TECHNICIAN_COOKIE, sign(secret), {
+/**
+ * Exchanges the typed key-switch secret for a scoped access token.
+ * Returns the token, or null if the credential was refused.
+ */
+export async function exchangeKeyForToken(secret: string): Promise<TokenResponse | null> {
+  const config = useRuntimeConfig()
+  const credentials = Buffer.from(`${config.oauthClientId}:${secret}`).toString('base64')
+
+  try {
+    return await $fetch<TokenResponse>(`${config.oauthIssuer}/oauth2/token`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${credentials}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        scope: 'elevator:maintenance elevator:recall'
+      }).toString()
+    })
+  } catch {
+    // A refused credential and an unreachable authorization server are
+    // indistinguishable from here, and both mean the same thing to the
+    // technician: the key did not turn.
+    return null
+  }
+}
+
+export function storeToken(event: H3Event, token: TokenResponse): void {
+  setCookie(event, TECHNICIAN_COOKIE, token.access_token, {
     httpOnly: true,
     sameSite: 'strict',
-    path: '/',
+    path: COOKIE_PATH,
     secure: process.env.NODE_ENV === 'production',
-    maxAge: 60 * 60 * 8
+    // Expire the cookie with the token, so the two cannot disagree.
+    maxAge: token.expires_in
   })
 }
 
-export function clearTechnicianCookie(event: H3Event): void {
-  deleteCookie(event, TECHNICIAN_COOKIE, { path: '/' })
+export function clearToken(event: H3Event): void {
+  deleteCookie(event, TECHNICIAN_COOKIE, { path: COOKIE_PATH })
 }
 
-export function hasTechnicianKey(event: H3Event, secret: string): boolean {
-  const presented = getCookie(event, TECHNICIAN_COOKIE)
-  if (!presented) return false
-
-  const expected = sign(secret)
-  const a = Buffer.from(presented, 'utf8')
-  const b = Buffer.from(expected, 'utf8')
-
-  return a.length === b.length && timingSafeEqual(a, b)
+export function readToken(event: H3Event): string | undefined {
+  return getCookie(event, TECHNICIAN_COOKIE)
 }
 
-export function requireTechnicianKey(event: H3Event, secret: string): void {
-  if (!hasTechnicianKey(event, secret)) {
+export function requireToken(event: H3Event): string {
+  const token = readToken(event)
+  if (!token) {
     throw createError({
       statusCode: 401,
       statusMessage: 'Technician key not inserted'
     })
   }
+  return token
 }
