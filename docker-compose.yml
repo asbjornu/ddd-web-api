@@ -1,4 +1,30 @@
 services:
+  elevator-auth:
+    container_name: elevator-auth
+    build:
+      context: ./elevator-auth
+    # Bound to loopback, like the others: the proxy in slice 0 will make
+    # these unnecessary, but until then nothing here belongs on the network.
+    ports:
+      - "127.0.0.1:9000:9000"
+    environment:
+      # Tokens carry this as their issuer and elevator-api validates against
+      # it, so both must use the name that resolves inside this network.
+      OAUTH_ISSUER: http://elevator-auth:9000
+      TECHNICIAN_CLIENT_ID: elevator-technician
+      # What a technician types into the key-switch field.
+      TECHNICIAN_CLIENT_SECRET: dev-secret-key
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -f
+        - http://localhost:9000/.well-known/oauth-authorization-server
+      interval: 3s
+      timeout: 2s
+      retries: 10
+      start_period: 20s
+
   elevator-api:
     container_name: elevator-api
     build:
@@ -14,7 +40,10 @@ services:
       # authorization" in docs/architecture.md.
       - "127.0.0.1:8080:8080"
     environment:
-      TECHNICIAN_KEY: dev-secret-key
+      OAUTH_ISSUER: http://elevator-auth:9000
+    depends_on:
+      elevator-auth:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 3s
@@ -30,9 +59,12 @@ services:
       - "127.0.0.1:3000:3000"
     environment:
       NUXT_SERVICE_API_URL: http://elevator-api:8080
-      NUXT_TECHNICIAN_KEY: dev-secret-key
+      NUXT_OAUTH_ISSUER: http://elevator-auth:9000
+      NUXT_OAUTH_CLIENT_ID: elevator-technician
     depends_on:
       elevator-api:
+        condition: service_healthy
+      elevator-auth:
         condition: service_healthy
     volumes:
       - ./elevator-ui:/app

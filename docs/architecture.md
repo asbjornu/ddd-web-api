@@ -53,11 +53,13 @@ Make sure to include the following code smells:
 
 ## Architecture
 
-The application consists of two applications: `elevator-api` (the
-Java/Spring Boot domain service) and `elevator-ui` (a single Nuxt.js
+The application consists of three applications: `elevator-api` (the
+Java/Spring Boot domain service), `elevator-ui` (a single Nuxt.js
 application that serves both the front-end and the backend-for-frontend
 layer -- see "elevator-ui (front-end + BFF)" below for why these two
-traditionally separate layers live in one app here).
+traditionally separate layers live in one app here), and `elevator-auth`
+(a Spring Authorization Server that issues the technician's scoped
+tokens and nothing else).
 
 ### Domain
 
@@ -283,20 +285,57 @@ smell, not an oversight.
 
 ### Authentication and authorization
 
-Keep this deliberately minimal so it doesn't distract from the domain
-modeling demo: no login is required for the Rider persona's normal use
-(calling the elevator, selecting floors, operating doors). The Technician's
-key-switch actions (enter/exit maintenance, trigger emergency recall)
-require a hard-coded shared secret, supplied via an environment variable on
-`elevator-api` (e.g. `TECHNICIAN_KEY`) and checked against the standard
-`Authorization` request header as a `Bearer` token — not a full
-authenticated role with its own
-login/dashboard, since this represents physical key-switch access, not a
-user account. `elevator-ui` holds the secret server-side only: the
-"insert key" field exchanges it for an `HttpOnly` cookie, and the BFF
-attaches the `Bearer` header on the way to `elevator-api`, so the
-browser never sees the secret. Document the default dev value in
-`readme.md`/`.env.example`, not committed as a real secret.
+No login is required for the Rider persona's normal use: calling the
+elevator, selecting floors and operating the doors. A rider has no
+account, and a lift has no login.
+
+The Technician's key-switch actions -- enter/exit maintenance and
+trigger emergency recall -- require an OAuth 2.0 access token carrying
+the right scope. `elevator-auth` is a Spring Authorization Server that
+issues those tokens; `elevator-api` is a resource server that validates
+them by signature against the keys that issuer publishes. Neither the
+API nor the BFF holds a credential of its own.
+
+There are two scopes, and they are not interchangeable:
+
+- `elevator:maintenance` permits entering and leaving maintenance.
+- `elevator:recall` permits triggering an emergency recall.
+
+The split is domain-driven rather than administrative. In a real
+installation fire recall is initiated by the building's alarm system or
+by the fire brigade's own key, while the maintenance key belongs to the
+lift service company, and a holder of the former must never be able to
+strand the lift out of service. Only one client is registered today; a
+fire alarm panel holding `elevator:recall` alone is the intended second
+holder and is not built.
+
+A technician types the key-switch credential into the car panel, and
+`elevator-ui`'s BFF exchanges it at the token endpoint for a scoped
+token, which it keeps in an `HttpOnly` cookie and forwards to
+`elevator-api` as a `Bearer` token. The credential never reaches browser
+JavaScript, and the browser never sees the token either.
+
+This deliberately reverses an earlier decision. Authentication used to be
+a hard-coded shared secret compared with `equals()` inside
+`MaintenanceController`, on the grounds that anything more would distract
+from the domain modelling. It distracted anyway, in a worse way: a
+single string could not express that recall and maintenance are separate
+capabilities, and "who may do what" was not representable at all.
+Standard, boring OAuth turns out to cost less attention than the bespoke
+alternative, and it makes the authorisation rule something the system can
+state rather than something the reader has to infer.
+
+Two simplifications are worth naming, because both are deliberate and
+neither is defensible in production:
+
+- The technician's typed credential *is* the OAuth client secret. Client
+  secrets are not meant to be typed by humans. It replaces the previous
+  shared string without inventing a user account for something that
+  represents physical key possession, and the plan replaces it properly.
+- The BFF is told where the authorization server lives. A client that
+  discovered the issuer from the resource server's own
+  `WWW-Authenticate` challenge would need no such configuration, which
+  is the subject of the refactoring rather than an oversight in it.
 
 Two properties of this arrangement are worth stating explicitly, because
 they follow from the layering rather than from anyone forgetting
@@ -305,26 +344,22 @@ something.
 **The BFF is not a security boundary.** `docker-compose` publishes
 `elevator-api` on port 8080, so the service is independently reachable
 and every check in `elevator-ui`'s server routes can be bypassed by
-addressing it directly. Nothing is exposed by this today: the privileged
-endpoints verify the `Bearer` token themselves, so a direct caller
-without the secret gets a 401. But it does mean `requireTechnicianKey`
-in the BFF is a UX affordance rather than a control, and that the only
-enforcement which counts is `requireValidKey` in
-`MaintenanceController`. Any rule added to the BFF alone — a rate limit,
-an extra precondition — would be silently unenforced, and nothing in the
-code would say so. This is the same duplication the front-end suffers
-from, one layer up, with the additional twist that here the duplicate is
-the copy that does not matter.
+addressing it directly. Nothing is exposed by this: the privileged
+endpoints require a scoped token that the BFF cannot mint and a direct
+caller does not have. But it does mean the BFF's own check is a UX
+affordance rather than a control, and that the enforcement which counts
+is the scope requirement declared in `SecurityConfig`. Any rule added to
+the BFF alone would be silently unenforced.
 
 **Most of the API is unauthenticated, including endpoints with side
-effects.** Only `maintenance` and `emergency-recall` require the key.
+effects.** Only `maintenance` and `emergency-recall` require a scope.
 Landing calls, car calls, door operations and both simulated sensors are
 open, which follows from the Rider persona having no login. The sensors
 are the sharp edge: `POST /elevators/{id}/obstruction` has no
 precondition and sets a flag that persists until explicitly cleared, so
 one unauthenticated request stops the doors closing and therefore stops
 the lift, indefinitely. That is acceptable here because obstruction is a
-simulated sensor with a button in the rider UI — but it is an artefact
+simulated sensor with a button in the rider UI -- but it is an artefact
 of the simulation, not a design position. A real light curtain does not
 accept HTTP from arbitrary parties; in a production shape these would be
 device-authenticated inputs translated into domain events rather than
@@ -333,7 +368,7 @@ open endpoints.
 ### Repository and file structure
 
 Use a monorepo for the application, with separate directories for
-`elevator-api` and `elevator-ui`.
+`elevator-api`, `elevator-ui`, and `elevator-auth`.
 
 The file structure should be based around types (models, controllers,
 services, repositories) rather than features (e.g. "users", "orders",
@@ -355,15 +390,16 @@ not-yet-written refactoring phase).
 ## Devops
 
 The application should be containerized using Docker Compose, with separate
-containers for `elevator-api`, `elevator-ui`, and (if not embedded) the
-database. The application does not need to be deployed to a real cloud
-provider for this talk — running locally via Docker Compose is sufficient,
-but the CI/CD pipeline should still build and test both applications, and
-produce container images as build artifacts.
+containers for `elevator-api`, `elevator-ui`, `elevator-auth`, and (if not
+embedded) the database. The application does not need to be deployed to a
+real cloud provider for this talk — running locally via Docker Compose is
+sufficient, but the CI/CD pipeline should still build and test all three
+applications, and produce container images as build artifacts.
 
 GitHub Actions should be used to run tests and enforce linting rules on
 each commit, with one workflow/job per application (`elevator-api`,
-`elevator-ui`) so that failures are attributable to a specific application.
+`elevator-ui`, `elevator-auth`) so that failures are attributable to a
+specific application.
 
 ## Incremental development
 
@@ -391,10 +427,13 @@ building, even though the API is shaped to address elevators by id:
    over-capacity refuses to move, holds doors, clears the offending car
    call.
 6. Key-switch: enter/exit maintenance (`outOfService`), clearing pending
-   calls, gated by the shared technician secret.
+   calls, gated by a scoped OAuth 2.0 access token (`elevator:maintenance`)
+   issued by `elevator-auth`.
 7. Key-switch: trigger emergency recall, pre-empting any state and
    travelling to the recall floor, settling into `outOfService` on arrival;
-   "exit maintenance" resumes normal operation.
+   "exit maintenance" resumes normal operation. Gated by a separate scope
+   (`elevator:recall`), since the two capabilities must not be
+   interchangeable.
 
 Each slice above is a natural place to introduce one or two of the code
 smells (e.g. slice 3's request-queue scheduling is the natural home for the
@@ -419,9 +458,9 @@ instructions, stack overview, and how to run locally.
 ## Definition of done
 
 The application can be considered done when all features are implemented in
-both `elevator-api` and `elevator-ui`, it includes the code smells listed
-above, and it is structured in a way that makes it easy to identify them.
-All parts of the application should be runnable and should include
-instructions for how to run.
+`elevator-api`, `elevator-ui`, and `elevator-auth`, it includes the code
+smells listed above, and it is structured in a way that makes it easy to
+identify them. All parts of the application should be runnable and should
+include instructions for how to run.
 
 [1]: https://github.com/asbjornu/whats-in-a-model

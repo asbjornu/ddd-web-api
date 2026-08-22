@@ -27,6 +27,8 @@ for it.
 
 ```
 /elevator-api      Java 21 + Spring Boot 4 (Gradle, Kotlin DSL)
+/elevator-auth     Spring Authorization Server; issues the technician's
+                   scoped tokens and nothing else
 /elevator-ui       Nuxt.js 4 (front-end pages + Nitro BFF routes), TypeScript
 /docs              architecture.md and other design docs
 ```
@@ -75,6 +77,8 @@ structure).
 - elevator-api: `./gradlew bootRun` (from `elevator-api/`), serves on
   `http://localhost:8080`
 - elevator-api tests: `./gradlew test` (from `elevator-api/`)
+- elevator-auth: `./gradlew bootRun` (from `elevator-auth/`), serves on
+  `http://localhost:9000`; `./gradlew test` for its tests
 - elevator-ui dev server: `npm run dev` (from `elevator-ui/`), serves on
   `http://localhost:3000`
 - elevator-ui lint: `npm run lint` (ESLint, from `elevator-ui/`);
@@ -90,7 +94,7 @@ structure).
 - Markdown lint: `npm run lint:md` (from the repo root; see `.remarkrc.mjs`
   for the remark-lint config and its documented deviations from the plugin
   defaults)
-- CI: three GitHub Actions workflows in `.github/workflows` -- one per
+- CI: four GitHub Actions workflows in `.github/workflows` -- one per
   application plus one for docs, so a red build names what broke.
   Validate changes to them with `actionlint` from the repo root
 

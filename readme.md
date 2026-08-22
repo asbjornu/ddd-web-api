@@ -120,21 +120,21 @@ npm run dev
 
 ## Technician key
 
-The elevator's key-switch actions (enter/exit maintenance and emergency
-recall) are not tied to a login -- they simulate physical key-switch
-access. The default dev value of the shared secret is `dev-secret-key`.
+The elevator's key-switch actions -- enter/exit maintenance and emergency
+recall -- are not tied to a login. They simulate physical key-switch
+access, and are authorised with OAuth 2.0 access tokens carrying one of
+two scopes: `elevator:maintenance` or `elevator:recall`.
 
-On the API side it is configured via the `elevator.technician-key`
-property, overridable with the `TECHNICIAN_KEY` environment variable.
-`elevator-api` expects it as an `Authorization: Bearer` token.
+`elevator-auth` issues the tokens, `elevator-api` validates them by
+signature against that issuer, and `elevator-ui`'s BFF exchanges what the
+technician types for a token which it keeps in an `HttpOnly` cookie. The
+credential never reaches browser JavaScript, and neither does the token.
 
-The secret is held **server-side only**. `elevator-ui` reads it from
-`NUXT_TECHNICIAN_KEY` (see `elevator-ui/.env.example`) into its private
-runtime config, never `runtimeConfig.public`. The browser types the key
-into the "Insert key" field once; the BFF verifies it and returns an
-`HttpOnly` cookie. Privileged BFF routes check that cookie and attach the
-Bearer token to `elevator-api` themselves, so the secret is never present
-in the client bundle and cannot be read out of the browser.
+The dev credential is `dev-secret-key`, configured on `elevator-auth` via
+`TECHNICIAN_CLIENT_SECRET`. It is the OAuth client secret for the
+registered `elevator-technician` client -- a simplification, since client
+secrets are not meant to be typed by humans, and one that
+[`docs/architecture.md`][1] records as deliberate.
 
 [1]: docs/architecture.md
 [2]: AGENTS.md
