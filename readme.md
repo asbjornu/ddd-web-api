@@ -102,8 +102,13 @@ repository root:
 docker compose up
 ```
 
-This starts `elevator-api` (on `http://localhost:8080`) and `elevator-ui`
-(on `http://localhost:3000`).
+This starts `elevator-api`, `elevator-ui` and `elevator-auth` behind a
+shared Caddy reverse proxy on `http://localhost:8000` -- the individual
+services no longer publish their own ports (see
+[`docs/architecture.md`][1]'s "Roadmap" -- slice 0). Visit
+`http://localhost:8000` for the rider console; `elevator-api`'s own
+endpoints are reachable at the same origin under `/elevators` and
+`/rels`.
 
 To run the applications directly, without Docker:
 
@@ -117,6 +122,13 @@ cd elevator-ui
 npm install
 npm run dev
 ```
+
+Note that `elevator-ui`'s status display connects to `elevator-api`'s
+`GET /elevators/{id}/events` (Server-Sent Events) via a relative URL,
+which only resolves correctly behind the shared Caddy origin above --
+running `npm run dev` standalone, without Docker Compose in front of it,
+will show "Unable to reach the elevator" until it is proxied the same
+way.
 
 ## Technician key
 

@@ -59,11 +59,6 @@ registerEndpoint('/api/elevators/1/maintenance', {
   }
 })
 
-registerEndpoint('/api/elevators/1/status', {
-  method: 'GET',
-  handler: () => ({ id: 1, currentFloor: 1, state: 'IDLE' })
-})
-
 describe('useElevatorStore getters', () => {
   beforeEach(() => {
     setActivePinia(createPinia())

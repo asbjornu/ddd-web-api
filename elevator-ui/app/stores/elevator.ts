@@ -2,17 +2,21 @@
 // (id 1) in a 9-floor building for v1 -- see docs/architecture.md's
 // "Building and elevators" section.
 
-export interface ElevatorStatus {
-  id: number
+// The read side's own shape, from GET /elevators/{id}/events on
+// elevator-api directly -- not the BFF, and not the same fields as the
+// old CRUD status endpoint this replaces (state and direction are now
+// lower camelCase, "doorState" is "doorPosition", and there is no
+// "targetFloor": nothing can move yet, since no command has landed on
+// the new aggregate. See docs/architecture.md's "Roadmap" -- slice 3
+// (Select floor) is what gives a moving elevator a destination again).
+export interface ElevatorView {
   currentFloor: number
   state: string
   direction: string
-  doorState: string
-  weightCapacityKg: number
-  currentWeightKg: number
-  departureFloor: number
-  targetFloor: number | null
+  doorPosition: string
   obstructed: boolean
+  weightKg: number
+  capacityKg: number
 }
 
 export interface Call {
@@ -37,12 +41,13 @@ export const BUILDING_FLOORS = 9
 
 export const useElevatorStore = defineStore('elevator', {
   state: () => ({
-    status: null as ElevatorStatus | null,
+    status: null as ElevatorView | null,
     calls: [] as Call[],
     carCalls: [] as CarCall[],
     loading: false,
     error: null as string | null,
-    technicianKeyInserted: false
+    technicianKeyInserted: false,
+    eventSource: null as EventSource | null
   }),
   getters: {
     pendingCalls: (state) => state.calls.filter((c) => c.servedAt === null),
@@ -58,13 +63,40 @@ export const useElevatorStore = defineStore('elevator', {
     }
   },
   actions: {
-    async fetchStatus() {
-      try {
-        this.status = await $fetch<ElevatorStatus>(`/api/elevators/${ELEVATOR_ID}/status`)
-        this.error = null
-      } catch {
+    // Replaces the 1.5 s poller: one connection, pushed to rather than
+    // asked, per docs/plan.html section 12. A relative URL works because
+    // Caddy (docker-compose) puts elevator-api and elevator-ui behind one
+    // origin -- see docs/architecture.md's "elevator-ui: front-end only,
+    // no BFF" section. Running elevator-ui's dev server standalone,
+    // without Caddy in front, cannot reach this endpoint.
+    connectToEvents() {
+      if (this.eventSource || import.meta.server) return
+      const source = new EventSource(`/elevators/${ELEVATOR_ID}/events`)
+      source.addEventListener('elevator-updated', (event) => {
+        try {
+          const data = JSON.parse((event as MessageEvent).data) as ElevatorView
+          this.status = {
+            currentFloor: data.currentFloor,
+            state: data.state,
+            direction: data.direction,
+            doorPosition: data.doorPosition,
+            obstructed: data.obstructed,
+            weightKg: data.weightKg,
+            capacityKg: data.capacityKg
+          }
+          this.error = null
+        } catch {
+          // A malformed event is dropped; the last good status stands.
+        }
+      })
+      source.onerror = () => {
         this.error = 'Unable to reach the elevator.'
       }
+      this.eventSource = source
+    },
+    disconnectFromEvents() {
+      this.eventSource?.close()
+      this.eventSource = null
     },
     async fetchCalls() {
       try {
@@ -80,6 +112,13 @@ export const useElevatorStore = defineStore('elevator', {
         // car calls list is secondary
       }
     },
+    // The status refresh these five actions used to await is gone: they
+    // still write through the old BFF to the old CRUD elevator, which
+    // the new read side (connectToEvents, above) does not observe until
+    // slice 2 onward starts producing real events for it. Until then, a
+    // call or a floor selection is recorded but not (yet) seen moving --
+    // see the elevator-api slice 1 commit message for the same gap on
+    // the read side.
     async callElevator(floor: number, direction: 'UP' | 'DOWN') {
       this.loading = true
       try {
@@ -87,7 +126,7 @@ export const useElevatorStore = defineStore('elevator', {
           method: 'POST',
           body: { floor, direction }
         })
-        await Promise.all([this.fetchStatus(), this.fetchCalls()])
+        await this.fetchCalls()
         this.error = null
       } catch {
         this.error = 'Unable to call the elevator.'
@@ -102,7 +141,7 @@ export const useElevatorStore = defineStore('elevator', {
           method: 'POST',
           body: { floor }
         })
-        await Promise.all([this.fetchStatus(), this.fetchCarCalls()])
+        await this.fetchCarCalls()
         this.error = null
       } catch {
         this.error = 'Unable to select floor.'
@@ -113,7 +152,6 @@ export const useElevatorStore = defineStore('elevator', {
     async openDoors() {
       try {
         await $fetch(`/api/elevators/${ELEVATOR_ID}/open-doors`, { method: 'POST' })
-        await this.fetchStatus()
         this.error = null
       } catch {
         this.error = 'Unable to open doors.'
@@ -123,7 +161,6 @@ export const useElevatorStore = defineStore('elevator', {
       try {
         this.error = null
         await $fetch(`/api/elevators/${ELEVATOR_ID}/close-doors`, { method: 'POST' })
-        await this.fetchStatus()
       } catch (e) {
         // The API answers 409 with a domain reason ("Obstruction detected",
         // "Overload detected"), which is the one place a server-side rule
@@ -131,7 +168,6 @@ export const useElevatorStore = defineStore('elevator', {
         const err = e as { data?: { message?: string }; message?: string }
         const msg = err.data?.message || err.message || 'Unable to close doors.'
         this.error = msg
-        await this.fetchStatus()
       }
     },
     async toggleObstruction() {
@@ -141,7 +177,6 @@ export const useElevatorStore = defineStore('elevator', {
           method: 'PUT',
           body: { obstructed }
         })
-        await this.fetchStatus()
         this.error = null
       } catch {
         this.error = 'Unable to toggle obstruction.'
@@ -153,7 +188,6 @@ export const useElevatorStore = defineStore('elevator', {
           method: 'PUT',
           body: { weightKg }
         })
-        await this.fetchStatus()
         this.error = null
       } catch {
         this.error = 'Unable to set weight.'
@@ -196,7 +230,6 @@ export const useElevatorStore = defineStore('elevator', {
           method: 'POST',
           body: { maintenance: true }
         })
-        await this.fetchStatus()
         this.error = null
       } catch {
         this.error = 'Unable to enter maintenance.'
@@ -208,7 +241,6 @@ export const useElevatorStore = defineStore('elevator', {
           method: 'POST',
           body: { maintenance: false }
         })
-        await this.fetchStatus()
         this.error = null
       } catch {
         this.error = 'Unable to exit maintenance.'
@@ -219,7 +251,6 @@ export const useElevatorStore = defineStore('elevator', {
         await $fetch(`/api/elevators/${ELEVATOR_ID}/emergency-recall`, {
           method: 'POST'
         })
-        await this.fetchStatus()
         this.error = null
       } catch {
         this.error = 'Unable to trigger emergency recall.'

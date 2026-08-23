@@ -5,13 +5,11 @@ const floors = Array.from({ length: BUILDING_FLOORS }, (_, i) => BUILDING_FLOORS
 
 const currentFloor = computed(() => store.status?.currentFloor ?? 1)
 
-const maxWeight = computed(() => store.status?.weightCapacityKg ?? 800)
+const maxWeight = computed(() => store.status?.capacityKg ?? 800)
 
-const overloaded = computed(
-  () => (store.status?.currentWeightKg ?? 0) > (store.status?.weightCapacityKg ?? 0)
-)
+const overloaded = computed(() => (store.status?.weightKg ?? 0) > (store.status?.capacityKg ?? 0))
 
-const doorsOpen = computed(() => store.status?.doorState === 'OPEN')
+const doorsOpen = computed(() => store.status?.doorPosition === 'open')
 
 function isPending(floor: number) {
   return store.allPendingFloors.has(floor)
@@ -50,12 +48,12 @@ function select(floor: number) {
     </div>
     <div class="weight-section">
       <label>
-        Weight: {{ store.status?.currentWeightKg ?? 0 }} / {{ maxWeight }} kg
+        Weight: {{ store.status?.weightKg ?? 0 }} / {{ maxWeight }} kg
         <input
           type="range"
           :min="0"
           :max="maxWeight + 200"
-          :value="store.status?.currentWeightKg ?? 0"
+          :value="store.status?.weightKg ?? 0"
           :disabled="!doorsOpen"
           @input="store.setWeight(Number(($event.target as HTMLInputElement).value))"
         />

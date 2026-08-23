@@ -3,18 +3,18 @@ const store = useElevatorStore()
 
 const canOpenDoors = computed(() => {
   const state = store.status?.state
-  return state === 'IDLE' || state === 'DOORS_OPEN' || state === 'DOORS_CLOSING'
+  return state === 'idle' || state === 'doorsOpen' || state === 'doorsClosing'
 })
 
 const canCloseDoors = computed(() => {
-  return store.status?.state === 'DOORS_OPEN' && !store.status?.obstructed
+  return store.status?.state === 'doorsOpen' && !store.status?.obstructed
 })
 
 const obstructionWarning = computed(() => {
   return store.status?.obstructed ? 'Doors blocked — cannot close' : ''
 })
 
-const inMaintenance = computed(() => store.status?.state === 'OUT_OF_SERVICE')
+const inMaintenance = computed(() => store.status?.state === 'outOfService')
 
 const keyInput = ref('')
 
@@ -23,22 +23,20 @@ async function submitKey() {
   if (store.technicianKeyInserted) keyInput.value = ''
 }
 
-let poller: ReturnType<typeof setInterval> | undefined
-
+// Pushed, not polled: connectToEvents opens one SSE connection instead
+// of the 1.5 s poll this replaced -- see docs/plan.html section 12 and
+// the store's own connectToEvents documentation for the one thing this
+// requires (Caddy's shared origin) that a bare `npm run dev` does not
+// provide.
 onMounted(() => {
   store.refreshKeyState()
-  store.fetchStatus()
+  store.connectToEvents()
   store.fetchCalls()
   store.fetchCarCalls()
-  poller = setInterval(() => {
-    store.fetchStatus()
-    store.fetchCalls()
-    store.fetchCarCalls()
-  }, 1500)
 })
 
 onUnmounted(() => {
-  if (poller) clearInterval(poller)
+  store.disconnectFromEvents()
 })
 </script>
 
@@ -57,10 +55,7 @@ onUnmounted(() => {
       <dd>{{ store.status.direction }}</dd>
 
       <dt>Doors</dt>
-      <dd>{{ store.status.doorState }}</dd>
-
-      <dt>Target floor</dt>
-      <dd>{{ store.status.targetFloor ?? '—' }}</dd>
+      <dd>{{ store.status.doorPosition }}</dd>
 
       <dt>Pending calls</dt>
       <dd>{{ store.pendingCalls.length }}</dd>

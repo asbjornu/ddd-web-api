@@ -11,61 +11,17 @@ const floors = computed(() =>
 )
 
 const currentFloor = computed(() => store.status?.currentFloor ?? 1)
-const TRAVEL_SECONDS_PER_FLOOR = 2
 
-const animatedFloor = ref(store.status?.currentFloor ?? 1)
-let animFrameId: number | null = null
-let animTarget = -1
-
-function startCarAnimation(from: number, to: number) {
-  animTarget = to
-  const distance = Math.abs(to - from)
-  if (distance === 0) {
-    animatedFloor.value = from
-    return
-  }
-  const sign = to > from ? 1 : -1
-  const startTime = performance.now()
-  const duration = distance * TRAVEL_SECONDS_PER_FLOOR * 1000
-
-  function frame() {
-    const elapsed = performance.now() - startTime
-    const t = Math.min(elapsed / duration, 1)
-    animatedFloor.value = from + sign * distance * t
-    if (t < 1) {
-      animFrameId = requestAnimationFrame(frame)
-    } else {
-      animFrameId = null
-    }
-  }
-  if (animFrameId) cancelAnimationFrame(animFrameId)
-  animFrameId = requestAnimationFrame(frame)
-}
-
-watch(
-  () => store.status,
-  (status) => {
-    if (!status) return
-    const isMoving = status.state === 'MOVING_UP' || status.state === 'MOVING_DOWN'
-
-    if (isMoving && status.targetFloor != null) {
-      const from = status.currentFloor
-      const to = status.targetFloor
-      if (to !== animTarget) {
-        startCarAnimation(from, to)
-      }
-    } else if (!isMoving) {
-      if (animFrameId) {
-        cancelAnimationFrame(animFrameId)
-        animFrameId = null
-      }
-      animTarget = -1
-      animatedFloor.value = status.currentFloor
-    }
-  }
-)
-
-const carBottom = computed(() => (animatedFloor.value - 1) * FLOOR_HEIGHT)
+// No travel animation for now: state can only ever be "idle" until
+// slice 3 (Select floor) gives a moving elevator a destination the API
+// actually exposes, so the car simply snaps to wherever the read model
+// says it is. The client-side physics this replaced
+// (TRAVEL_SECONDS_PER_FLOOR and a requestAnimationFrame tween towards a
+// target floor) is deleted rather than kept dark, per
+// docs/architecture.md's slice 1 roadmap entry -- it re-appears,
+// server-timed rather than guessed by the client, once there is a real
+// destination to animate towards.
+const carBottom = computed(() => (currentFloor.value - 1) * FLOOR_HEIGHT)
 
 const panelRef = ref<HTMLElement | null>(null)
 const panelHeight = ref(FLOOR_HEIGHT)
@@ -80,43 +36,13 @@ const followerBottom = computed(() => {
   return carBottom.value - (panelHeight.value - FLOOR_HEIGHT) / 2
 })
 
-const delayedDoorState = ref('closed')
-let doorTimeout: ReturnType<typeof setTimeout> | null = null
-
-watch(
-  () => store.status,
-  (newStatus, oldStatus) => {
-    if (!newStatus) return
-
-    const wasMoving = oldStatus?.state === 'MOVING_UP' || oldStatus?.state === 'MOVING_DOWN'
-    const nowNotMoving = newStatus.state !== 'MOVING_UP' && newStatus.state !== 'MOVING_DOWN'
-    const floorChanged = oldStatus != null && newStatus.currentFloor !== oldStatus.currentFloor
-    const justArrived = wasMoving && nowNotMoving && floorChanged
-
-    if (justArrived) {
-      delayedDoorState.value = 'closed'
-      if (doorTimeout) clearTimeout(doorTimeout)
-      doorTimeout = setTimeout(() => {
-        delayedDoorState.value = (store.status?.doorState ?? 'CLOSED').toLowerCase()
-        doorTimeout = null
-      }, 3000)
-    } else if (delayedDoorState.value !== 'closed' || !doorTimeout) {
-      if (doorTimeout) {
-        clearTimeout(doorTimeout)
-        doorTimeout = null
-      }
-      delayedDoorState.value = (newStatus.doorState ?? 'CLOSED').toLowerCase()
-    }
-  }
-)
-
-const doorStateClass = computed(() => delayedDoorState.value)
+const doorStateClass = computed(() => store.status?.doorPosition ?? 'closed')
 
 const directionArrow = computed(() => {
   switch (store.status?.direction) {
-    case 'UP':
+    case 'up':
       return '\u25B2'
-    case 'DOWN':
+    case 'down':
       return '\u25BC'
     default:
       return '\u25A0'
@@ -124,14 +50,12 @@ const directionArrow = computed(() => {
 })
 
 const isCarOpen = computed(
-  () => delayedDoorState.value === 'open' || delayedDoorState.value === 'closing'
+  () => doorStateClass.value === 'open' || doorStateClass.value === 'closing'
 )
 
-const targetFloor = computed(() => store.status?.targetFloor)
+const isOutOfService = computed(() => store.status?.state === 'outOfService')
 
-const isOutOfService = computed(() => store.status?.state === 'OUT_OF_SERVICE')
-
-const isEmergency = computed(() => store.status?.state === 'EMERGENCY_RECALL')
+const isEmergency = computed(() => store.status?.state === 'emergencyRecall')
 </script>
 
 <template>
@@ -155,11 +79,6 @@ const isEmergency = computed(() => store.status?.state === 'EMERGENCY_RECALL')
         class="floor-line"
         :class="{ 'active-line': floor === currentFloor }"
         :style="{ bottom: `${(floor - 1) * FLOOR_HEIGHT}px` }"
-      />
-      <div
-        v-if="targetFloor != null"
-        class="target-marker"
-        :style="{ bottom: `${(targetFloor - 1) * FLOOR_HEIGHT}px` }"
       />
       <div
         class="car"
@@ -252,27 +171,6 @@ const isEmergency = computed(() => store.status?.state === 'EMERGENCY_RECALL')
 }
 .floor-line.active-line {
   border-top: 4px solid #4caf50;
-}
-.target-marker {
-  position: absolute;
-  left: -11px;
-  width: calc(100% + 22px);
-  height: 0;
-  border-top: 4px dashed #ff9800;
-  z-index: 1;
-  opacity: 0.7;
-  transition: bottom 1.5s linear;
-}
-.target-marker::before {
-  content: '';
-  position: absolute;
-  top: -10px;
-  right: -4px;
-  width: 0;
-  height: 0;
-  border-left: 14px solid transparent;
-  border-right: 14px solid transparent;
-  border-top: 18px solid #ff9800;
 }
 
 /* ── Car ── */
