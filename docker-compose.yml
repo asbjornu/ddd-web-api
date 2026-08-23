@@ -3,16 +3,9 @@ services:
     container_name: elevator-auth
     build:
       context: ./elevator-auth
-    # Tagged per branch (default below) so a pre-built image survives a
-    # branch switch: `docker compose up` without --build reuses whatever
-    # was last built under this branch's tag instead of silently running
-    # a stale image built from a different branch, or triggering a
-    # rebuild mid-demo. See "Toolchain"/pre-talk build step in AGENTS.md.
-    image: elevator-auth:${IMAGE_TAG:-crud}
-    # Bound to loopback, like the others: the proxy in slice 0 will make
-    # these unnecessary, but until then nothing here belongs on the network.
-    ports:
-      - "127.0.0.1:9000:9000"
+    # No published port: elevator-api and elevator-ui reach this over
+    # the compose network by name, and nothing outside it needs to --
+    # the caddy service below is the only published port now.
     environment:
       # Tokens carry this as their issuer and elevator-api validates against
       # it, so both must use the name that resolves inside this network.
@@ -35,18 +28,14 @@ services:
     container_name: elevator-api
     build:
       context: ./elevator-api
-    # Tagged per branch -- see elevator-auth's image: comment above.
-    image: elevator-api:${IMAGE_TAG:-crud}
-    ports:
-      # Bound to loopback rather than 0.0.0.0. Eight of this API's ten
-      # endpoints are unauthenticated and several have side effects --
-      # PUT /elevators/{id}/obstruction needs no credential and sets a flag
-      # that persists until cleared, which stops the lift until someone
-      # clears it. Publishing on all interfaces puts that on whatever
-      # network the host is attached to, which for a conference demo is a
-      # live hazard rather than a theoretical one. See "Authentication and
-      # authorization" in docs/architecture.md.
-      - "127.0.0.1:8080:8080"
+    # No published port: caddy is the only path in from the host, and it
+    # forwards only /elevators* and /rels* here -- see ../Caddyfile.
+    # elevator-api's own "/" stays reachable solely on this internal
+    # network, as the entry point for a machine client addressing the
+    # service directly. Before this proxy existed, eight of this API's
+    # ten endpoints were unauthenticated and published on loopback only,
+    # for the reason recorded in this comment's git history; the proxy
+    # removes the need to publish this port at all.
     environment:
       OAUTH_ISSUER: http://elevator-auth:9000
     depends_on:
@@ -63,14 +52,8 @@ services:
     container_name: elevator-ui
     build:
       context: ./elevator-ui
-    # Tagged per branch -- see elevator-auth's image: comment above.
-    # (This service runs `npm run dev` off the bind-mounted source below
-    # regardless of what's in the image, but the image still needs to
-    # exist for its node_modules, so it gets the same pre-build/tag
-    # treatment as the other two for a consistent pre-talk routine.)
-    image: elevator-ui:${IMAGE_TAG:-crud}
-    ports:
-      - "127.0.0.1:3000:3000"
+    # No published port either: caddy forwards everything it does not
+    # recognise as belonging to elevator-api here instead.
     environment:
       NUXT_SERVICE_API_URL: http://elevator-api:8080
       NUXT_OAUTH_ISSUER: http://elevator-auth:9000
@@ -84,3 +67,16 @@ services:
       - ./elevator-ui:/app
       - /app/node_modules
     command: npm run dev
+
+  caddy:
+    container_name: caddy
+    image: caddy:2-alpine
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      elevator-api:
+        condition: service_healthy
+      elevator-ui:
+        condition: service_started

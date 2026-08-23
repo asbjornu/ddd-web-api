@@ -32,3 +32,8 @@ elevator:
   travel-seconds-per-floor: 2
   door-open-timeout-seconds: 6
   weight-capacity-kg: 800
+  uri:
+    # readable (default) or opaque -- see shared.web.UriResolver. CI runs
+    # the suite against both, per docs/plan.html section 8's "test that
+    # settles it".
+    style: readable

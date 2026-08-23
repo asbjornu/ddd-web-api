@@ -1,0 +1,26 @@
+# Slice 0's shared origin: browser and machine clients alike see one
+# port. Two allowlisted path prefixes go to elevator-api (the hypermedia
+# API); everything else -- the rider console, the shaft animation, the
+# Playwright suite's target -- goes to elevator-ui. See
+# docs/plan.html section 19's "Keeping Nuxt" decision for why this
+# exists and docs/architecture.md's "elevator-ui: front-end only, no
+# BFF" section for what it replaces.
+#
+# elevator-api's own root ("/") is deliberately NOT routed here: it
+# stays reachable only on the internal Docker network, as the entry
+# point for machine clients addressing the service directly rather than
+# through this shared origin.
+
+:8000 {
+	handle /elevators* {
+		reverse_proxy elevator-api:8080
+	}
+
+	handle /rels* {
+		reverse_proxy elevator-api:8080
+	}
+
+	handle {
+		reverse_proxy elevator-ui:3000
+	}
+}
