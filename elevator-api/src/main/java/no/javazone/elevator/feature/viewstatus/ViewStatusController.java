@@ -3,6 +3,7 @@ package no.javazone.elevator.feature.viewstatus;
 import java.util.Optional;
 import no.javazone.elevator.shared.domain.ElevatorId;
 import no.javazone.elevator.shared.hypermedia.AffordanceCatalog;
+import no.javazone.elevator.shared.hypermedia.AffordanceContext;
 import no.javazone.elevator.shared.hypermedia.Link;
 import no.javazone.elevator.shared.hypermedia.Representation;
 import no.javazone.elevator.shared.web.RepresentationResponses;
@@ -21,11 +22,9 @@ import org.springframework.web.bind.annotation.RestController;
  * write-side aggregate -- this reads only {@link ElevatorViewProjection}
  * -- see {@code docs/architecture.md}'s "CQRS and domain events" section.
  *
- * <p>No affordance is offered yet ({@link AffordanceCatalog} is still
- * empty): {@code call-elevator} arrives with slice 2, and only once the
- * catalog can be told which state this particular elevator is in --
- * today's {@code AffordanceContributor} has no context parameter for
- * that, which is the next thing to evolve, not before it is needed.
+ * <p>Affordances are computed from the read model's own {@code state}
+ * string via {@link AffordanceContext}, never from the write-side
+ * aggregate -- the query side has no reason to depend on it.
  */
 @RestController
 public class ViewStatusController {
@@ -78,7 +77,8 @@ public class ViewStatusController {
                 .property("capacityKg", view.capacityKg())
                 .link(new Link("self", self))
                 .link(new Link("updates", self + "/events", "text/event-stream"))
-                .affordances(affordanceCatalog.affordances())
+                .affordances(affordanceCatalog.affordances(
+                        AffordanceContext.forElevator(segment, view.state())))
                 .build();
     }
 

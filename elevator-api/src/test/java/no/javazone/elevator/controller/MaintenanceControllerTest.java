@@ -61,9 +61,9 @@ class MaintenanceControllerTest {
 
     @Test
     void enterMaintenanceClearsPendingCalls() throws Exception {
-        mockMvc.perform(post("/elevators/1/calls")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"floor\": 5, \"direction\": \"UP\"}"));
+        // Landing calls no longer go through the old service (slice 2
+        // moved call-elevator onto the new aggregate), so only a car
+        // call is left to characterise clearPendingCarCalls here.
         mockMvc.perform(post("/elevators/1/car-calls")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"floor\": 7}"));
@@ -73,8 +73,6 @@ class MaintenanceControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"maintenance\": true}"));
 
-        mockMvc.perform(get("/elevators/1/calls"))
-                .andExpect(jsonPath("$[0].servedAt", is(notNullValue())));
         mockMvc.perform(get("/elevators/1/car-calls"))
                 .andExpect(jsonPath("$[0].servedAt", is(notNullValue())));
     }
@@ -107,9 +105,12 @@ class MaintenanceControllerTest {
 
     @Test
     void emergencyRecallSetsDirectionToRecallFloor() throws Exception {
-        mockMvc.perform(post("/elevators/1/calls")
+        // A car call, not a landing call (slice 2 moved call-elevator
+        // off this old service) -- either dispatches identically from
+        // idle, which is all this characterisation needs.
+        mockMvc.perform(post("/elevators/1/car-calls")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"floor\": 3, \"direction\": \"UP\"}"));
+                        .content("{\"floor\": 3}"));
 
         Thread.sleep(5000);
 
@@ -137,9 +138,9 @@ class MaintenanceControllerTest {
 
     @Test
     void emergencyRecallArrivesAtOutOfServiceAfterTravel() throws Exception {
-        mockMvc.perform(post("/elevators/1/calls")
+        mockMvc.perform(post("/elevators/1/car-calls")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"floor\": 2, \"direction\": \"UP\"}"));
+                        .content("{\"floor\": 2}"));
 
         Thread.sleep(2500);
 

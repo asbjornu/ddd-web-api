@@ -3,17 +3,20 @@ package no.javazone.elevator.controller;
 import java.util.List;
 import no.javazone.elevator.model.Call;
 import no.javazone.elevator.service.ElevatorService;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Landing calls: a rider at a floor requesting the car. See "Call
- * elevator" in docs/architecture.md.
+ * Landing calls: read-only now. {@code POST /elevators/{id}/calls} moved
+ * onto the new aggregate in slice 2 -- see
+ * {@code no.javazone.elevator.feature.callelevator.CallElevatorController}
+ * -- and this class kept only the listing endpoint, which several other
+ * still-unmigrated behaviours (maintenance, emergency recall, the
+ * movement scheduler) continue to read via {@link ElevatorService}.
+ * Nothing is ever added to this list any more, so it will only ever
+ * shrink to empty, never grow -- and is deleted outright once the
+ * slice that removes those readers lands.
  */
 @RestController
 public class CallController {
@@ -24,14 +27,9 @@ public class CallController {
         this.elevatorService = elevatorService;
     }
 
-    @PostMapping("/elevators/{id}/calls")
-    @ResponseStatus(HttpStatus.CREATED)
-    public Call call(@PathVariable Long id, @RequestBody Call call) {
-        return elevatorService.call(id, call);
-    }
-
     @GetMapping("/elevators/{id}/calls")
     public List<Call> calls(@PathVariable Long id) {
         return elevatorService.listCalls(id);
     }
 }
+

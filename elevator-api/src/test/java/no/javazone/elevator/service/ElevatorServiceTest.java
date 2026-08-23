@@ -164,7 +164,16 @@ class ElevatorServiceTest {
     @Test
     @DisplayName("entering maintenance clears every pending request")
     void maintenanceClearsThePendingQueue() {
-        service.call(ELEVATOR_ID, callFor(6, Direction.DOWN));
+        // Landing calls no longer go through the service (call-elevator
+        // moved onto the new aggregate in slice 2 -- see
+        // feature.callelevator); a row is inserted directly here so this
+        // characterisation of clearPendingCalls still holds for as long
+        // as that old table and method exist, i.e. until slice 6/7
+        // migrate maintenance/recall too.
+        Call pendingCall = callFor(6, Direction.DOWN);
+        pendingCall.setElevatorId(ELEVATOR_ID);
+        pendingCall.setCreatedAt(Instant.now());
+        calls.save(pendingCall);
         pendingCarCall(3);
 
         service.enterMaintenance(ELEVATOR_ID);

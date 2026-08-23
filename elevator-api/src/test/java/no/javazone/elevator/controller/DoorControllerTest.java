@@ -52,9 +52,13 @@ class DoorControllerTest {
 
     @Test
     void openDoorsWhileMovingReturnsConflict() throws Exception {
-        mockMvc.perform(post("/elevators/1/calls")
+        // Landing calls no longer drive the old elevator (call-elevator
+        // moved onto the new aggregate in slice 2) -- a car call still
+        // does, and is just as good a way to get this elevator moving
+        // for the purpose of this characterisation.
+        mockMvc.perform(post("/elevators/1/car-calls")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"floor\": 9, \"direction\": \"UP\"}"));
+                        .content("{\"floor\": 9}"));
 
         mockMvc.perform(post("/elevators/1/open-doors"))
                 .andExpect(status().isConflict());

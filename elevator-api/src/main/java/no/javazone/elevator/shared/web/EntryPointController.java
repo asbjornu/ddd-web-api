@@ -1,6 +1,7 @@
 package no.javazone.elevator.shared.web;
 
 import no.javazone.elevator.shared.hypermedia.AffordanceCatalog;
+import no.javazone.elevator.shared.hypermedia.AffordanceContext;
 import no.javazone.elevator.shared.hypermedia.Link;
 import no.javazone.elevator.shared.hypermedia.Representation;
 import org.springframework.http.HttpHeaders;
@@ -38,7 +39,7 @@ public class EntryPointController {
         Representation representation = Representation.builder("Elevator API")
                 .link(new Link("self", "/"))
                 .link(new Link("help", "/rels/help"))
-                .affordances(affordanceCatalog.affordances())
+                .affordances(affordanceCatalog.affordances(AffordanceContext.root()))
                 .build();
         return responses.ok(accept, representation);
     }

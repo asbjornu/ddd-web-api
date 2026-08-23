@@ -9,9 +9,6 @@ import org.springframework.stereotype.Component;
  * as a concept. Adding a directory (a vertical slice) adds an
  * affordance; nothing here is edited to make that happen -- see
  * {@code docs/architecture.md}'s "Vertical slices" section.
- *
- * <p>Empty today: no slice past 0 has landed yet, so the entry point
- * offers no commands, only documentation links.
  */
 @Component
 public class AffordanceCatalog {
@@ -22,9 +19,9 @@ public class AffordanceCatalog {
         this.contributors = List.copyOf(contributors);
     }
 
-    public List<Affordance> affordances() {
+    public List<Affordance> affordances(AffordanceContext context) {
         return contributors.stream()
-                .flatMap(contributor -> contributor.contribute().stream())
+                .flatMap(contributor -> contributor.contribute(context).stream())
                 .toList();
     }
 }

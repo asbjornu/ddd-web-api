@@ -47,34 +47,11 @@ public class ElevatorService {
         return elevator;
     }
 
-    public Call call(Long elevatorId, Call call) {
-        Elevator elevator = findElevator(elevatorId);
-        recomputeState(elevator);
-
-        if (call.getFloor() < 1 || call.getFloor() > properties.floors()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid floor");
-        }
-        if (elevator.getState() == ElevatorState.OUT_OF_SERVICE
-                || elevator.getState() == ElevatorState.EMERGENCY_RECALL) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Elevator is not in service");
-        }
-
-        call.setElevatorId(elevatorId);
-        call.setCreatedAt(Instant.now());
-
-        if (elevator.getState() == ElevatorState.IDLE) {
-            if (!isOverloaded(elevator)) {
-                dispatchToFloor(elevator, call.getFloor());
-            }
-        } else if (elevator.getState() == ElevatorState.DOORS_OPEN
-                && call.getFloor() == elevator.getCurrentFloor()) {
-            call.setServedAt(Instant.now());
-            elevator.setStateSince(Instant.now());
-            elevatorRepository.save(elevator);
-        }
-
-        return callRepository.save(call);
-    }
+    // call(Long, Call) was removed in slice 2: landing calls now go
+    // through feature.callelevator.CallElevatorHandler against the new
+    // aggregate instead. listCalls/clearPendingCalls stay here, read by
+    // maintenance/recall/the movement scheduler until their own slices
+    // migrate them too.
 
     public CarCall carCall(Long elevatorId, CarCall carCall) {
         Elevator elevator = findElevator(elevatorId);

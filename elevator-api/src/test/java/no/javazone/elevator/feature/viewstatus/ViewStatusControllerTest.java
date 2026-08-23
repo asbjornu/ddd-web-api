@@ -51,6 +51,13 @@ class ViewStatusControllerTest {
     }
 
     @Test
+    void carriesTheCallElevatorAffordanceForTheIdleSeededElevator() throws Exception {
+        mockMvc.perform(get("/elevators/1").header(HttpHeaders.ACCEPT, "application/vnd.siren+json"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("call-elevator")));
+    }
+
+    @Test
     void returnsAProblemForAnUnknownElevator() throws Exception {
         mockMvc.perform(get("/elevators/999").header(HttpHeaders.ACCEPT, "application/vnd.siren+json"))
                 .andExpect(status().isNotFound())

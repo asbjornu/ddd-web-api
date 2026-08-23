@@ -6,8 +6,10 @@ package no.javazone.elevator.feature.viewstatus;
  * this package ever sees {@link ElevatorViewEntity}.
  *
  * <p>Public, unlike the entity and repository either side of it: this
- * is the one shape {@code feature.streamevents} (the sibling directory
- * this slice also owns) is allowed to depend on.
+ * is the shape other feature slices depend on when they need the
+ * current read model -- {@code feature.streamevents} for the SSE
+ * payload, {@code feature.callelevator} for the representation a
+ * command returns.
  */
 public record ElevatorView(
         long id,
