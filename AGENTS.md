@@ -6,22 +6,33 @@ architecture and domain description — read both before making changes.
 
 ## What this repository is
 
-A demo application for the talk "Domain-driven web APIs". It intentionally
-contains code smells (God Object, Feature Envy, Data Clumps, Primitive
-Obsession, Model reuse, etc. — see `docs/architecture.md` for the full
-list) that arise from a REST-ish CRUD API mismatching the underlying domain
-model. **The code smells are the deliverable, not a bug.** Do not "fix",
-refactor away, or avoid introducing them unless a task explicitly asks for
-a refactoring pass.
+A demo application for the talk "Domain-driven web APIs", mid-refactor
+from a REST-ish CRUD API with intentional code smells (God Object,
+Feature Envy, Data Clumps, Primitive Obsession, Model reuse, etc.) into
+the command-based, hypermedia-driven, CQRS-separated REST API described
+in `docs/architecture.md`. The refactor proceeds one vertical slice at a
+time (see `docs/architecture.md`'s "Roadmap"); until a slice lands, its
+code still has the old CRUD shape and the smells that came with it.
+**Do not gratuitously "fix" or clean up code outside the slice a task is
+actually working on** — a smell in code no slice has touched yet is
+still load-bearing for the talk's before/after story, and belongs to
+whichever future slice's commit will remove it and name it. The old,
+fully-CRUD architecture is no longer described in `docs/architecture.md`
+— it is preserved in that file's git history, and in the code itself
+until its slice migrates it away.
 
 The domain is an elevator (lift) control system for a single building
-(calls, car calls, doors, maintenance, emergency recall), with two personas
-sharing one UI: Rider (normal operation) and Technician (key-switch
-actions: maintenance, emergency recall, gated by a hard-coded shared
-secret, not a login). The API is shaped to support multiple elevators
+(calls, car calls, doors, maintenance, emergency recall), with two
+personas sharing one UI: Rider (normal operation) and Technician
+(key-switch actions: maintenance, emergency recall, gated by a scoped
+OAuth 2.0 token). The API is shaped to support multiple elevators
 (`/elevators/{id}`), but only one elevator is seeded and used for now —
-don't build out multi-elevator dispatch logic unless a task explicitly asks
-for it.
+don't build out multi-elevator dispatch logic unless a task explicitly
+asks for it.
+
+Read `docs/plan.html` before working on a slice — it is the design
+rationale `docs/architecture.md` only summarizes, with the full
+argument, worked examples, media-type samples, and open questions.
 
 ## Repository layout (monorepo)
 
@@ -29,25 +40,24 @@ for it.
 /elevator-api      Java 21 + Spring Boot 4 (Gradle, Kotlin DSL)
 /elevator-auth     Spring Authorization Server; issues the technician's
                    scoped tokens and nothing else
-/elevator-ui       Nuxt.js 4 (front-end pages + Nitro BFF routes), TypeScript
-/docs              architecture.md and other design docs
+/elevator-ui       Nuxt.js 4 front-end shell + Datastar, TypeScript
+/docs              architecture.md and plan.html
 ```
 
-> Note: this structure doesn't exist yet at the time of writing. Create it
-> exactly as above when scaffolding the project; keep these two top-level
-> app directories separate from `docs/`.
+`elevator-ui` is being reduced to a front-end shell (pages, the shaft/car
+animation chrome, the Playwright suite) as each slice's BFF routes are
+deleted — see `docs/architecture.md`'s "elevator-ui: front-end only, no
+BFF" section. Code not yet touched by a slice still has BFF routes under
+`server/api/`; don't delete those ahead of their slice.
 
-`elevator-ui` is a single Nuxt.js app that plays both the front-end and
-backend-for-frontend roles (pages under `app/`, BFF routes under
-`server/api/`) -- see docs/architecture.md's "elevator-ui (front-end +
-BFF)" section for why these are one app instead of two.
-
-Within `elevator-api`, organize by **type**, not by feature: `controller/`,
-`service/`, `repository/`, `model/` (entities doubling as DTOs — this
-reuse is intentional). Do not reorganize into feature/domain-based packages
-(e.g. `calls/`, `doors/`) — that would remove one of the demonstrated
-smells (Model reuse across layers is easier to keep messy in a type-based
-structure).
+Within `elevator-api`, the target layout is **one directory per domain
+behaviour** (`callelevator/`, `selectfloor/`, `opendoors/`, ...), each
+holding its command, handler, endpoint, affordance descriptor, and tests
+together — see `docs/architecture.md`'s "Vertical slices" and
+"Repository and file structure" sections. Code not yet migrated by a
+slice still lives in the old `controller/`/`service/`/`repository/`/
+`model/` layout; leave it there until its slice lands, rather than
+moving it piecemeal.
 
 ## Coding conventions
 
@@ -61,16 +71,17 @@ structure).
   footer at the end of the file), not inline (`[text](url)`).
 - **elevator-api**: Java 21, Spring Boot 4, Gradle Kotlin DSL. Tests with
   JUnit 5, Mockito, AssertJ. Follow standard Spring naming
-  (`XxxController`, `XxxService`, `XxxRepository`), but don't be surprised
-  by (and don't silently clean up) inconsistent naming elsewhere — that's
-  one of the intentional smells.
+  (`XxxController`, `XxxService`, `XxxRepository`) in code not yet
+  migrated to a vertical slice; don't be surprised by (and don't
+  silently clean up) inconsistent naming elsewhere — that's one of the
+  intentional smells still awaiting its slice.
 - **elevator-ui**: Nuxt 4, TypeScript, Vue 3 Composition API, `<script
-  setup>`, Pinia for state, server routes under `server/api/`. ESLint +
-  Prettier are configured and enforced in CI — keep code passing lint even
-  where it's intentionally smelly in other ways (naming, structure); lint
-  failures are not part of the demo. Do not add rules that would flag the
-  deliberate smells: lint is here to catch mistakes, not to improve the
-  design.
+  setup>`, Pinia for state, server routes under `server/api/` (until
+  their slice deletes them). ESLint + Prettier are configured and
+  enforced in CI — keep code passing lint even where it's intentionally
+  smelly in other ways (naming, structure); lint failures are not part
+  of the demo. Do not add rules that would flag the deliberate smells:
+  lint is here to catch mistakes, not to improve the design.
 
 ## How to run things
 
@@ -154,17 +165,25 @@ chromium` is only needed on a fresh machine.
 
 ## Things not to touch / be careful with
 
-- Do not refactor away the code smells listed in `docs/architecture.md`. If
-  you notice one while working on something else, leave it — or note it in
-  the commit message/PR description instead of fixing it.
-- Do not unify `elevator-api`'s and `elevator-ui`'s REST representations —
-  the mismatch between them is intentional and central to the demo.
-- Do not introduce a shared model/types package between `elevator-api` and
-  `elevator-ui` purely to remove duplication — the duplication is the
-  point.
-- `docs/architecture.md` describes the *current, smelly* architecture. A
-  future revision of that file will describe the target refactored
-  architecture; don't build ahead of it.
+- Do not refactor away a code smell in code outside the slice a task is
+  actually working on. If you notice one while working on something
+  else, leave it — or note it in the commit message/PR description
+  instead of fixing it.
+- Removing a code smell *inside* the slice a task is working on is
+  expected, even required — the commit message should name the smell
+  removed (see "Roadmap" in `docs/architecture.md`).
+- The client (Vue component, Playwright test, hand-written script) may
+  not hard-code a URL path or a domain constant (elevator id, floor
+  count, travel timing). It follows links and reads representations.
+- New behaviour is always a new slice (own directory: command, handler,
+  endpoint, affordance, tests), never a new flag or `if`/`switch` case in
+  an existing one.
+- Adding a media type or a renderer must not touch the domain
+  (`Elevator` aggregate, value objects, event hierarchy) — those stay
+  shared across all slices, not sliced themselves.
+- Never build ahead of `docs/architecture.md` — if a decision needed for
+  the current task isn't written there or in `docs/plan.html`, stop and
+  ask rather than inventing target architecture.
 
 ## Process
 
@@ -173,14 +192,15 @@ chromium` is only needed on a fresh machine.
   characters) in the commit body.
 - After making a coherent set of changes, commit them yourself with a
   suggested commit message describing the change **and** naming the code
-  smell being introduced (e.g. "Add emergency recall endpoint (God Object:
-  ElevatorService)"). Immediately after each commit, run lint and test
-  commands for both projects; fix any failures and amend them into the
-  commit before considering it complete. Then stop and pause work until
-  further notice — don't start the next change until told to continue.
+  smell removed or introduced, whichever applies (e.g. "Add emergency
+  recall slice (God Object: ElevatorService deleted)"). Immediately
+  after each commit, run lint and test commands for both projects; fix
+  any failures and amend them into the commit before considering it
+  complete. Then stop and pause work until further notice — don't start
+  the next change until told to continue.
 - Build features vertically, one slice through both applications, in the
-  order given in `docs/architecture.md` under "Incremental development",
-  elevator-api first, then elevator-ui.
+  order given in `docs/architecture.md`'s "Roadmap (slices, in build
+  order)", elevator-api first, then elevator-ui.
 - Pause after each suggested commit for human review before continuing —
   don't chain multiple commits' worth of work without a checkpoint.
 - Keep `readme.md` up to date with setup instructions and stack overview as
