@@ -31,7 +31,6 @@ async function submitKey() {
 onMounted(() => {
   store.refreshKeyState()
   store.connectToEvents()
-  store.fetchCalls()
   store.fetchCarCalls()
 })
 
@@ -56,9 +55,6 @@ onUnmounted(() => {
 
       <dt>Doors</dt>
       <dd>{{ store.status.doorPosition }}</dd>
-
-      <dt>Pending calls</dt>
-      <dd>{{ store.pendingCalls.length }}</dd>
 
       <dt>Pending floors</dt>
       <dd>{{ store.allPendingFloors.size }}</dd>

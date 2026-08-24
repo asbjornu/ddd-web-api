@@ -64,24 +64,6 @@ describe('useElevatorStore getters', () => {
     setActivePinia(createPinia())
   })
 
-  it('filters served calls out of pendingCalls', () => {
-    const store = useElevatorStore()
-    store.calls = [
-      { id: 1, elevatorId: 1, floor: 3, direction: 'UP', createdAt: '', servedAt: null },
-      {
-        id: 2,
-        elevatorId: 1,
-        floor: 5,
-        direction: 'DOWN',
-        createdAt: '',
-        servedAt: '2024-01-01T00:00:00Z'
-      }
-    ]
-
-    expect(store.pendingCalls).toHaveLength(1)
-    expect(store.pendingCalls[0]?.floor).toBe(3)
-  })
-
   it('filters served car calls out of pendingCarCalls', () => {
     const store = useElevatorStore()
     store.carCalls = [
@@ -93,14 +75,119 @@ describe('useElevatorStore getters', () => {
     expect(store.pendingCarCalls[0]?.floor).toBe(7)
   })
 
-  it('collects pending floors from both call types', () => {
+  it('collects pending floors from car calls', () => {
     const store = useElevatorStore()
-    store.calls = [
-      { id: 1, elevatorId: 1, floor: 3, direction: 'UP', createdAt: '', servedAt: null }
-    ]
     store.carCalls = [{ id: 2, elevatorId: 1, floor: 9, createdAt: '', servedAt: null }]
 
-    expect(store.allPendingFloors).toEqual(new Set([3, 9]))
+    expect(store.allPendingFloors).toEqual(new Set([9]))
+  })
+
+  it('finds the call-elevator operation among the current status operations', () => {
+    const store = useElevatorStore()
+    store.status = {
+      currentFloor: 1,
+      state: 'idle',
+      direction: 'none',
+      doorPosition: 'closed',
+      obstructed: false,
+      weightKg: 0,
+      capacityKg: 800,
+      operations: [
+        { rel: 'call-elevator', title: 'Call elevator', method: 'POST', href: '/elevators/1/calls' }
+      ]
+    }
+
+    expect(store.callElevatorOperation?.rel).toBe('call-elevator')
+  })
+
+  it('has no call-elevator operation when the elevator offers none', () => {
+    const store = useElevatorStore()
+    store.status = {
+      currentFloor: 1,
+      state: 'outOfService',
+      direction: 'none',
+      doorPosition: 'closed',
+      obstructed: false,
+      weightKg: 0,
+      capacityKg: 800,
+      operations: []
+    }
+
+    expect(store.callElevatorOperation).toBeNull()
+  })
+})
+
+// The store follows the operation's own href and method rather than
+// constructing a URL -- see docs/architecture.md's "Vertical slices"
+// rule that the client may not hard-code a URL. registerEndpoint here
+// stubs elevator-api directly (not the BFF): there is no "/api" prefix,
+// since callElevator no longer goes through one.
+describe('useElevatorStore callElevator', () => {
+  let calledBody: unknown
+
+  registerEndpoint('/elevators/1/calls', {
+    method: 'POST',
+    handler: async (event) => {
+      calledBody = await readBody(event)
+      // The response is what the store's own callElevator now assigns to
+      // status, since the SSE stream never carries operations -- only
+      // this response tells the client what it may do next.
+      return {
+        currentFloor: 1,
+        state: 'idle',
+        direction: 'none',
+        doorPosition: 'closed',
+        obstructed: false,
+        weightKg: 0,
+        capacityKg: 800,
+        operations: []
+      }
+    }
+  })
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    calledBody = undefined
+  })
+
+  it('does nothing when no call-elevator operation is present', async () => {
+    const store = useElevatorStore()
+    store.status = {
+      currentFloor: 1,
+      state: 'outOfService',
+      direction: 'none',
+      doorPosition: 'closed',
+      obstructed: false,
+      weightKg: 0,
+      capacityKg: 800,
+      operations: []
+    }
+
+    await store.callElevator(3, 'up')
+
+    expect(store.error).toBe('Calling the elevator is not available right now.')
+    expect(calledBody).toBeUndefined()
+  })
+
+  it("posts to the operation's own href and method", async () => {
+    const store = useElevatorStore()
+    store.status = {
+      currentFloor: 1,
+      state: 'idle',
+      direction: 'none',
+      doorPosition: 'closed',
+      obstructed: false,
+      weightKg: 0,
+      capacityKg: 800,
+      operations: [
+        { rel: 'call-elevator', title: 'Call elevator', method: 'POST', href: '/elevators/1/calls' }
+      ]
+    }
+
+    await store.callElevator(5, 'up')
+
+    expect(calledBody).toEqual({ floor: 5, direction: 'up' })
+    expect(store.error).toBeNull()
   })
 })
 

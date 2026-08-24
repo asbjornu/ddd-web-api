@@ -2,6 +2,35 @@
 // (id 1) in a 9-floor building for v1 -- see docs/architecture.md's
 // "Building and elevators" section.
 
+/**
+ * One field of an operation's payload, mirroring
+ * elevator-api's shared.hypermedia.Field -- see docs/plan.html section
+ * 9 for the format this is a minimal (bespoke, JSON) rendering of.
+ */
+export interface OperationField {
+  name: string
+  type: string
+  value: unknown
+  required?: boolean
+  options?: string[]
+}
+
+/**
+ * One legally available command, as the vnd.elevator.state+json format
+ * carries it -- rel, title, method, href and fields, never a bare
+ * "you may PATCH this". The client hard-codes neither which operations
+ * exist nor their URLs: it renders whatever is present and posts to
+ * whatever href it is given. See docs/architecture.md's "Affordances:
+ * hypermedia over the aggregate" section.
+ */
+export interface Operation {
+  rel: string
+  title: string
+  method: string
+  href: string
+  fields?: OperationField[]
+}
+
 // The read side's own shape, from GET /elevators/{id}/events on
 // elevator-api directly -- not the BFF, and not the same fields as the
 // old CRUD status endpoint this replaces (state and direction are now
@@ -17,15 +46,7 @@ export interface ElevatorView {
   obstructed: boolean
   weightKg: number
   capacityKg: number
-}
-
-export interface Call {
-  id: number
-  elevatorId: number
-  floor: number
-  direction: string
-  createdAt: string
-  servedAt: string | null
+  operations: Operation[]
 }
 
 export interface CarCall {
@@ -42,7 +63,6 @@ export const BUILDING_FLOORS = 9
 export const useElevatorStore = defineStore('elevator', {
   state: () => ({
     status: null as ElevatorView | null,
-    calls: [] as Call[],
     carCalls: [] as CarCall[],
     loading: false,
     error: null as string | null,
@@ -50,17 +70,22 @@ export const useElevatorStore = defineStore('elevator', {
     eventSource: null as EventSource | null
   }),
   getters: {
-    pendingCalls: (state) => state.calls.filter((c) => c.servedAt === null),
     pendingCarCalls: (state) => state.carCalls.filter((c) => c.servedAt === null),
-    floorsWithPendingCalls: (state) =>
-      new Set(state.calls.filter((c) => c.servedAt === null).map((c) => c.floor)),
-    floorsWithPendingCarCalls: (state) =>
-      new Set(state.carCalls.filter((c) => c.servedAt === null).map((c) => c.floor)),
-    allPendingFloors(): Set<number> {
-      const floors = new Set(this.floorsWithPendingCalls)
-      for (const f of this.floorsWithPendingCarCalls) floors.add(f)
-      return floors
-    }
+    // Landing calls (the old "floorsWithPendingCalls") have no
+    // equivalent in the new read model yet: call-elevator moved onto
+    // the new aggregate in slice 2, which does not expose pending
+    // landing calls in its representation. Car-call highlighting is
+    // unaffected -- select floor is still slice 3's to migrate.
+    allPendingFloors(state): Set<number> {
+      return new Set(state.carCalls.filter((c) => c.servedAt === null).map((c) => c.floor))
+    },
+    // The one operation feature/callelevator contributes, when the
+    // current state allows it -- absent, not disabled, while
+    // outOfService or emergencyRecall. CallPanel renders this
+    // generically: it does not know "call-elevator" is a rel any more
+    // than it knows the floor count.
+    callElevatorOperation: (state) =>
+      state.status?.operations?.find((op) => op.rel === 'call-elevator') ?? null
   },
   actions: {
     // Replaces the 1.5 s poller: one connection, pushed to rather than
@@ -82,7 +107,8 @@ export const useElevatorStore = defineStore('elevator', {
             doorPosition: data.doorPosition,
             obstructed: data.obstructed,
             weightKg: data.weightKg,
-            capacityKg: data.capacityKg
+            capacityKg: data.capacityKg,
+            operations: data.operations ?? []
           }
           this.error = null
         } catch {
@@ -98,13 +124,6 @@ export const useElevatorStore = defineStore('elevator', {
       this.eventSource?.close()
       this.eventSource = null
     },
-    async fetchCalls() {
-      try {
-        this.calls = await $fetch<Call[]>(`/api/elevators/${ELEVATOR_ID}/calls`)
-      } catch {
-        // calls list is secondary; don't overwrite a more meaningful error
-      }
-    },
     async fetchCarCalls() {
       try {
         this.carCalls = await $fetch<CarCall[]>(`/api/elevators/${ELEVATOR_ID}/car-calls`)
@@ -112,21 +131,34 @@ export const useElevatorStore = defineStore('elevator', {
         // car calls list is secondary
       }
     },
-    // The status refresh these five actions used to await is gone: they
-    // still write through the old BFF to the old CRUD elevator, which
-    // the new read side (connectToEvents, above) does not observe until
-    // slice 2 onward starts producing real events for it. Until then, a
-    // call or a floor selection is recorded but not (yet) seen moving --
-    // see the elevator-api slice 1 commit message for the same gap on
-    // the read side.
-    async callElevator(floor: number, direction: 'UP' | 'DOWN') {
+    // Follows the call-elevator operation's own href and method rather
+    // than constructing a URL -- the one action this store no longer
+    // hard-codes anything about, per docs/architecture.md's "Vertical
+    // slices" rule that the client may not hard-code a URL. Goes
+    // directly to elevator-api (the operation's href is server-issued,
+    // absolute-path, and same-origin via Caddy), not the BFF.
+    async callElevator(floor: number, direction: 'up' | 'down') {
+      const operation = this.callElevatorOperation
+      if (!operation) {
+        this.error = 'Calling the elevator is not available right now.'
+        return
+      }
       this.loading = true
       try {
-        await $fetch(`/api/elevators/${ELEVATOR_ID}/calls`, {
-          method: 'POST',
+        // Without an explicit Accept header, $fetch's default
+        // ("application/json") matches none of elevator-api's negotiated
+        // formats and gets refused with 406 -- the command still runs
+        // (its side effect already happened server-side before content
+        // negotiation is even attempted), but this client would never
+        // see it succeed, or pick up the operations its own new state
+        // now offers (the SSE stream carries properties, never
+        // operations).
+        const data = await $fetch<ElevatorView>(operation.href, {
+          method: operation.method as 'POST',
+          headers: { Accept: 'application/vnd.elevator.state+json' },
           body: { floor, direction }
         })
-        await this.fetchCalls()
+        this.status = data
         this.error = null
       } catch {
         this.error = 'Unable to call the elevator.'
