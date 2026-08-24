@@ -12,26 +12,26 @@ class SelectFloorAffordanceContributorTest {
 
     @Test
     void presentWhenIdle() {
-        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "idle")))
+        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "idle", false)))
                 .extracting(a -> a.rel())
                 .containsExactly("select-floor");
     }
 
     @Test
     void presentWhileMoving() {
-        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "movingUp")))
+        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "movingUp", false)))
                 .isNotEmpty();
     }
 
     @Test
     void absentWhenOutOfService() {
-        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "outOfService")))
+        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "outOfService", false)))
                 .isEmpty();
     }
 
     @Test
     void absentWhenEmergencyRecall() {
-        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "emergencyRecall")))
+        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "emergencyRecall", false)))
                 .isEmpty();
     }
 

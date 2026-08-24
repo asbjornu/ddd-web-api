@@ -42,7 +42,10 @@ class WeightControllerTest {
 
     @Test
     void setWeightBelowCapacityIsAccepted() throws Exception {
-        mockMvc.perform(post("/elevators/1/open-doors"));
+        // open-doors/close-doors now reach the new aggregate (slice 4);
+        // the old service method is what still characterises this old
+        // weight/overload behaviour, same substitution as carCall above.
+        elevatorService.openDoors(1L);
 
         mockMvc.perform(put("/elevators/1/weight")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -61,7 +64,7 @@ class WeightControllerTest {
 
     @Test
     void overloadHoldsDoorsOpenAndClearsCarCalls() throws Exception {
-        mockMvc.perform(post("/elevators/1/open-doors"));
+        elevatorService.openDoors(1L);
 
         // /car-calls now reaches the new aggregate (slice 3); the old
         // service method is what still characterises this old-system
@@ -87,18 +90,19 @@ class WeightControllerTest {
 
     @Test
     void closeDoorsWhenOverloadedReturnsConflict() throws Exception {
-        mockMvc.perform(post("/elevators/1/open-doors"));
+        elevatorService.openDoors(1L);
         mockMvc.perform(put("/elevators/1/weight")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"weightKg\": 900}"));
 
-        mockMvc.perform(post("/elevators/1/close-doors"))
-                .andExpect(status().isConflict());
+        assertThatThrownBy(() -> elevatorService.closeDoors(1L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("409");
     }
 
     @Test
     void selectFloorWhenOverloadedReturnsConflict() throws Exception {
-        mockMvc.perform(post("/elevators/1/open-doors"));
+        elevatorService.openDoors(1L);
         mockMvc.perform(put("/elevators/1/weight")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"weightKg\": 900}"));
@@ -110,7 +114,7 @@ class WeightControllerTest {
 
     @Test
     void reduceWeightResumesNormalOperation() throws Exception {
-        mockMvc.perform(post("/elevators/1/open-doors"));
+        elevatorService.openDoors(1L);
         mockMvc.perform(put("/elevators/1/weight")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"weightKg\": 900}"));
@@ -123,7 +127,6 @@ class WeightControllerTest {
                 .andExpect(jsonPath("$.currentWeightKg", is(0)));
 
         // Now close-doors should work
-        mockMvc.perform(post("/elevators/1/close-doors"))
-                .andExpect(status().isOk());
+        elevatorService.closeDoors(1L);
     }
 }

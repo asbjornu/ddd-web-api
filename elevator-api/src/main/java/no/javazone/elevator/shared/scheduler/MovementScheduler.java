@@ -1,17 +1,17 @@
 package no.javazone.elevator.shared.scheduler;
 
 import java.time.Instant;
+import java.util.List;
 import no.javazone.elevator.config.ElevatorProperties;
 import no.javazone.elevator.feature.streamevents.ElevatorViewUpdates;
-import no.javazone.elevator.feature.viewstatus.ElevatorViewProjection;
+import no.javazone.elevator.shared.domain.DomainEvent;
 import no.javazone.elevator.shared.domain.Elevator;
 import no.javazone.elevator.shared.domain.ElevatorId;
-import no.javazone.elevator.shared.domain.ElevatorStateNames;
 import no.javazone.elevator.shared.domain.Floor;
 import no.javazone.elevator.shared.domain.MovementStarted;
-import no.javazone.elevator.shared.hypermedia.Representation;
 import no.javazone.elevator.shared.persistence.ElevatorAggregateStore;
 import no.javazone.elevator.shared.render.ElevatorStateJsonRenderer;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
 
@@ -26,34 +26,38 @@ import org.springframework.stereotype.Component;
  * <p>Shared across every command that can dispatch the car (today,
  * {@code call-elevator} and {@code select-floor}), per {@code
  * docs/architecture.md}'s "Vertical slices" section -- neither slice
- * owns movement, both trigger it.
+ * owns movement, both trigger it. Reacts to {@link MovementStarted} via
+ * {@link EventListener} rather than being called directly, so it need
+ * not depend on {@link DoorScheduler} even though arrival can itself
+ * produce a {@code DoorsOpened} event -- see {@link CommandEffects}'s
+ * Javadoc.
  */
 @Component
 public class MovementScheduler {
 
     private final TaskScheduler taskScheduler;
     private final ElevatorAggregateStore store;
-    private final ElevatorViewProjection projection;
     private final ElevatorViewUpdates updates;
     private final ElevatorStateJsonRenderer renderer;
     private final ElevatorProperties properties;
+    private final CommandEffects effects;
 
     public MovementScheduler(
             TaskScheduler movementTaskScheduler,
             ElevatorAggregateStore store,
-            ElevatorViewProjection projection,
             ElevatorViewUpdates updates,
             ElevatorStateJsonRenderer renderer,
-            ElevatorProperties properties) {
+            ElevatorProperties properties,
+            CommandEffects effects) {
         this.taskScheduler = movementTaskScheduler;
         this.store = store;
-        this.projection = projection;
         this.updates = updates;
         this.renderer = renderer;
         this.properties = properties;
+        this.effects = effects;
     }
 
-    /** Called by a command handler right after it saves the {@link MovementStarted} event. */
+    @EventListener
     public void onMovementStarted(MovementStarted event) {
         int distance = Math.abs(event.to().level() - event.from().level());
         Instant arrivalInstant = event.departedAt()
@@ -66,22 +70,9 @@ public class MovementScheduler {
         Elevator elevator = store.find(id)
                 .orElseThrow(() -> new IllegalStateException(
                         "Elevator " + id.value() + " disappeared before it arrived"));
-        elevator.arrive(destination);
+        List<DomainEvent> events = elevator.arrive(destination);
         store.save(elevator);
-        projection.syncFrom(elevator);
-        updates.publish(id, renderer.render(eventRepresentation(elevator)));
-    }
-
-    private Representation eventRepresentation(Elevator elevator) {
-        return Representation.builder("Elevator")
-                .property("currentFloor", elevator.currentFloor().level())
-                .property("state", ElevatorStateNames.of(elevator.state()))
-                .property("direction", ElevatorStateNames.directionOf(elevator.state()))
-                .property("doorPosition", elevator.doors().position().name().toLowerCase())
-                .property("obstructed", elevator.doors().obstructed())
-                .property("weightKg", elevator.load().kilograms())
-                .property("capacityKg", elevator.load().capacityKilograms())
-                .property("destinationFloor", ElevatorStateNames.destinationOf(elevator.state()))
-                .build();
+        effects.apply(elevator, events);
+        updates.publish(id, renderer.render(EventRepresentations.of(elevator)));
     }
 }

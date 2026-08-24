@@ -33,7 +33,7 @@ public final class ElevatorRepresentations {
                 .link(new Link("self", self))
                 .link(new Link("updates", self + "/events", "text/event-stream"))
                 .affordances(affordanceCatalog.affordances(
-                        AffordanceContext.forElevator(segment, view.state())))
+                        AffordanceContext.forElevator(segment, view.state(), view.obstructed())))
                 .build();
     }
 
@@ -75,6 +75,24 @@ public final class ElevatorRepresentations {
                 .property("status", 409)
                 .property("detail", detail)
                 .link(new Link("self", "/elevators/" + segment))
+                .build();
+    }
+
+    /** Same as {@link #conflict(String, String)}, but also carries the
+     * elevator's current affordances -- close-doors's refusal is the one
+     * place a rider needs to be told, in the same response, that
+     * {@code open-doors} is still there; see
+     * {@code docs/plan.html} &sect;6's "a refusal carries affordances too". */
+    public static Representation conflict(
+            String segment, String detail, ElevatorView current, AffordanceCatalog affordanceCatalog) {
+        return Representation.builder("Conflict")
+                .property("type", "about:blank")
+                .property("title", "Conflict")
+                .property("status", 409)
+                .property("detail", detail)
+                .link(new Link("self", "/elevators/" + segment))
+                .affordances(affordanceCatalog.affordances(
+                        AffordanceContext.forElevator(segment, current.state(), current.obstructed())))
                 .build();
     }
 }

@@ -141,17 +141,132 @@ public final class Elevator {
 
     /**
      * The car has arrived at {@code floor}, per the scheduler's own
-     * clock -- not a rider's command. Opens the doors and clears
-     * whatever calls were waiting at this floor; does not, by itself,
-     * dispatch the next leg of a longer journey (closing the doors
-     * again is what does that, from slice 4 onward).
+     * clock -- not a rider's command. Opens the doors (which starts the
+     * auto-close timer via {@link DoorsOpened}, same as an explicit
+     * {@code OpenDoors} would) and clears whatever calls were waiting at
+     * this floor.
      */
     public List<DomainEvent> arrive(Floor floor) {
         this.currentFloor = floor;
+        queue.clearAt(floor);
+        List<DomainEvent> events = new ArrayList<>(openTheDoors());
+        events.addFirst(new FloorReached(id, floor, Instant.now()));
+        return events;
+    }
+
+    /**
+     * Explicit rider action: open the doors. Refused while the car is
+     * moving or out of service/mid-recall -- opening doors mid-transit
+     * is not a thing a real car does.
+     */
+    public List<DomainEvent> openDoors() {
+        requireInService();
+        if (state instanceof ElevatorState.MovingUp || state instanceof ElevatorState.MovingDown) {
+            throw new CommandRefused("The car is moving.");
+        }
+        return openTheDoors();
+    }
+
+    private List<DomainEvent> openTheDoors() {
         this.state = new ElevatorState.DoorsOpen();
         this.doors = new Doors(Doors.DoorPosition.OPEN, doors.obstructed());
-        queue.clearAt(floor);
-        return List.of(new FloorReached(id, floor, Instant.now()));
+        return new ArrayList<>(List.of(new DoorsOpened(id, Instant.now())));
+    }
+
+    /**
+     * Explicit rider action: close the doors. Refused unless they are
+     * open, or while obstructed, or while overloaded -- an overloaded
+     * car must not depart, so its doors are held open instead. Starts
+     * the {@link DoorsClosingStarted} timer that {@link #finishClosingIfStillClosing}
+     * later completes, unless obstruction intervenes first.
+     */
+    public List<DomainEvent> closeDoors() {
+        if (!(state instanceof ElevatorState.DoorsOpen)) {
+            throw new CommandRefused("The doors are not open.");
+        }
+        if (doors.obstructed()) {
+            throw new CommandRefused("Obstruction detected.");
+        }
+        if (load.isOverloaded()) {
+            throw new CommandRefused("Overload detected.");
+        }
+        return startClosing();
+    }
+
+    private List<DomainEvent> startClosing() {
+        this.state = new ElevatorState.DoorsClosing();
+        this.doors = new Doors(Doors.DoorPosition.CLOSING, doors.obstructed());
+        return List.of(new DoorsClosingStarted(id, Instant.now()));
+    }
+
+    /**
+     * Called only by {@code shared.scheduler}'s door timer, once, at the
+     * open-door timeout: closes the doors automatically, unless they
+     * were already closed by an explicit command, or the car is
+     * obstructed or overloaded (in which case nothing happens, and
+     * nothing is rescheduled -- an honest simplification of the
+     * old service's retry-forever behaviour; see this slice's commit
+     * message).
+     */
+    public List<DomainEvent> autoCloseIfStillOpen() {
+        if (!(state instanceof ElevatorState.DoorsOpen) || doors.obstructed() || load.isOverloaded()) {
+            return List.of();
+        }
+        return startClosing();
+    }
+
+    /**
+     * Called only by {@code shared.scheduler}'s door timer, once, at the
+     * close-door duration: finishes closing, unless an obstruction
+     * already re-opened the doors in the meantime. Dispatches the next
+     * pending call, if the queue has one -- this is what lets a second
+     * queued call actually get served, once the first stop's doors are
+     * done with.
+     */
+    public List<DomainEvent> finishClosingIfStillClosing() {
+        if (!(state instanceof ElevatorState.DoorsClosing)) {
+            return List.of();
+        }
+        this.state = new ElevatorState.Idle();
+        this.doors = new Doors(Doors.DoorPosition.CLOSED, false);
+        List<DomainEvent> events = new ArrayList<>();
+        events.add(new DoorsClosed(id, Instant.now()));
+        dispatch().ifPresent(events::add);
+        return events;
+    }
+
+    /**
+     * The simulated obstruction sensor: refused unless the doors are
+     * currently closing (there is nothing to obstruct otherwise).
+     * Immediately re-opens the doors, restarting the auto-close cycle
+     * via {@link DoorsOpened} -- the doors will keep trying to close
+     * and keep being blocked until {@link #clearObstruction} is called,
+     * matching a real light curtain.
+     */
+    public List<DomainEvent> obstructDoors() {
+        if (!(state instanceof ElevatorState.DoorsClosing)) {
+            throw new CommandRefused("The doors are not closing.");
+        }
+        List<DomainEvent> events = new ArrayList<>();
+        events.add(new DoorsObstructed(id, Instant.now()));
+        this.doors = new Doors(Doors.DoorPosition.OPEN, true);
+        this.state = new ElevatorState.DoorsOpen();
+        events.add(new DoorsOpened(id, Instant.now()));
+        return events;
+    }
+
+    /**
+     * Clears a simulated obstruction. Refused unless one is present.
+     * Does not itself move the doors -- whatever state they are
+     * currently in (almost always open, held there by the obstruction)
+     * stands until the next close attempt, explicit or automatic.
+     */
+    public List<DomainEvent> clearObstruction() {
+        if (!doors.obstructed()) {
+            throw new CommandRefused("The doors are not obstructed.");
+        }
+        this.doors = new Doors(doors.position(), false);
+        return List.of(new ObstructionCleared(id, Instant.now()));
     }
 
     private void requireInService() {
