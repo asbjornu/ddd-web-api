@@ -11,6 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import no.javazone.elevator.TestJwtDecoderConfig;
+import no.javazone.elevator.model.CarCall;
+import no.javazone.elevator.service.ElevatorService;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -29,6 +31,14 @@ class MaintenanceControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private ElevatorService elevatorService;
+
+    private static CarCall carCallFor(int floor) {
+        CarCall request = new CarCall();
+        request.setFloor(floor);
+        return request;
+    }
 
     @Test
     void enterMaintenanceTransitionsToOutOfService() throws Exception {
@@ -61,12 +71,11 @@ class MaintenanceControllerTest {
 
     @Test
     void enterMaintenanceClearsPendingCalls() throws Exception {
-        // Landing calls no longer go through the old service (slice 2
-        // moved call-elevator onto the new aggregate), so only a car
-        // call is left to characterise clearPendingCarCalls here.
-        mockMvc.perform(post("/elevators/1/car-calls")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"floor\": 7}"));
+        // Neither /calls nor /car-calls reach the old service any more
+        // (slices 2 and 3 moved call-elevator and select-floor onto the
+        // new aggregate) -- calling it directly is what characterises
+        // clearPendingCarCalls now.
+        elevatorService.carCall(1L, carCallFor(7));
 
         mockMvc.perform(post("/elevators/1/maintenance")
                         .with(maintenanceToken())
@@ -105,12 +114,7 @@ class MaintenanceControllerTest {
 
     @Test
     void emergencyRecallSetsDirectionToRecallFloor() throws Exception {
-        // A car call, not a landing call (slice 2 moved call-elevator
-        // off this old service) -- either dispatches identically from
-        // idle, which is all this characterisation needs.
-        mockMvc.perform(post("/elevators/1/car-calls")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"floor\": 3}"));
+        elevatorService.carCall(1L, carCallFor(3));
 
         Thread.sleep(5000);
 
@@ -138,9 +142,7 @@ class MaintenanceControllerTest {
 
     @Test
     void emergencyRecallArrivesAtOutOfServiceAfterTravel() throws Exception {
-        mockMvc.perform(post("/elevators/1/car-calls")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"floor\": 2}"));
+        elevatorService.carCall(1L, carCallFor(2));
 
         Thread.sleep(2500);
 

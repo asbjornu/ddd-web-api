@@ -46,7 +46,7 @@ class RequestQueueTest {
     @Test
     void restoresPendingCallsFromPersistence() {
         LandingCall call = new LandingCall(new Floor(2), Direction.DOWN);
-        RequestQueue queue = RequestQueue.of(java.util.List.of(call));
+        RequestQueue queue = RequestQueue.of(java.util.List.of(call), java.util.List.of());
 
         assertThat(queue.pendingLandingCalls()).containsExactly(call);
     }

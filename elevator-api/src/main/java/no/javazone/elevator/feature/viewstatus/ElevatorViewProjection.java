@@ -1,7 +1,9 @@
 package no.javazone.elevator.feature.viewstatus;
 
 import java.util.Optional;
+import no.javazone.elevator.shared.domain.Elevator;
 import no.javazone.elevator.shared.domain.ElevatorId;
+import no.javazone.elevator.shared.domain.ElevatorStateNames;
 import org.springframework.stereotype.Component;
 
 /**
@@ -9,15 +11,14 @@ import org.springframework.stereotype.Component;
  * -- queries never touch the write-side aggregate, per
  * {@code docs/architecture.md}'s "CQRS and domain events" section.
  *
- * <p>Not yet a projection in the event-sourced sense: nothing folds a
- * {@code DomainEvent} into this table today, because no command has
- * moved onto the new aggregate yet to emit one (the read side has
- * nothing to read except the seed row). From slice 2 onward, this class
- * grows an {@code @EventListener} per event type its view cares about,
- * and starts calling {@link ElevatorViewUpdates#publish} after each
- * write so subscribers to {@code GET /elevators/{id}/events} hear about
- * it -- the name and the seam are both already right, only the
- * subscriptions are still empty.
+ * <p>{@link #syncFrom} is this class's projection proper: called by a
+ * command handler (after the aggregate is saved) or by
+ * {@code shared.scheduler} (after an arrival), it folds the aggregate's
+ * current state into this table -- still a direct copy rather than a
+ * per-event-type {@code @EventListener}, since every event so far
+ * changes the same handful of fields the same way. That may be worth
+ * revisiting once an event exists whose effect on the view isn't "read
+ * the aggregate again".
  */
 @Component
 public class ElevatorViewProjection {
@@ -30,5 +31,20 @@ public class ElevatorViewProjection {
 
     public Optional<ElevatorView> find(ElevatorId id) {
         return repository.findById(id.value()).map(ElevatorView::from);
+    }
+
+    public void syncFrom(Elevator elevator) {
+        ElevatorViewEntity entity = repository.findById(elevator.id().value())
+                .orElseThrow(() -> new IllegalStateException(
+                        "No read-side row for elevator " + elevator.id().value()
+                                + " -- it must be seeded, never created by a command"));
+        entity.setCurrentFloor(elevator.currentFloor().level());
+        entity.setState(ElevatorStateNames.of(elevator.state()));
+        entity.setDirection(ElevatorStateNames.directionOf(elevator.state()));
+        entity.setDoorPosition(elevator.doors().position().name().toLowerCase());
+        entity.setObstructed(elevator.doors().obstructed());
+        entity.setWeightKg(elevator.load().kilograms());
+        entity.setCapacityKg(elevator.load().capacityKilograms());
+        repository.save(entity);
     }
 }

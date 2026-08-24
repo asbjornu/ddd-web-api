@@ -13,11 +13,9 @@ import jakarta.persistence.Table;
  * that keeps a JPA entity from leaking into a response elsewhere in this
  * refactor.
  *
- * <p>Today this table is seeded once (see the V8 migration) and never
- * written to again: no command has moved onto the new aggregate yet to
- * produce an event for a projection to fold in. Starting with slice 2,
- * {@link ElevatorViewProjection} becomes the only writer of this table,
- * driven by events rather than by a request.
+ * <p>Seeded once (see the V8 migration); {@link ElevatorViewProjection}
+ * is the only writer after that, syncing this row from the write-side
+ * aggregate after a command or a scheduled arrival changes it.
  */
 @Entity
 @Table(name = "elevator_view")
@@ -56,27 +54,55 @@ public class ElevatorViewEntity {
         return currentFloor;
     }
 
+    public void setCurrentFloor(int currentFloor) {
+        this.currentFloor = currentFloor;
+    }
+
     public String getState() {
         return state;
+    }
+
+    public void setState(String state) {
+        this.state = state;
     }
 
     public String getDirection() {
         return direction;
     }
 
+    public void setDirection(String direction) {
+        this.direction = direction;
+    }
+
     public String getDoorPosition() {
         return doorPosition;
+    }
+
+    public void setDoorPosition(String doorPosition) {
+        this.doorPosition = doorPosition;
     }
 
     public boolean isObstructed() {
         return obstructed;
     }
 
+    public void setObstructed(boolean obstructed) {
+        this.obstructed = obstructed;
+    }
+
     public int getWeightKg() {
         return weightKg;
     }
 
+    public void setWeightKg(int weightKg) {
+        this.weightKg = weightKg;
+    }
+
     public int getCapacityKg() {
         return capacityKg;
+    }
+
+    public void setCapacityKg(int capacityKg) {
+        this.capacityKg = capacityKg;
     }
 }

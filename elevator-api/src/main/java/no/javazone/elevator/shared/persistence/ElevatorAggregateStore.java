@@ -2,11 +2,13 @@ package no.javazone.elevator.shared.persistence;
 
 import java.util.List;
 import java.util.Optional;
+import no.javazone.elevator.shared.domain.CarCall;
 import no.javazone.elevator.shared.domain.Direction;
 import no.javazone.elevator.shared.domain.Doors;
 import no.javazone.elevator.shared.domain.Elevator;
 import no.javazone.elevator.shared.domain.ElevatorId;
 import no.javazone.elevator.shared.domain.ElevatorState;
+import no.javazone.elevator.shared.domain.ElevatorStateNames;
 import no.javazone.elevator.shared.domain.Floor;
 import no.javazone.elevator.shared.domain.LandingCall;
 import no.javazone.elevator.shared.domain.Load;
@@ -28,11 +30,15 @@ public class ElevatorAggregateStore {
 
     private final ElevatorAggregateJpaRepository elevators;
     private final LandingCallJpaRepository landingCalls;
+    private final CarCallJpaRepository carCalls;
 
     public ElevatorAggregateStore(
-            ElevatorAggregateJpaRepository elevators, LandingCallJpaRepository landingCalls) {
+            ElevatorAggregateJpaRepository elevators,
+            LandingCallJpaRepository landingCalls,
+            CarCallJpaRepository carCalls) {
         this.elevators = elevators;
         this.landingCalls = landingCalls;
+        this.carCalls = carCalls;
     }
 
     public Optional<Elevator> find(ElevatorId id) {
@@ -45,7 +51,8 @@ public class ElevatorAggregateStore {
                 elevators.findById(elevator.id().value()).orElseGet(ElevatorAggregateEntity::new);
         entity.setId(elevator.id().value());
         entity.setCurrentFloor(elevator.currentFloor().level());
-        entity.setState(stateName(elevator.state()));
+        entity.setState(ElevatorStateNames.of(elevator.state()));
+        entity.setDestinationFloor(destinationOf(elevator.state()));
         entity.setObstructed(elevator.doors().obstructed());
         entity.setDoorPosition(elevator.doors().position().name().toLowerCase());
         entity.setWeightKg(elevator.load().kilograms());
@@ -53,57 +60,44 @@ public class ElevatorAggregateStore {
         elevators.save(entity);
 
         // Whole-queue replace rather than a diff: simple, and cheap at
-        // this scale. Worth revisiting once a call can be served
-        // (removed) as well as added, from slice 3 onward.
+        // this scale.
         landingCalls.deleteByElevatorId(elevator.id().value());
         for (LandingCall call : elevator.queue().pendingLandingCalls()) {
             landingCalls.save(new LandingCallEntity(
                     elevator.id().value(), call.floor().level(), call.direction().name()));
         }
+        carCalls.deleteByElevatorId(elevator.id().value());
+        for (CarCall call : elevator.queue().pendingCarCalls()) {
+            carCalls.save(new CarCallEntity(elevator.id().value(), call.floor().level()));
+        }
+    }
+
+    private Integer destinationOf(ElevatorState state) {
+        return switch (state) {
+            case ElevatorState.MovingUp s -> s.destination().level();
+            case ElevatorState.MovingDown s -> s.destination().level();
+            default -> null;
+        };
     }
 
     private Elevator toDomain(ElevatorId id, ElevatorAggregateEntity entity) {
-        List<LandingCall> pending = landingCalls.findByElevatorId(entity.getId()).stream()
+        List<LandingCall> pendingLanding = landingCalls.findByElevatorId(entity.getId()).stream()
                 .map(row -> new LandingCall(
                         new Floor(row.getFloor()), Direction.valueOf(row.getDirection())))
                 .toList();
+        List<CarCall> pendingCar = carCalls.findByElevatorId(entity.getId()).stream()
+                .map(row -> new CarCall(new Floor(row.getFloor())))
+                .toList();
+        Integer destinationFloor = entity.getDestinationFloor();
+        Floor destination = destinationFloor == null ? null : new Floor(destinationFloor);
         return Elevator.restore(
                 id,
                 new Floor(entity.getCurrentFloor()),
-                stateFromName(entity.getState()),
+                ElevatorStateNames.fromName(entity.getState(), destination),
                 new Doors(
                         Doors.DoorPosition.valueOf(entity.getDoorPosition().toUpperCase()),
                         entity.isObstructed()),
                 new Load(entity.getWeightKg(), entity.getCapacityKg()),
-                RequestQueue.of(pending));
-    }
-
-    private String stateName(ElevatorState state) {
-        return switch (state) {
-            case ElevatorState.Idle s -> "idle";
-            case ElevatorState.DoorsOpen s -> "doorsOpen";
-            case ElevatorState.DoorsClosing s -> "doorsClosing";
-            case ElevatorState.MovingUp s -> "movingUp";
-            case ElevatorState.MovingDown s -> "movingDown";
-            case ElevatorState.OutOfService s -> "outOfService";
-            case ElevatorState.EmergencyRecall s -> "emergencyRecall";
-        };
-    }
-
-    // MovingUp/MovingDown/EmergencyRecall are not reachable by any
-    // command yet (they carry a destination floor this table has no
-    // column for) -- restoring one is deliberately unsupported until
-    // the slice that produces it also adds the column. idle,
-    // doorsOpen, doorsClosing and outOfService carry no data of their
-    // own, so name alone is enough to restore them.
-    private ElevatorState stateFromName(String name) {
-        return switch (name) {
-            case "idle" -> new ElevatorState.Idle();
-            case "doorsOpen" -> new ElevatorState.DoorsOpen();
-            case "doorsClosing" -> new ElevatorState.DoorsClosing();
-            case "outOfService" -> new ElevatorState.OutOfService();
-            default -> throw new IllegalStateException(
-                    "Cannot restore elevator state \"" + name + "\" yet");
-        };
+                RequestQueue.of(pendingLanding, pendingCar));
     }
 }

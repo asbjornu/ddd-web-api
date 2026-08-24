@@ -7,12 +7,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import no.javazone.elevator.TestJwtDecoderConfig;
+import no.javazone.elevator.model.CarCall;
+import no.javazone.elevator.service.ElevatorService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import no.javazone.elevator.TestJwtDecoderConfig;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +27,9 @@ class DoorControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private ElevatorService elevatorService;
 
     @Test
     void openDoorsOnIdleElevatorOpensDoors() throws Exception {
@@ -52,13 +57,14 @@ class DoorControllerTest {
 
     @Test
     void openDoorsWhileMovingReturnsConflict() throws Exception {
-        // Landing calls no longer drive the old elevator (call-elevator
-        // moved onto the new aggregate in slice 2) -- a car call still
-        // does, and is just as good a way to get this elevator moving
-        // for the purpose of this characterisation.
-        mockMvc.perform(post("/elevators/1/car-calls")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"floor\": 9}"));
+        // Neither /calls nor /car-calls drive the old elevator any more
+        // (call-elevator and select-floor moved onto the new aggregate
+        // in slices 2 and 3) -- calling the old service method directly
+        // is what is left to get this elevator moving for the purpose
+        // of this characterisation.
+        CarCall request = new CarCall();
+        request.setFloor(9);
+        elevatorService.carCall(1L, request);
 
         mockMvc.perform(post("/elevators/1/open-doors"))
                 .andExpect(status().isConflict());

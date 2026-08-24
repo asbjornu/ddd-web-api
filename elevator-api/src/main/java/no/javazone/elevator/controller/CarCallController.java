@@ -3,17 +3,17 @@ package no.javazone.elevator.controller;
 import java.util.List;
 import no.javazone.elevator.model.CarCall;
 import no.javazone.elevator.service.ElevatorService;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Car calls: a rider inside the car selecting a destination floor.
- * See "Select floor" in docs/architecture.md.
+ * Car calls: read-only now. {@code POST /elevators/{id}/car-calls}
+ * moved onto the new aggregate in slice 3 -- see
+ * {@code no.javazone.elevator.feature.selectfloor.SelectFloorController}
+ * -- and this class kept only the listing endpoint, which doors,
+ * weight and maintenance/recall characterisation tests still read via
+ * {@link ElevatorService}. Deleted outright once those migrate too.
  */
 @RestController
 public class CarCallController {
@@ -22,12 +22,6 @@ public class CarCallController {
 
     public CarCallController(ElevatorService elevatorService) {
         this.elevatorService = elevatorService;
-    }
-
-    @PostMapping("/elevators/{id}/car-calls")
-    @ResponseStatus(HttpStatus.CREATED)
-    public CarCall carCall(@PathVariable Long id, @RequestBody CarCall carCall) {
-        return elevatorService.carCall(id, carCall);
     }
 
     @GetMapping("/elevators/{id}/car-calls")

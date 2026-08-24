@@ -1,4 +1,4 @@
-package no.javazone.elevator.feature.callelevator;
+package no.javazone.elevator.feature.selectfloor;
 
 import java.util.List;
 import no.javazone.elevator.shared.domain.CommandRefused;
@@ -10,16 +10,12 @@ import no.javazone.elevator.shared.scheduler.CommandEffects;
 import org.springframework.stereotype.Component;
 
 /**
- * {@code command -> handler -> aggregate -> events}, all inside this
- * slice -- see {@code docs/architecture.md}'s "CQRS and domain events"
- * section. The aggregate is the only thing that may refuse
- * ({@link CommandRefused} propagates unchanged, for the controller to
- * translate into a 409 Problem); events are its only other output, and
- * {@link CommandEffects} is what turns them into a synced read model
- * and, if the car just dispatched, a scheduled arrival.
+ * {@code command -> handler -> aggregate -> events} for select-floor --
+ * see {@link no.javazone.elevator.feature.callelevator.CallElevatorHandler}
+ * for the identical shape slice 2 already established.
  */
 @Component
-public class CallElevatorHandler {
+public class SelectFloorHandler {
 
     /** Thrown when the command names an elevator that does not exist. */
     public static class UnknownElevator extends RuntimeException {
@@ -31,15 +27,15 @@ public class CallElevatorHandler {
     private final ElevatorAggregateStore store;
     private final CommandEffects effects;
 
-    public CallElevatorHandler(ElevatorAggregateStore store, CommandEffects effects) {
+    public SelectFloorHandler(ElevatorAggregateStore store, CommandEffects effects) {
         this.store = store;
         this.effects = effects;
     }
 
-    public List<DomainEvent> handle(CallElevatorCommand command) {
+    public List<DomainEvent> handle(SelectFloorCommand command) {
         Elevator elevator = store.find(command.elevatorId())
                 .orElseThrow(() -> new UnknownElevator(command.elevatorId()));
-        List<DomainEvent> events = elevator.call(command.floor(), command.direction());
+        List<DomainEvent> events = elevator.selectFloor(command.floor());
         store.save(elevator);
         effects.apply(elevator, events);
         return events;

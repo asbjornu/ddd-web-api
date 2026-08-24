@@ -1,4 +1,4 @@
-package no.javazone.elevator.feature.callelevator;
+package no.javazone.elevator.feature.selectfloor;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -29,7 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Import(TestJwtDecoderConfig.class)
 @AutoConfigureMockMvc
 @Transactional
-class CallElevatorControllerTest {
+class SelectFloorControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -37,32 +37,20 @@ class CallElevatorControllerTest {
     @Autowired
     private ElevatorAggregateStore store;
 
-    // @DirtiesContext: this call actually dispatches the car (floor 5 is
-    // 4 floors away), which schedules a real background arrival a few
-    // seconds out -- see MovementSchedulerIntegrationTest's Javadoc for
-    // why that must not be left to fire against a later test's context.
+    // @DirtiesContext: floor 5 is 4 floors from the seeded elevator, so
+    // this really dispatches and schedules a background arrival -- see
+    // MovementSchedulerIntegrationTest's Javadoc.
     @Test
     @DirtiesContext
-    void callingTheSeededElevatorSucceeds() throws Exception {
+    void selectingAFloorFromIdleDispatchesTheCar() throws Exception {
         mockMvc.perform(post("/elevators/1")
                         .header(HttpHeaders.ACCEPT, "application/vnd.siren+json")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"type\": \"CallElevator\", \"floor\": 5, \"direction\": \"up\"}"))
+                        .content("{\"type\": \"SelectFloor\", \"floor\": 5}"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith("application/vnd.siren+json"))
-                .andExpect(content().string(containsString("call-elevator")));
-    }
-
-    @Test
-    @DirtiesContext
-    void aCallIsPersistedOnTheAggregate() throws Exception {
-        mockMvc.perform(post("/elevators/1")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"type\": \"CallElevator\", \"floor\": 7, \"direction\": \"down\"}"));
-
-        Elevator elevator = store.find(new ElevatorId(1)).orElseThrow();
-        org.assertj.core.api.Assertions.assertThat(elevator.queue().pendingLandingCalls())
-                .anyMatch(call -> call.floor().level() == 7);
+                .andExpect(content().string(containsString("\"state\" : \"movingUp\"")))
+                .andExpect(content().string(containsString("select-floor")));
     }
 
     @Test
@@ -70,17 +58,7 @@ class CallElevatorControllerTest {
         mockMvc.perform(post("/elevators/1")
                         .header(HttpHeaders.ACCEPT, "application/problem+json")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"type\": \"CallElevator\"}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().contentTypeCompatibleWith("application/problem+json"));
-    }
-
-    @Test
-    void anInvalidDirectionIsARefusedRequest() throws Exception {
-        mockMvc.perform(post("/elevators/1")
-                        .header(HttpHeaders.ACCEPT, "application/problem+json")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"type\": \"CallElevator\", \"floor\": 3, \"direction\": \"sideways\"}"))
+                        .content("{\"type\": \"SelectFloor\"}"))
                 .andExpect(status().isBadRequest());
     }
 
@@ -89,27 +67,42 @@ class CallElevatorControllerTest {
         mockMvc.perform(post("/elevators/999")
                         .header(HttpHeaders.ACCEPT, "application/problem+json")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"type\": \"CallElevator\", \"floor\": 3, \"direction\": \"up\"}"))
+                        .content("{\"type\": \"SelectFloor\", \"floor\": 3}"))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    void callingAnOutOfServiceElevatorIsAConflict() throws Exception {
-        ElevatorId id = new ElevatorId(1);
-        Elevator outOfService = Elevator.restore(
-                id,
+    void selectingAFloorOnAnOutOfServiceElevatorIsAConflict() throws Exception {
+        store.save(Elevator.restore(
+                new ElevatorId(1),
                 new Floor(1),
                 new ElevatorState.OutOfService(),
                 Doors.closed(),
                 new Load(0, 800),
-                RequestQueue.empty());
-        store.save(outOfService);
+                RequestQueue.empty()));
 
         mockMvc.perform(post("/elevators/1")
                         .header(HttpHeaders.ACCEPT, "application/problem+json")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"type\": \"CallElevator\", \"floor\": 3, \"direction\": \"up\"}"))
+                        .content("{\"type\": \"SelectFloor\", \"floor\": 3}"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void selectingAnOverloadedCarsFloorIsAConflict() throws Exception {
+        store.save(Elevator.restore(
+                new ElevatorId(1),
+                new Floor(1),
+                new ElevatorState.Idle(),
+                Doors.closed(),
+                new Load(900, 800),
+                RequestQueue.empty()));
+
+        mockMvc.perform(post("/elevators/1")
+                        .header(HttpHeaders.ACCEPT, "application/problem+json")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\": \"SelectFloor\", \"floor\": 3}"))
                 .andExpect(status().isConflict())
-                .andExpect(content().string(containsString("out of service")));
+                .andExpect(content().string(containsString("overloaded")));
     }
 }
