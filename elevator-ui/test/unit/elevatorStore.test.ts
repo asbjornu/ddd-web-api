@@ -64,24 +64,6 @@ describe('useElevatorStore getters', () => {
     setActivePinia(createPinia())
   })
 
-  it('filters served car calls out of pendingCarCalls', () => {
-    const store = useElevatorStore()
-    store.carCalls = [
-      { id: 1, elevatorId: 1, floor: 7, createdAt: '', servedAt: null },
-      { id: 2, elevatorId: 1, floor: 2, createdAt: '', servedAt: '2024-01-01T00:00:00Z' }
-    ]
-
-    expect(store.pendingCarCalls).toHaveLength(1)
-    expect(store.pendingCarCalls[0]?.floor).toBe(7)
-  })
-
-  it('collects pending floors from car calls', () => {
-    const store = useElevatorStore()
-    store.carCalls = [{ id: 2, elevatorId: 1, floor: 9, createdAt: '', servedAt: null }]
-
-    expect(store.allPendingFloors).toEqual(new Set([9]))
-  })
-
   it('finds the call-elevator operation among the current status operations', () => {
     const store = useElevatorStore()
     store.status = {
@@ -92,6 +74,7 @@ describe('useElevatorStore getters', () => {
       obstructed: false,
       weightKg: 0,
       capacityKg: 800,
+      destinationFloor: null,
       operations: [
         { rel: 'call-elevator', title: 'Call elevator', method: 'POST', href: '/elevators/1/calls' }
       ]
@@ -110,10 +93,35 @@ describe('useElevatorStore getters', () => {
       obstructed: false,
       weightKg: 0,
       capacityKg: 800,
+      destinationFloor: null,
       operations: []
     }
 
     expect(store.callElevatorOperation).toBeNull()
+  })
+
+  it('finds the select-floor operation among the current status operations', () => {
+    const store = useElevatorStore()
+    store.status = {
+      currentFloor: 1,
+      state: 'movingUp',
+      direction: 'up',
+      doorPosition: 'closed',
+      obstructed: false,
+      weightKg: 0,
+      capacityKg: 800,
+      destinationFloor: 5,
+      operations: [
+        {
+          rel: 'select-floor',
+          title: 'Select a floor',
+          method: 'POST',
+          href: '/elevators/1/car-calls'
+        }
+      ]
+    }
+
+    expect(store.selectFloorOperation?.rel).toBe('select-floor')
   })
 })
 
@@ -160,6 +168,7 @@ describe('useElevatorStore callElevator', () => {
       obstructed: false,
       weightKg: 0,
       capacityKg: 800,
+      destinationFloor: null,
       operations: []
     }
 
@@ -179,6 +188,7 @@ describe('useElevatorStore callElevator', () => {
       obstructed: false,
       weightKg: 0,
       capacityKg: 800,
+      destinationFloor: null,
       operations: [
         { rel: 'call-elevator', title: 'Call elevator', method: 'POST', href: '/elevators/1/calls' }
       ]
@@ -187,6 +197,83 @@ describe('useElevatorStore callElevator', () => {
     await store.callElevator(5, 'up')
 
     expect(calledBody).toEqual({ floor: 5, direction: 'up' })
+    expect(store.error).toBeNull()
+  })
+})
+
+describe('useElevatorStore selectFloor', () => {
+  let calledBody: unknown
+
+  registerEndpoint('/elevators/1/car-calls', {
+    method: 'POST',
+    handler: async (event) => {
+      calledBody = await readBody(event)
+      // The response is what the store's own selectFloor now assigns to
+      // status, since the SSE stream never carries operations -- only
+      // this response tells the client what it may do next.
+      return {
+        currentFloor: 1,
+        state: 'movingUp',
+        direction: 'up',
+        doorPosition: 'closed',
+        obstructed: false,
+        weightKg: 0,
+        capacityKg: 800,
+        destinationFloor: null,
+        operations: []
+      }
+    }
+  })
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    calledBody = undefined
+  })
+
+  it('does nothing when no select-floor operation is present', async () => {
+    const store = useElevatorStore()
+    store.status = {
+      currentFloor: 1,
+      state: 'outOfService',
+      direction: 'none',
+      doorPosition: 'closed',
+      obstructed: false,
+      weightKg: 0,
+      capacityKg: 800,
+      destinationFloor: null,
+      operations: []
+    }
+
+    await store.selectFloor(5)
+
+    expect(store.error).toBe('Selecting a floor is not available right now.')
+    expect(calledBody).toBeUndefined()
+  })
+
+  it("posts to the operation's own href and method", async () => {
+    const store = useElevatorStore()
+    store.status = {
+      currentFloor: 1,
+      state: 'idle',
+      direction: 'none',
+      doorPosition: 'closed',
+      obstructed: false,
+      weightKg: 0,
+      capacityKg: 800,
+      destinationFloor: null,
+      operations: [
+        {
+          rel: 'select-floor',
+          title: 'Select a floor',
+          method: 'POST',
+          href: '/elevators/1/car-calls'
+        }
+      ]
+    }
+
+    await store.selectFloor(6)
+
+    expect(calledBody).toEqual({ floor: 6 })
     expect(store.error).toBeNull()
   })
 })

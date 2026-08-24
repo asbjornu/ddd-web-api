@@ -12,16 +12,17 @@ const floors = computed(() =>
 
 const currentFloor = computed(() => store.status?.currentFloor ?? 1)
 
-// No travel animation for now: state can only ever be "idle" until
-// slice 3 (Select floor) gives a moving elevator a destination the API
-// actually exposes, so the car simply snaps to wherever the read model
-// says it is. The client-side physics this replaced
-// (TRAVEL_SECONDS_PER_FLOOR and a requestAnimationFrame tween towards a
-// target floor) is deleted rather than kept dark, per
-// docs/architecture.md's slice 1 roadmap entry -- it re-appears,
-// server-timed rather than guessed by the client, once there is a real
-// destination to animate towards.
+// The car's position is a CSS transition on `bottom`, not a
+// requestAnimationFrame tween keyed to a hard-coded seconds-per-floor
+// constant -- see docs/architecture.md's slice 1 roadmap entry for why
+// that guessed-physics approach was deleted rather than kept. This is
+// a fixed-duration slide (like the door transitions below it), not a
+// claim about how long the real journey takes; the destination marker
+// is what tells the rider where the car is headed, from the read
+// model's own destinationFloor (back as of slice 3).
 const carBottom = computed(() => (currentFloor.value - 1) * FLOOR_HEIGHT)
+
+const destinationFloor = computed(() => store.status?.destinationFloor ?? null)
 
 const panelRef = ref<HTMLElement | null>(null)
 const panelHeight = ref(FLOOR_HEIGHT)
@@ -79,6 +80,11 @@ const isEmergency = computed(() => store.status?.state === 'emergencyRecall')
         class="floor-line"
         :class="{ 'active-line': floor === currentFloor }"
         :style="{ bottom: `${(floor - 1) * FLOOR_HEIGHT}px` }"
+      />
+      <div
+        v-if="destinationFloor != null"
+        class="destination-marker"
+        :style="{ bottom: `${(destinationFloor - 1) * FLOOR_HEIGHT}px` }"
       />
       <div
         class="car"
@@ -172,6 +178,27 @@ const isEmergency = computed(() => store.status?.state === 'emergencyRecall')
 .floor-line.active-line {
   border-top: 4px solid #4caf50;
 }
+.destination-marker {
+  position: absolute;
+  left: -11px;
+  width: calc(100% + 22px);
+  height: 0;
+  border-top: 4px dashed #ff9800;
+  z-index: 1;
+  opacity: 0.7;
+  transition: bottom 0.6s ease;
+}
+.destination-marker::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  right: -4px;
+  width: 0;
+  height: 0;
+  border-left: 14px solid transparent;
+  border-right: 14px solid transparent;
+  border-top: 18px solid #ff9800;
+}
 
 /* ── Car ── */
 .car {
@@ -181,6 +208,7 @@ const isEmergency = computed(() => store.status?.state === 'emergencyRecall')
   display: flex;
   flex-direction: column;
   z-index: 2;
+  transition: bottom 0.6s ease;
 }
 .car-roof {
   height: 6px;

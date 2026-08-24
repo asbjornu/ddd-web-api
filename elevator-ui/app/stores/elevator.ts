@@ -34,10 +34,9 @@ export interface Operation {
 // The read side's own shape, from GET /elevators/{id}/events on
 // elevator-api directly -- not the BFF, and not the same fields as the
 // old CRUD status endpoint this replaces (state and direction are now
-// lower camelCase, "doorState" is "doorPosition", and there is no
-// "targetFloor": nothing can move yet, since no command has landed on
-// the new aggregate. See docs/architecture.md's "Roadmap" -- slice 3
-// (Select floor) is what gives a moving elevator a destination again).
+// lower camelCase, "doorState" is "doorPosition"). destinationFloor
+// (the old "targetFloor") is back as of slice 3: null except while
+// state is movingUp/movingDown.
 export interface ElevatorView {
   currentFloor: number
   state: string
@@ -46,15 +45,8 @@ export interface ElevatorView {
   obstructed: boolean
   weightKg: number
   capacityKg: number
+  destinationFloor: number | null
   operations: Operation[]
-}
-
-export interface CarCall {
-  id: number
-  elevatorId: number
-  floor: number
-  createdAt: string
-  servedAt: string | null
 }
 
 export const ELEVATOR_ID = 1
@@ -63,29 +55,22 @@ export const BUILDING_FLOORS = 9
 export const useElevatorStore = defineStore('elevator', {
   state: () => ({
     status: null as ElevatorView | null,
-    carCalls: [] as CarCall[],
     loading: false,
     error: null as string | null,
     technicianKeyInserted: false,
     eventSource: null as EventSource | null
   }),
   getters: {
-    pendingCarCalls: (state) => state.carCalls.filter((c) => c.servedAt === null),
-    // Landing calls (the old "floorsWithPendingCalls") have no
-    // equivalent in the new read model yet: call-elevator moved onto
-    // the new aggregate in slice 2, which does not expose pending
-    // landing calls in its representation. Car-call highlighting is
-    // unaffected -- select floor is still slice 3's to migrate.
-    allPendingFloors(state): Set<number> {
-      return new Set(state.carCalls.filter((c) => c.servedAt === null).map((c) => c.floor))
-    },
     // The one operation feature/callelevator contributes, when the
     // current state allows it -- absent, not disabled, while
     // outOfService or emergencyRecall. CallPanel renders this
     // generically: it does not know "call-elevator" is a rel any more
     // than it knows the floor count.
     callElevatorOperation: (state) =>
-      state.status?.operations?.find((op) => op.rel === 'call-elevator') ?? null
+      state.status?.operations?.find((op) => op.rel === 'call-elevator') ?? null,
+    // Same seam, for feature/selectfloor's operation.
+    selectFloorOperation: (state) =>
+      state.status?.operations?.find((op) => op.rel === 'select-floor') ?? null
   },
   actions: {
     // Replaces the 1.5 s poller: one connection, pushed to rather than
@@ -108,6 +93,7 @@ export const useElevatorStore = defineStore('elevator', {
             obstructed: data.obstructed,
             weightKg: data.weightKg,
             capacityKg: data.capacityKg,
+            destinationFloor: data.destinationFloor ?? null,
             operations: data.operations ?? []
           }
           this.error = null
@@ -123,13 +109,6 @@ export const useElevatorStore = defineStore('elevator', {
     disconnectFromEvents() {
       this.eventSource?.close()
       this.eventSource = null
-    },
-    async fetchCarCalls() {
-      try {
-        this.carCalls = await $fetch<CarCall[]>(`/api/elevators/${ELEVATOR_ID}/car-calls`)
-      } catch {
-        // car calls list is secondary
-      }
     },
     // Follows the call-elevator operation's own href and method rather
     // than constructing a URL -- the one action this store no longer
@@ -166,14 +145,33 @@ export const useElevatorStore = defineStore('elevator', {
         this.loading = false
       }
     },
+    // Same shape as callElevator: no hard-coded URL, and no more
+    // pendingCarCalls list to refresh afterward -- the new read model
+    // has no equivalent (only the single destinationFloor), which is
+    // also why CarPanel now highlights a destination, not a list of
+    // "pending" floors.
     async selectFloor(floor: number) {
+      const operation = this.selectFloorOperation
+      if (!operation) {
+        this.error = 'Selecting a floor is not available right now.'
+        return
+      }
       this.loading = true
       try {
-        await $fetch(`/api/elevators/${ELEVATOR_ID}/car-calls`, {
-          method: 'POST',
+        // Without an explicit Accept header, $fetch's default
+        // ("application/json") matches none of elevator-api's negotiated
+        // formats and gets refused with 406 -- the command still runs
+        // (its side effect already happened server-side before content
+        // negotiation is even attempted), but this client would never
+        // see it succeed, or pick up the operations its own new state
+        // now offers (the SSE stream carries properties, never
+        // operations).
+        const data = await $fetch<ElevatorView>(operation.href, {
+          method: operation.method as 'POST',
+          headers: { Accept: 'application/vnd.elevator.state+json' },
           body: { floor }
         })
-        await this.fetchCarCalls()
+        this.status = data
         this.error = null
       } catch {
         this.error = 'Unable to select floor.'

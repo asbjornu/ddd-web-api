@@ -31,7 +31,6 @@ async function submitKey() {
 onMounted(() => {
   store.refreshKeyState()
   store.connectToEvents()
-  store.fetchCarCalls()
 })
 
 onUnmounted(() => {
@@ -56,8 +55,8 @@ onUnmounted(() => {
       <dt>Doors</dt>
       <dd>{{ store.status.doorPosition }}</dd>
 
-      <dt>Pending floors</dt>
-      <dd>{{ store.allPendingFloors.size }}</dd>
+      <dt>Destination floor</dt>
+      <dd>{{ store.status.destinationFloor ?? '—' }}</dd>
     </dl>
 
     <div class="actions">

@@ -11,8 +11,12 @@ const overloaded = computed(() => (store.status?.weightKg ?? 0) > (store.status?
 
 const doorsOpen = computed(() => store.status?.doorPosition === 'open')
 
-function isPending(floor: number) {
-  return store.allPendingFloors.has(floor)
+// "Pending" (a list of queued car calls) has no equivalent in the new
+// read model -- feature.viewstatus exposes only the single
+// destinationFloor the car is already committed to, which is a more
+// honest thing to highlight than a queue the client cannot see.
+function isDestination(floor: number) {
+  return store.status?.destinationFloor === floor
 }
 
 function isCurrent(floor: number) {
@@ -20,7 +24,7 @@ function isCurrent(floor: number) {
 }
 
 function canSelect(floor: number) {
-  return floor !== currentFloor.value && !store.loading
+  return floor !== currentFloor.value && !store.loading && store.selectFloorOperation != null
 }
 
 function select(floor: number) {
@@ -38,7 +42,7 @@ function select(floor: number) {
         type="button"
         :class="{
           current: isCurrent(floor),
-          pending: isPending(floor)
+          pending: isDestination(floor)
         }"
         :disabled="!canSelect(floor)"
         @click="select(floor)"
