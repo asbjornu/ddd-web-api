@@ -1,14 +1,15 @@
 <script setup lang="ts">
 const store = useElevatorStore()
 
-const canOpenDoors = computed(() => {
-  const state = store.status?.state
-  return state === 'idle' || state === 'doorsOpen' || state === 'doorsClosing'
-})
-
-const canCloseDoors = computed(() => {
-  return store.status?.state === 'doorsOpen' && !store.status?.obstructed
-})
+// Driven by which operations the server actually offers, not by
+// re-deriving the same rule from state here -- see
+// docs/architecture.md's "Affordances: hypermedia over the aggregate"
+// section. open-doors/close-doors/obstruct-doors/clear-obstruction are
+// each present or absent on their own terms.
+const canOpenDoors = computed(() => store.openDoorsOperation != null)
+const canCloseDoors = computed(() => store.closeDoorsOperation != null)
+const canObstruct = computed(() => store.obstructDoorsOperation != null)
+const canClearObstruction = computed(() => store.clearObstructionOperation != null)
 
 const obstructionWarning = computed(() => {
   return store.status?.obstructed ? 'Doors blocked — cannot close' : ''
@@ -65,14 +66,10 @@ onUnmounted(() => {
       <p v-if="obstructionWarning" class="obstruction-warning">
         {{ obstructionWarning }}
       </p>
-      <label class="obstruction-toggle">
-        <input
-          type="checkbox"
-          :checked="store.status?.obstructed ?? false"
-          @change="store.toggleObstruction()"
-        />
-        Obstruction
-      </label>
+      <button v-if="canObstruct" @click="store.obstructDoors()">Simulate obstruction</button>
+      <button v-if="canClearObstruction" @click="store.clearObstruction()">
+        Clear obstruction
+      </button>
     </div>
 
     <hr class="divider" />
@@ -141,13 +138,6 @@ dd {
 .actions button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
-}
-.obstruction-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.9rem;
-  cursor: pointer;
 }
 .obstruction-warning {
   color: #b00020;

@@ -70,7 +70,19 @@ export const useElevatorStore = defineStore('elevator', {
       state.status?.operations?.find((op) => op.rel === 'call-elevator') ?? null,
     // Same seam, for feature/selectfloor's operation.
     selectFloorOperation: (state) =>
-      state.status?.operations?.find((op) => op.rel === 'select-floor') ?? null
+      state.status?.operations?.find((op) => op.rel === 'select-floor') ?? null,
+    // The remaining door operations: each present or absent on its own
+    // terms (open-doors while not moving, close-doors while open,
+    // obstruct-doors only while closing, clear-obstruction only while
+    // obstructed) -- see docs/architecture.md's slice 4 roadmap entry.
+    openDoorsOperation: (state) =>
+      state.status?.operations?.find((op) => op.rel === 'open-doors') ?? null,
+    closeDoorsOperation: (state) =>
+      state.status?.operations?.find((op) => op.rel === 'close-doors') ?? null,
+    obstructDoorsOperation: (state) =>
+      state.status?.operations?.find((op) => op.rel === 'obstruct-doors') ?? null,
+    clearObstructionOperation: (state) =>
+      state.status?.operations?.find((op) => op.rel === 'clear-obstruction') ?? null
   },
   actions: {
     // Replaces the 1.5 s poller: one connection, pushed to rather than
@@ -179,18 +191,34 @@ export const useElevatorStore = defineStore('elevator', {
         this.loading = false
       }
     },
+    // Same shape again: open-doors, close-doors, obstruct-doors and
+    // clear-obstruction each follow their own operation's href/method.
+    // toggleObstruction (one endpoint, a boolean payload doing double
+    // duty) is gone with it -- obstructDoors and clearObstruction are
+    // two distinct commands now, matching the two distinct affordances
+    // the server offers at two different times.
     async openDoors() {
+      const operation = this.openDoorsOperation
+      if (!operation) {
+        this.error = 'Opening the doors is not available right now.'
+        return
+      }
       try {
-        await $fetch(`/api/elevators/${ELEVATOR_ID}/open-doors`, { method: 'POST' })
+        await $fetch(operation.href, { method: operation.method as 'POST' })
         this.error = null
       } catch {
         this.error = 'Unable to open doors.'
       }
     },
     async closeDoors() {
+      const operation = this.closeDoorsOperation
+      if (!operation) {
+        this.error = 'Closing the doors is not available right now.'
+        return
+      }
       try {
         this.error = null
-        await $fetch(`/api/elevators/${ELEVATOR_ID}/close-doors`, { method: 'POST' })
+        await $fetch(operation.href, { method: operation.method as 'POST' })
       } catch (e) {
         // The API answers 409 with a domain reason ("Obstruction detected",
         // "Overload detected"), which is the one place a server-side rule
@@ -200,16 +228,30 @@ export const useElevatorStore = defineStore('elevator', {
         this.error = msg
       }
     },
-    async toggleObstruction() {
-      const obstructed = !this.status?.obstructed
+    async obstructDoors() {
+      const operation = this.obstructDoorsOperation
+      if (!operation) {
+        this.error = 'Simulating an obstruction is not available right now.'
+        return
+      }
       try {
-        await $fetch(`/api/elevators/${ELEVATOR_ID}/obstruction`, {
-          method: 'PUT',
-          body: { obstructed }
-        })
+        await $fetch(operation.href, { method: operation.method as 'POST' })
         this.error = null
       } catch {
-        this.error = 'Unable to toggle obstruction.'
+        this.error = 'Unable to simulate an obstruction.'
+      }
+    },
+    async clearObstruction() {
+      const operation = this.clearObstructionOperation
+      if (!operation) {
+        this.error = 'Clearing the obstruction is not available right now.'
+        return
+      }
+      try {
+        await $fetch(operation.href, { method: operation.method as 'POST' })
+        this.error = null
+      } catch {
+        this.error = 'Unable to clear the obstruction.'
       }
     },
     async setWeight(weightKg: number) {

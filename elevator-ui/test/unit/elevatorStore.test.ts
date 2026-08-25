@@ -278,6 +278,108 @@ describe('useElevatorStore selectFloor', () => {
   })
 })
 
+// Same shape once more: open-doors, close-doors, obstruct-doors and
+// clear-obstruction each follow their own operation's href/method, with
+// no body -- see docs/architecture.md's slice 4 roadmap entry for why
+// toggleObstruction (one endpoint, a boolean payload) is gone.
+describe('useElevatorStore doors', () => {
+  let openCalled = false
+  let closeCalled = false
+  let obstructCalled = false
+  let clearCalled = false
+
+  registerEndpoint('/elevators/1/open-doors', {
+    method: 'POST',
+    handler: () => {
+      openCalled = true
+      return {}
+    }
+  })
+  registerEndpoint('/elevators/1/close-doors', {
+    method: 'POST',
+    handler: () => {
+      closeCalled = true
+      return {}
+    }
+  })
+  registerEndpoint('/elevators/1/obstruct-doors', {
+    method: 'POST',
+    handler: () => {
+      obstructCalled = true
+      return {}
+    }
+  })
+  registerEndpoint('/elevators/1/clear-obstruction', {
+    method: 'POST',
+    handler: () => {
+      clearCalled = true
+      return {}
+    }
+  })
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    openCalled = false
+    closeCalled = false
+    obstructCalled = false
+    clearCalled = false
+  })
+
+  function statusWithOperations(...operations: Array<{ rel: string; href: string }>) {
+    return {
+      currentFloor: 1,
+      state: 'doorsOpen',
+      direction: 'none',
+      doorPosition: 'open',
+      obstructed: false,
+      weightKg: 0,
+      capacityKg: 800,
+      destinationFloor: null,
+      operations: operations.map((op) => ({
+        title: op.rel,
+        method: 'POST',
+        ...op
+      }))
+    }
+  }
+
+  it('does nothing when no matching operation is present', async () => {
+    const store = useElevatorStore()
+    store.status = statusWithOperations()
+
+    await store.openDoors()
+    await store.closeDoors()
+    await store.obstructDoors()
+    await store.clearObstruction()
+
+    expect(openCalled).toBe(false)
+    expect(closeCalled).toBe(false)
+    expect(obstructCalled).toBe(false)
+    expect(clearCalled).toBe(false)
+  })
+
+  it('follows each operation when present', async () => {
+    const store = useElevatorStore()
+    store.status = statusWithOperations(
+      { rel: 'open-doors', href: '/elevators/1/open-doors' },
+      { rel: 'close-doors', href: '/elevators/1/close-doors' },
+      { rel: 'obstruct-doors', href: '/elevators/1/obstruct-doors' },
+      { rel: 'clear-obstruction', href: '/elevators/1/clear-obstruction' }
+    )
+
+    await store.openDoors()
+    await store.closeDoors()
+    await store.obstructDoors()
+    await store.clearObstruction()
+
+    expect(openCalled).toBe(true)
+    expect(closeCalled).toBe(true)
+    expect(obstructCalled).toBe(true)
+    expect(clearCalled).toBe(true)
+    expect(store.error).toBeNull()
+  })
+})
+
 // The technician secret is server-side only: the store never holds it and
 // never sends an Authorization header. It POSTs the key the user typed to
 // the BFF, which replies with an HttpOnly cookie. Because that cookie is
