@@ -26,11 +26,11 @@ import java.util.Optional;
 public final class Elevator {
 
     private final ElevatorId id;
-    private final Load load;
     private final RequestQueue queue;
     private Floor currentFloor;
     private ElevatorState state;
     private Doors doors;
+    private Load load;
 
     private Elevator(
             ElevatorId id,
@@ -99,7 +99,7 @@ public final class Elevator {
     public List<DomainEvent> selectFloor(Floor floor) {
         requireInService();
         if (load.isOverloaded()) {
-            throw new CommandRefused("The car is overloaded.");
+            throw new CommandRefused("The car is overloaded.", "/problems/overloaded");
         }
         List<DomainEvent> events = new ArrayList<>();
         queue.addCar(new CarCall(floor));
@@ -110,12 +110,12 @@ public final class Elevator {
 
     /**
      * Commits to travelling to the next pending floor, if the car is
-     * idle and has somewhere to go -- direction-committed via
-     * {@link RequestQueue#next}. Does nothing (and returns empty) if
-     * already moving, or if nothing is pending.
+     * idle, not overloaded, and has somewhere to go -- direction-committed
+     * via {@link RequestQueue#next}. Does nothing (and returns empty) if
+     * already moving, overloaded, or if nothing is pending.
      */
     private Optional<DomainEvent> dispatch() {
-        if (!(state instanceof ElevatorState.Idle)) {
+        if (!(state instanceof ElevatorState.Idle) || load.isOverloaded()) {
             return Optional.empty();
         }
         // Idle carries no direction of its own (see ElevatorState's
@@ -267,6 +267,24 @@ public final class Elevator {
         }
         this.doors = new Doors(doors.position(), false);
         return List.of(new ObstructionCleared(id, Instant.now()));
+    }
+
+    /**
+     * The simulated weight sensor reports {@code weightKg} -- refused
+     * unless the doors are open, matching the physical setup this
+     * simulates: only a rider boarding or alighting through open doors
+     * changes what the car is carrying. Replaces {@link #load}'s weight
+     * only; capacity is the car's own fixed property. Becoming
+     * overloaded does not itself clear anything queued -- see
+     * {@link #dispatch} and {@link #closeDoors} for where overload
+     * actually takes effect (nothing departs, nothing closes).
+     */
+    public List<DomainEvent> reportLoad(int weightKg) {
+        if (!(state instanceof ElevatorState.DoorsOpen)) {
+            throw new CommandRefused("The doors must be open to change the load.");
+        }
+        this.load = new Load(weightKg, load.capacityKilograms());
+        return List.of(new LoadReported(id, weightKg, Instant.now()));
     }
 
     private void requireInService() {

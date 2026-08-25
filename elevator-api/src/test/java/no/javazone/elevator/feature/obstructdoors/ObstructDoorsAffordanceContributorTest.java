@@ -13,18 +13,18 @@ class ObstructDoorsAffordanceContributorTest {
 
     @Test
     void presentOnlyWhileClosing() {
-        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "doorsClosing", false)))
+        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "doorsClosing", false, false)))
                 .extracting(a -> a.rel())
                 .containsExactly("obstruct-doors");
     }
 
     @Test
     void absentWhenIdleOrOpenOrMoving() {
-        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "idle", false)))
+        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "idle", false, false)))
                 .isEmpty();
-        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "doorsOpen", false)))
+        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "doorsOpen", false, false)))
                 .isEmpty();
-        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "movingUp", false)))
+        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "movingUp", false, false)))
                 .isEmpty();
     }
 

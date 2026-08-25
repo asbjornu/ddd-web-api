@@ -15,28 +15,28 @@ class CallElevatorAffordanceContributorTest {
     @Test
     void presentWhenIdle() {
         List<Affordance> affordances =
-                contributor.contribute(AffordanceContext.forElevator("1", "idle", false));
+                contributor.contribute(AffordanceContext.forElevator("1", "idle", false, false));
 
         assertThat(affordances).extracting(Affordance::rel).containsExactly("call-elevator");
     }
 
     @Test
     void presentWhenDoorsOpenOrClosing() {
-        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "doorsOpen", false)))
+        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "doorsOpen", false, false)))
                 .isNotEmpty();
-        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "doorsClosing", false)))
+        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "doorsClosing", false, false)))
                 .isNotEmpty();
     }
 
     @Test
     void absentWhenOutOfService() {
-        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "outOfService", false)))
+        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "outOfService", false, false)))
                 .isEmpty();
     }
 
     @Test
     void absentWhenEmergencyRecall() {
-        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "emergencyRecall", false)))
+        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "emergencyRecall", false, false)))
                 .isEmpty();
     }
 

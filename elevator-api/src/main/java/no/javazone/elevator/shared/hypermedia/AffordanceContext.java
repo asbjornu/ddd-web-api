@@ -7,8 +7,8 @@ import java.util.Optional;
  * which elevator (if any -- the entry point has none), its current
  * state (a lower camelCase string, not the write-side
  * {@code ElevatorState} sealed type -- the query side has no reason to
- * depend on the write side just to compute this), and whether its doors
- * are obstructed.
+ * depend on the write side just to compute this), whether its doors are
+ * obstructed, and whether the car is overloaded.
  *
  * <p>No {@code Principal} yet: authority joins this context in slice 6,
  * once one exists to pass -- see {@code docs/architecture.md}'s
@@ -16,13 +16,20 @@ import java.util.Optional;
  * predicate once it does.
  */
 public record AffordanceContext(
-        Optional<String> elevatorSegment, Optional<String> state, Optional<Boolean> obstructed) {
+        Optional<String> elevatorSegment,
+        Optional<String> state,
+        Optional<Boolean> obstructed,
+        Optional<Boolean> overloaded) {
 
     public static AffordanceContext root() {
-        return new AffordanceContext(Optional.empty(), Optional.empty(), Optional.empty());
+        return new AffordanceContext(
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
     }
 
-    public static AffordanceContext forElevator(String segment, String state, boolean obstructed) {
-        return new AffordanceContext(Optional.of(segment), Optional.of(state), Optional.of(obstructed));
+    public static AffordanceContext forElevator(
+            String segment, String state, boolean obstructed, boolean overloaded) {
+        return new AffordanceContext(
+                Optional.of(segment), Optional.of(state), Optional.of(obstructed),
+                Optional.of(overloaded));
     }
 }

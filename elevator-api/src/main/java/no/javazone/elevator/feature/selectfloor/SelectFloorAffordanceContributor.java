@@ -8,17 +8,14 @@ import no.javazone.elevator.shared.hypermedia.Field;
 import org.springframework.stereotype.Component;
 
 /**
- * Offers {@code select-floor} for any elevator that is in service --
- * absent while {@code outOfService} or {@code emergencyRecall}, the
- * same rule {@link no.javazone.elevator.shared.domain.Elevator#selectFloor}
- * enforces for those two states.
- *
- * <p>Overload is deliberately not checked here: whether the car is
- * overloaded lives on the aggregate's {@code Load}, which the read
- * model does not expose yet (that arrives with slice 5, Overload).
- * Until then, an overloaded car still offers the affordance and refuses
- * the command with a 409 -- an honest gap, not a bug; see this slice's
- * commit message.
+ * Offers {@code select-floor} for any elevator that is in service and
+ * not overloaded -- absent while {@code outOfService} or
+ * {@code emergencyRecall}, or while the car is overloaded, the same
+ * rules {@link no.javazone.elevator.shared.domain.Elevator#selectFloor}
+ * enforces. "select-floor absent when overloaded -- no 409 needed" is
+ * the test named in this slice's (Overload) roadmap entry: a client
+ * that never learns the car is overloaded also never has a reason to
+ * attempt the command in the first place.
  */
 @Component
 public class SelectFloorAffordanceContributor implements AffordanceContributor {
@@ -31,7 +28,7 @@ public class SelectFloorAffordanceContributor implements AffordanceContributor {
             return List.of();
         }
         String state = context.state().orElse("");
-        if (UNAVAILABLE_STATES.contains(state)) {
+        if (UNAVAILABLE_STATES.contains(state) || context.overloaded().orElse(false)) {
             return List.of();
         }
         String href = "/elevators/" + context.elevatorSegment().get();

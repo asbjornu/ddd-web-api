@@ -88,6 +88,8 @@ class SelectFloorControllerTest {
                 .andExpect(status().isConflict());
     }
 
+    // "a client that sends it anyway gets a typed problem, not a bare
+    // 409" -- the second half of this slice's (Overload) named test.
     @Test
     void selectingAnOverloadedCarsFloorIsAConflict() throws Exception {
         store.save(Elevator.restore(
@@ -103,6 +105,7 @@ class SelectFloorControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\": \"SelectFloor\", \"floor\": 3}"))
                 .andExpect(status().isConflict())
-                .andExpect(content().string(containsString("overloaded")));
+                .andExpect(content().string(containsString("overloaded")))
+                .andExpect(content().string(containsString("\"type\" : \"/problems/overloaded\"")));
     }
 }

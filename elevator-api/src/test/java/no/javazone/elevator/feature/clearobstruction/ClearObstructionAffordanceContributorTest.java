@@ -12,14 +12,14 @@ class ClearObstructionAffordanceContributorTest {
 
     @Test
     void presentWhenObstructed() {
-        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "doorsOpen", true)))
+        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "doorsOpen", true, false)))
                 .extracting(a -> a.rel())
                 .containsExactly("clear-obstruction");
     }
 
     @Test
     void absentWhenNotObstructed() {
-        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "doorsOpen", false)))
+        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "doorsOpen", false, false)))
                 .isEmpty();
     }
 

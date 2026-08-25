@@ -79,7 +79,7 @@ public class ViewStatusController {
                 .link(new Link("self", self))
                 .link(new Link("updates", self + "/events", "text/event-stream"))
                 .affordances(affordanceCatalog.affordances(
-                        AffordanceContext.forElevator(segment, view.state(), view.obstructed())))
+                        AffordanceContext.forElevator(segment, view.state(), view.obstructed(), view.weightKg() > view.capacityKg())))
                 .build();
     }
 

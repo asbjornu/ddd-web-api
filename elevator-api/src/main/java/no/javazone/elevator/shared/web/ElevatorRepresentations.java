@@ -1,6 +1,7 @@
 package no.javazone.elevator.shared.web;
 
 import no.javazone.elevator.feature.viewstatus.ElevatorView;
+import no.javazone.elevator.shared.domain.CommandRefused;
 import no.javazone.elevator.shared.hypermedia.AffordanceCatalog;
 import no.javazone.elevator.shared.hypermedia.AffordanceContext;
 import no.javazone.elevator.shared.hypermedia.Link;
@@ -32,8 +33,8 @@ public final class ElevatorRepresentations {
                 .property("destinationFloor", view.destinationFloor())
                 .link(new Link("self", self))
                 .link(new Link("updates", self + "/events", "text/event-stream"))
-                .affordances(affordanceCatalog.affordances(
-                        AffordanceContext.forElevator(segment, view.state(), view.obstructed())))
+                .affordances(affordanceCatalog.affordances(AffordanceContext.forElevator(
+                        segment, view.state(), view.obstructed(), view.weightKg() > view.capacityKg())))
                 .build();
     }
 
@@ -78,6 +79,20 @@ public final class ElevatorRepresentations {
                 .build();
     }
 
+    /** Uses {@code refused}'s own {@code type} -- {@code about:blank} for a
+     * generic refusal, or a specific problem URI (e.g. overload) -- rather
+     * than hard-coding one, per {@code docs/architecture.md}'s slice 5
+     * roadmap entry. */
+    public static Representation conflict(String segment, CommandRefused refused) {
+        return Representation.builder("Conflict")
+                .property("type", refused.type())
+                .property("title", "Conflict")
+                .property("status", 409)
+                .property("detail", refused.getMessage())
+                .link(new Link("self", "/elevators/" + segment))
+                .build();
+    }
+
     /** Same as {@link #conflict(String, String)}, but also carries the
      * elevator's current affordances -- close-doors's refusal is the one
      * place a rider needs to be told, in the same response, that
@@ -91,8 +106,9 @@ public final class ElevatorRepresentations {
                 .property("status", 409)
                 .property("detail", detail)
                 .link(new Link("self", "/elevators/" + segment))
-                .affordances(affordanceCatalog.affordances(
-                        AffordanceContext.forElevator(segment, current.state(), current.obstructed())))
+                .affordances(affordanceCatalog.affordances(AffordanceContext.forElevator(
+                        segment, current.state(), current.obstructed(),
+                        current.weightKg() > current.capacityKg())))
                 .build();
     }
 }
