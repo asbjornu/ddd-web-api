@@ -1,22 +1,24 @@
 package no.javazone.elevator.controller;
 
-import java.util.Map;
 import no.javazone.elevator.model.Elevator;
 import no.javazone.elevator.service.ElevatorService;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Technician key-switch actions: enter/exit maintenance and emergency
- * recall.
+ * Emergency recall only -- {@code enter}/{@code exitMaintenance} moved
+ * onto {@code POST /elevators/{id}} in slice 6 (see
+ * {@code feature.entermaintenance}/{@code feature.exitmaintenance});
+ * {@code triggerEmergencyRecall} stays here awaiting slice 7, per
+ * {@code docs/architecture.md}'s roadmap.
  *
- * <p>Authorisation is no longer this controller's business. The scopes
- * required are declared once in
- * {@link no.javazone.elevator.config.SecurityConfig}, and a request that
- * arrives here has already presented a valid token carrying them. See
- * "Authentication and authorization" in docs/architecture.md.
+ * <p>Authorisation for the recall mapping below is still
+ * {@link no.javazone.elevator.config.SecurityConfig}'s business, not
+ * this controller's -- unlike maintenance, which now enforces its own
+ * scope requirement in {@code EnterMaintenanceController}/{@code
+ * ExitMaintenanceController}, per {@code docs/architecture.md}'s
+ * "Key-switch and authorization" section.
  */
 @RestController
 public class MaintenanceController {
@@ -25,17 +27,6 @@ public class MaintenanceController {
 
     public MaintenanceController(ElevatorService elevatorService) {
         this.elevatorService = elevatorService;
-    }
-
-    @PostMapping("/elevators/{id}/maintenance")
-    public Elevator maintenance(@PathVariable Long id,
-            @RequestBody Map<String, Boolean> body) {
-        boolean enable = body.getOrDefault("maintenance", false);
-        if (enable) {
-            return elevatorService.enterMaintenance(id);
-        } else {
-            return elevatorService.exitMaintenance(id);
-        }
     }
 
     @PostMapping("/elevators/{id}/emergency-recall")

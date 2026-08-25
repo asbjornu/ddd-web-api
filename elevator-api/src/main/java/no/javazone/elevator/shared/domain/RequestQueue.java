@@ -116,6 +116,12 @@ public final class RequestQueue {
         carCalls.clear();
     }
 
+    /** Whether anything is pending at all -- used to decide whether
+     * entering maintenance actually has anything to clear. */
+    public boolean isEmpty() {
+        return landingCalls.isEmpty() && carCalls.isEmpty();
+    }
+
     private Set<Integer> pendingFloors() {
         return Stream.concat(
                         landingCalls.stream().map(call -> call.floor().level()),

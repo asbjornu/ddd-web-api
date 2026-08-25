@@ -20,6 +20,19 @@ import org.springframework.security.web.SecurityFilterChain;
  * issued by elevator-auth. There is no shared secret here any more: the
  * token is validated by signature against the issuer's published keys, and
  * authority is carried by scope rather than by knowing a string.
+ *
+ * <p>{@code enter}/{@code exit-maintenance} no longer have a URL pattern
+ * of their own to gate here: both now answer the same shared {@code POST
+ * /elevators/{id}} every command does, so a {@code hasAuthority} matcher
+ * keyed on the path can no longer tell them apart from any other command.
+ * Their scope requirement is enforced instead exactly where {@code
+ * docs/architecture.md}'s "Key-switch and authorization" section puts
+ * it: inside {@code EnterMaintenanceController}/{@code
+ * ExitMaintenanceController} themselves, the same place a domain
+ * refusal would be, using the {@code Principal} {@code CommandsController}
+ * resolves for every command. {@code emergency-recall} keeps its own
+ * matcher below only because it has not moved yet -- that is slice 7's
+ * job.
  */
 @Configuration
 public class SecurityConfig {
@@ -28,8 +41,6 @@ public class SecurityConfig {
     SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         return http
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/elevators/*/maintenance")
-                            .hasAuthority("SCOPE_elevator:maintenance")
                         .requestMatchers("/elevators/*/emergency-recall")
                             .hasAuthority("SCOPE_elevator:recall")
                         .anyRequest().permitAll())

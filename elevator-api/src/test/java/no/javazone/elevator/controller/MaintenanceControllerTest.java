@@ -1,27 +1,32 @@
 package no.javazone.elevator.controller;
 
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import no.javazone.elevator.TestJwtDecoderConfig;
 import no.javazone.elevator.model.CarCall;
 import no.javazone.elevator.service.ElevatorService;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.http.MediaType;
+import org.springframework.context.annotation.Import;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Emergency recall only -- {@code enterMaintenance}/{@code
+ * exitMaintenance} characterisation tests moved to {@code
+ * feature.entermaintenance}/{@code feature.exitmaintenance} in slice 6;
+ * this class awaits slice 7 unchanged. See {@link MaintenanceController}'s
+ * Javadoc.
+ */
 @SpringBootTest
 @Import(TestJwtDecoderConfig.class)
 @AutoConfigureMockMvc
@@ -38,78 +43,6 @@ class MaintenanceControllerTest {
         CarCall request = new CarCall();
         request.setFloor(floor);
         return request;
-    }
-
-    @Test
-    void enterMaintenanceTransitionsToOutOfService() throws Exception {
-        mockMvc.perform(post("/elevators/1/maintenance")
-                        .with(maintenanceToken())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"maintenance\": true}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.state", is("OUT_OF_SERVICE")))
-                .andExpect(jsonPath("$.doorState", is("CLOSED")))
-                .andExpect(jsonPath("$.direction", is("NONE")));
-    }
-
-    @Test
-    void exitMaintenanceReturnsToIdle() throws Exception {
-        mockMvc.perform(post("/elevators/1/maintenance")
-                        .with(maintenanceToken())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"maintenance\": true}"));
-
-        mockMvc.perform(post("/elevators/1/maintenance")
-                        .with(maintenanceToken())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"maintenance\": false}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.state", is("IDLE")))
-                .andExpect(jsonPath("$.doorState", is("CLOSED")))
-                .andExpect(jsonPath("$.direction", is("NONE")));
-    }
-
-    @Test
-    void enterMaintenanceClearsPendingCalls() throws Exception {
-        // Neither /calls nor /car-calls reach the old service any more
-        // (slices 2 and 3 moved call-elevator and select-floor onto the
-        // new aggregate) -- calling it directly is what characterises
-        // clearPendingCarCalls now.
-        elevatorService.carCall(1L, carCallFor(7));
-
-        mockMvc.perform(post("/elevators/1/maintenance")
-                        .with(maintenanceToken())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"maintenance\": true}"));
-
-        mockMvc.perform(get("/elevators/1/car-calls"))
-                .andExpect(jsonPath("$[0].servedAt", is(notNullValue())));
-    }
-
-    @Test
-    void enterMaintenanceRejectsATokenWithoutTheScope() throws Exception {
-        mockMvc.perform(post("/elevators/1/maintenance")
-                        .with(recallToken())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"maintenance\": true}"))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    void enterMaintenanceRejectsAnAnonymousRequest() throws Exception {
-        mockMvc.perform(post("/elevators/1/maintenance")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"maintenance\": true}"))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void enterMaintenanceRejectsNonBearerAuthorization() throws Exception {
-        mockMvc.perform(post("/elevators/1/maintenance")
-                        .header("Authorization", "Basic dGVzdDp0ZXN0")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"maintenance\": true}"))
-                .andExpect(status().isUnauthorized());
     }
 
     @Test

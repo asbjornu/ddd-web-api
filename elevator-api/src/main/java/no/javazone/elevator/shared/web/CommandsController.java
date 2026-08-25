@@ -7,6 +7,8 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import no.javazone.elevator.shared.domain.ElevatorId;
+import no.javazone.elevator.shared.security.Principal;
+import no.javazone.elevator.shared.security.PrincipalResolver;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -37,15 +39,18 @@ public class CommandsController {
     private final UriResolver uriResolver;
     private final Map<String, CommandEndpoint> endpointsByType;
     private final RepresentationResponses responses;
+    private final PrincipalResolver principalResolver;
 
     public CommandsController(
             UriResolver uriResolver,
             List<CommandEndpoint> endpoints,
-            RepresentationResponses responses) {
+            RepresentationResponses responses,
+            PrincipalResolver principalResolver) {
         this.uriResolver = uriResolver;
         this.endpointsByType = endpoints.stream()
                 .collect(Collectors.toMap(CommandEndpoint::type, Function.identity()));
         this.responses = responses;
+        this.principalResolver = principalResolver;
     }
 
     @PostMapping("/elevators/{segment}")
@@ -69,7 +74,7 @@ public class CommandsController {
                             "The request body must include a \"type\" naming a known command."));
         }
 
-        return endpoint.handle(id.get(), segment, body, accept);
+        return endpoint.handle(id.get(), segment, body, accept, principalResolver.resolve());
     }
 
     private String commandType(JsonNode body) {

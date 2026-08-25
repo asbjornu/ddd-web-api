@@ -9,10 +9,13 @@ import java.util.List;
  * interface -- a slice contributes an affordance by existing, not by
  * registering itself anywhere.
  *
- * <p>No {@code Principal} parameter yet: authority joins
- * {@link AffordanceContext} in slice 6, once one exists to pass -- see
- * {@code docs/architecture.md}'s "Domain-driven security" reasoning for
- * why authority belongs in this same predicate once there is one.
+ * <p>Authority joins {@link AffordanceContext} as a {@code Principal},
+ * always present -- a privileged contributor (see
+ * {@code feature.entermaintenance}) checks {@code
+ * context.principal().hasScope(...)} the same way every contributor
+ * already checks {@code context.state()}: one predicate answering both
+ * "is this allowed" and "is this available right now", per {@code
+ * docs/architecture.md}'s "Key-switch and authorization" section.
  */
 public interface AffordanceContributor {
 

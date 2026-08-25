@@ -6,6 +6,7 @@ import no.javazone.elevator.shared.hypermedia.AffordanceCatalog;
 import no.javazone.elevator.shared.hypermedia.AffordanceContext;
 import no.javazone.elevator.shared.hypermedia.Link;
 import no.javazone.elevator.shared.hypermedia.Representation;
+import no.javazone.elevator.shared.security.Principal;
 
 /**
  * The one shape every command endpoint's success and failure responses
@@ -20,7 +21,8 @@ public final class ElevatorRepresentations {
     }
 
     public static Representation representation(
-            String segment, ElevatorView view, AffordanceCatalog affordanceCatalog) {
+            String segment, ElevatorView view, AffordanceCatalog affordanceCatalog,
+            Principal principal) {
         String self = "/elevators/" + segment;
         return Representation.builder("Elevator")
                 .property("currentFloor", view.currentFloor())
@@ -34,7 +36,8 @@ public final class ElevatorRepresentations {
                 .link(new Link("self", self))
                 .link(new Link("updates", self + "/events", "text/event-stream"))
                 .affordances(affordanceCatalog.affordances(AffordanceContext.forElevator(
-                        segment, view.state(), view.obstructed(), view.weightKg() > view.capacityKg())))
+                        segment, view.state(), view.obstructed(), view.weightKg() > view.capacityKg(),
+                        principal)))
                 .build();
     }
 
@@ -69,6 +72,21 @@ public final class ElevatorRepresentations {
                 .build();
     }
 
+    /** A bare 403, with no invented problem type -- an unauthorised
+     * command looks like this, not like a domain refusal: it never got
+     * far enough to be one. See {@code docs/architecture.md}'s
+     * "Key-switch and authorization" section: the affordance was simply
+     * absent for this caller, and this is what following a URL nobody
+     * offered them gets back. */
+    public static Representation forbidden(String detail) {
+        return Representation.builder("Forbidden")
+                .property("type", "about:blank")
+                .property("title", "Forbidden")
+                .property("status", 403)
+                .property("detail", detail)
+                .build();
+    }
+
     public static Representation conflict(String segment, String detail) {
         return Representation.builder("Conflict")
                 .property("type", "about:blank")
@@ -99,7 +117,8 @@ public final class ElevatorRepresentations {
      * {@code open-doors} is still there; see
      * {@code docs/plan.html} &sect;6's "a refusal carries affordances too". */
     public static Representation conflict(
-            String segment, String detail, ElevatorView current, AffordanceCatalog affordanceCatalog) {
+            String segment, String detail, ElevatorView current, AffordanceCatalog affordanceCatalog,
+            Principal principal) {
         return Representation.builder("Conflict")
                 .property("type", "about:blank")
                 .property("title", "Conflict")
@@ -108,7 +127,7 @@ public final class ElevatorRepresentations {
                 .link(new Link("self", "/elevators/" + segment))
                 .affordances(affordanceCatalog.affordances(AffordanceContext.forElevator(
                         segment, current.state(), current.obstructed(),
-                        current.weightKg() > current.capacityKg())))
+                        current.weightKg() > current.capacityKg(), principal)))
                 .build();
     }
 }

@@ -9,6 +9,7 @@ import no.javazone.elevator.shared.domain.ElevatorId;
 import no.javazone.elevator.shared.hypermedia.AffordanceCatalog;
 import no.javazone.elevator.shared.render.ElevatorStateJsonRenderer;
 import no.javazone.elevator.shared.web.CommandEndpoint;
+import no.javazone.elevator.shared.security.Principal;
 import no.javazone.elevator.shared.web.ElevatorRepresentations;
 import no.javazone.elevator.shared.web.RepresentationResponses;
 import org.springframework.http.HttpStatus;
@@ -47,7 +48,8 @@ public class ClearObstructionController implements CommandEndpoint {
     }
 
     @Override
-    public ResponseEntity<String> handle(ElevatorId id, String segment, JsonNode body, String accept) {
+    public ResponseEntity<String> handle(
+            ElevatorId id, String segment, JsonNode body, String accept, Principal principal) {
         try {
             handler.handle(new ClearObstructionCommand(id));
         } catch (ClearObstructionHandler.UnknownElevator unknown) {
@@ -62,6 +64,6 @@ public class ClearObstructionController implements CommandEndpoint {
 
         ElevatorView view = projection.find(id).orElseThrow();
         updates.publish(id, eventRenderer.render(ElevatorRepresentations.eventRepresentation(view)));
-        return responses.ok(accept, ElevatorRepresentations.representation(segment, view, affordanceCatalog));
+        return responses.ok(accept, ElevatorRepresentations.representation(segment, view, affordanceCatalog, principal));
     }
 }

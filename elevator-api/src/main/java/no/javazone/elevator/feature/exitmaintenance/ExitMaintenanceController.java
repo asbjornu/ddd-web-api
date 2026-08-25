@@ -1,17 +1,15 @@
-package no.javazone.elevator.feature.selectfloor;
+package no.javazone.elevator.feature.exitmaintenance;
 
 import tools.jackson.databind.JsonNode;
-import java.util.Optional;
 import no.javazone.elevator.feature.streamevents.ElevatorViewUpdates;
 import no.javazone.elevator.feature.viewstatus.ElevatorView;
 import no.javazone.elevator.feature.viewstatus.ElevatorViewProjection;
 import no.javazone.elevator.shared.domain.CommandRefused;
 import no.javazone.elevator.shared.domain.ElevatorId;
-import no.javazone.elevator.shared.domain.Floor;
 import no.javazone.elevator.shared.hypermedia.AffordanceCatalog;
 import no.javazone.elevator.shared.render.ElevatorStateJsonRenderer;
-import no.javazone.elevator.shared.web.CommandEndpoint;
 import no.javazone.elevator.shared.security.Principal;
+import no.javazone.elevator.shared.web.CommandEndpoint;
 import no.javazone.elevator.shared.web.ElevatorRepresentations;
 import no.javazone.elevator.shared.web.RepresentationResponses;
 import org.springframework.http.HttpStatus;
@@ -19,29 +17,22 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
 /**
- * Answers {@code "type": "SelectFloor"} on {@code POST /elevators/{id}}
- * -- see
- * {@link no.javazone.elevator.feature.callelevator.CallElevatorController}
- * for the identical shape.
- *
- * <p>A refusal's {@code type} is whatever {@link CommandRefused} carries
- * -- {@code about:blank} for a generic refusal, or a specific problem
- * URI for overload, per {@code docs/architecture.md}'s slice 5 roadmap
- * entry: "a client that sends it anyway gets a typed problem, not a
- * bare 409".
+ * Answers {@code "type": "ExitMaintenance"} on {@code POST /elevators/{id}}
+ * -- see {@link no.javazone.elevator.feature.entermaintenance.EnterMaintenanceController}
+ * for the identical authorization shape.
  */
 @Component
-public class SelectFloorController implements CommandEndpoint {
+public class ExitMaintenanceController implements CommandEndpoint {
 
-    private final SelectFloorHandler handler;
+    private final ExitMaintenanceHandler handler;
     private final ElevatorViewProjection projection;
     private final ElevatorViewUpdates updates;
     private final ElevatorStateJsonRenderer eventRenderer;
     private final AffordanceCatalog affordanceCatalog;
     private final RepresentationResponses responses;
 
-    public SelectFloorController(
-            SelectFloorHandler handler,
+    public ExitMaintenanceController(
+            ExitMaintenanceHandler handler,
             ElevatorViewProjection projection,
             ElevatorViewUpdates updates,
             ElevatorStateJsonRenderer eventRenderer,
@@ -57,45 +48,33 @@ public class SelectFloorController implements CommandEndpoint {
 
     @Override
     public String type() {
-        return "SelectFloor";
+        return "ExitMaintenance";
     }
 
     @Override
     public ResponseEntity<String> handle(
             ElevatorId id, String segment, JsonNode body, String accept, Principal principal) {
-        Optional<Floor> floor = parseFloor(body);
-        if (floor.isEmpty()) {
+        if (!principal.hasScope("elevator:maintenance")) {
             return responses.problem(
-                    HttpStatus.BAD_REQUEST,
+                    HttpStatus.FORBIDDEN,
                     accept,
-                    ElevatorRepresentations.badRequest("A floor selection needs an integer \"floor\"."));
+                    ElevatorRepresentations.forbidden(
+                            "This operation requires the technician key."));
         }
 
         try {
-            handler.handle(new SelectFloorCommand(id, floor.get()));
-        } catch (SelectFloorHandler.UnknownElevator unknown) {
+            handler.handle(new ExitMaintenanceCommand(id));
+        } catch (ExitMaintenanceHandler.UnknownElevator unknown) {
             return responses.problem(
                     HttpStatus.NOT_FOUND, accept, ElevatorRepresentations.notFound(segment));
         } catch (CommandRefused refused) {
             return responses.problem(
-                    HttpStatus.CONFLICT,
-                    accept,
-                    ElevatorRepresentations.conflict(segment, refused));
+                    HttpStatus.CONFLICT, accept, ElevatorRepresentations.conflict(segment, refused));
         }
 
         ElevatorView view = projection.find(id).orElseThrow();
         updates.publish(id, eventRenderer.render(ElevatorRepresentations.eventRepresentation(view)));
-        return responses.ok(accept, ElevatorRepresentations.representation(segment, view, affordanceCatalog, principal));
-    }
-
-    private Optional<Floor> parseFloor(JsonNode body) {
-        if (body == null || !body.hasNonNull("floor") || !body.get("floor").canConvertToInt()) {
-            return Optional.empty();
-        }
-        try {
-            return Optional.of(new Floor(body.get("floor").asInt()));
-        } catch (IllegalArgumentException invalidFloor) {
-            return Optional.empty();
-        }
+        return responses.ok(
+                accept, ElevatorRepresentations.representation(segment, view, affordanceCatalog, principal));
     }
 }

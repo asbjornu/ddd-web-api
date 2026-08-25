@@ -296,6 +296,44 @@ public final class Elevator {
         }
     }
 
+    /**
+     * A technician, holding the key switch, takes the car out of
+     * service -- legal from any state except mid-recall (recall
+     * pre-empts everything, including maintenance; see
+     * {@code docs/architecture.md}'s "Core workflows, as commands"
+     * section). Cancels whatever a rider had already queued: this is
+     * why {@code EnterMaintenance} always leaves the queue empty,
+     * whether or not it had anything in it, but only reports that fact
+     * ({@link PendingRequestsCleared}) when it actually did.
+     */
+    public List<DomainEvent> enterMaintenance() {
+        if (state instanceof ElevatorState.EmergencyRecall) {
+            throw new CommandRefused("The elevator is undergoing an emergency recall.");
+        }
+        List<DomainEvent> events = new ArrayList<>();
+        if (!queue.isEmpty()) {
+            queue.clear();
+            events.add(new PendingRequestsCleared(id, "maintenance", Instant.now()));
+        }
+        this.state = new ElevatorState.OutOfService();
+        events.add(new MaintenanceEntered(id, "keySwitch", Instant.now()));
+        return events;
+    }
+
+    /**
+     * A technician returns the car to service -- the only way out of
+     * {@code outOfService}, whether it was reached via
+     * {@link #enterMaintenance} or (a future slice's job) automatically
+     * once an emergency recall completes.
+     */
+    public List<DomainEvent> exitMaintenance() {
+        if (!(state instanceof ElevatorState.OutOfService)) {
+            throw new CommandRefused("The elevator is not in maintenance.");
+        }
+        this.state = new ElevatorState.Idle();
+        return List.of(new MaintenanceExited(id, Instant.now()));
+    }
+
     public ElevatorId id() {
         return id;
     }
