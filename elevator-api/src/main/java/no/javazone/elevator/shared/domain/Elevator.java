@@ -323,8 +323,8 @@ public final class Elevator {
     /**
      * A technician returns the car to service -- the only way out of
      * {@code outOfService}, whether it was reached via
-     * {@link #enterMaintenance} or (a future slice's job) automatically
-     * once an emergency recall completes.
+     * {@link #enterMaintenance} or automatically once an emergency
+     * recall completes.
      */
     public List<DomainEvent> exitMaintenance() {
         if (!(state instanceof ElevatorState.OutOfService)) {
@@ -332,6 +332,60 @@ public final class Elevator {
         }
         this.state = new ElevatorState.Idle();
         return List.of(new MaintenanceExited(id, Instant.now()));
+    }
+
+    /**
+     * A technician (or, in principle, the building's fire alarm panel)
+     * recalls the car -- pre-empting every other state, including an
+     * ongoing recall or maintenance itself; never refused. Cancels
+     * whatever a rider had already queued, the same way {@link
+     * #enterMaintenance} does, and closes the doors immediately: a car
+     * mid-recall does not wait for anyone to step out.
+     *
+     * <p>If the car is already at {@code recallFloor}, it settles into
+     * {@code outOfService} immediately -- there is nowhere to travel.
+     * Otherwise it transitions to {@code emergencyRecall}, and {@code
+     * shared.scheduler}'s recall scheduler (reacting to {@link
+     * EmergencyRecallTriggered}, the same way {@link MovementScheduler}
+     * reacts to {@link MovementStarted}) completes the journey later via
+     * {@link #completeEmergencyRecall}. Which floor is "the" recall
+     * floor is not this aggregate's business -- see {@code
+     * feature.triggeremergencyrecall}'s handler, which reads it from
+     * config.
+     */
+    public List<DomainEvent> triggerEmergencyRecall(Floor recallFloor) {
+        List<DomainEvent> events = new ArrayList<>();
+        if (!queue.isEmpty()) {
+            queue.clear();
+            events.add(new PendingRequestsCleared(id, "emergencyRecall", Instant.now()));
+        }
+        events.add(new EmergencyRecallTriggered(id, currentFloor, recallFloor, Instant.now()));
+        this.doors = new Doors(Doors.DoorPosition.CLOSED, false);
+        if (currentFloor.level() == recallFloor.level()) {
+            this.state = new ElevatorState.OutOfService();
+            events.add(new EmergencyRecallCompleted(id, Instant.now()));
+        } else {
+            this.state = new ElevatorState.EmergencyRecall(recallFloor);
+        }
+        return events;
+    }
+
+    /**
+     * Called only by {@code shared.scheduler}'s recall scheduler, once,
+     * at the instant it computed when the recall was triggered: settles
+     * an in-transit recall into {@code outOfService}, mirroring {@link
+     * #arrive}. A no-op if the car left {@code emergencyRecall} some
+     * other way in the meantime (it cannot today, since nothing else
+     * transitions out of it, but this guard costs nothing and matches
+     * every other scheduler-only method's own defensiveness).
+     */
+    public List<DomainEvent> completeEmergencyRecall() {
+        if (!(state instanceof ElevatorState.EmergencyRecall recall)) {
+            return List.of();
+        }
+        this.currentFloor = recall.recallFloor();
+        this.state = new ElevatorState.OutOfService();
+        return List.of(new EmergencyRecallCompleted(id, Instant.now()));
     }
 
     public ElevatorId id() {

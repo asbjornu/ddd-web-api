@@ -13,6 +13,9 @@ import org.springframework.stereotype.Component;
  * Absent once a caller already holds a scope: there is nothing more to
  * gain from following it again, and {@code enter-maintenance}/{@code
  * exit-maintenance} are the affordances that then appear in its place.
+ * Also absent, for every caller, while an emergency recall is in
+ * transit -- recall pre-empts everything, per {@code docs/plan.html}'s
+ * "Elevator resource" specification ("offers nothing to anyone").
  */
 @Component
 public class InsertKeyAffordanceContributor implements AffordanceContributor {
@@ -23,6 +26,9 @@ public class InsertKeyAffordanceContributor implements AffordanceContributor {
             return List.of();
         }
         if (context.principal().hasAnyScope()) {
+            return List.of();
+        }
+        if ("emergencyRecall".equals(context.state().orElse(""))) {
             return List.of();
         }
         String href = "/elevators/" + context.elevatorSegment().get() + "/key-switch";

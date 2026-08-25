@@ -5,9 +5,9 @@ package no.javazone.elevator.shared.domain;
  * per permitted subtype, used by both the write side's snapshot
  * ({@code shared.persistence}) and the read side's view
  * ({@code feature.viewstatus}) so the mapping is written down exactly
- * once. Movement states additionally carry a destination floor, which a
- * caller must supply separately (see {@link #toDestination}) since a
- * bare name cannot.
+ * once. Movement and recall states additionally carry a destination
+ * floor, which a caller must supply separately (see {@link #toDestination})
+ * since a bare name cannot.
  */
 public final class ElevatorStateNames {
 
@@ -40,16 +40,16 @@ public final class ElevatorStateNames {
         return switch (state) {
             case ElevatorState.MovingUp s -> s.destination().level();
             case ElevatorState.MovingDown s -> s.destination().level();
+            case ElevatorState.EmergencyRecall s -> s.recallFloor().level();
             default -> null;
         };
     }
 
     /**
      * Reconstructs a state from its name, and -- for {@code movingUp} /
-     * {@code movingDown} -- the destination floor a caller must already
-     * know (there is nowhere else for it to come from). {@code
-     * emergencyRecall} is not yet reachable by any command and is not
-     * handled here; that arrives with slice 7.
+     * {@code movingDown} / {@code emergencyRecall} -- the destination
+     * floor a caller must already know (there is nowhere else for it to
+     * come from).
      */
     public static ElevatorState fromName(String name, Floor destination) {
         return switch (name) {
@@ -59,6 +59,8 @@ public final class ElevatorStateNames {
             case "outOfService" -> new ElevatorState.OutOfService();
             case "movingUp" -> new ElevatorState.MovingUp(requireDestination(name, destination));
             case "movingDown" -> new ElevatorState.MovingDown(requireDestination(name, destination));
+            case "emergencyRecall" ->
+                    new ElevatorState.EmergencyRecall(requireDestination(name, destination));
             default -> throw new IllegalStateException(
                     "Cannot restore elevator state \"" + name + "\" yet");
         };

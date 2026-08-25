@@ -1,4 +1,4 @@
-package no.javazone.elevator.feature.entermaintenance;
+package no.javazone.elevator.feature.triggeremergencyrecall;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -29,16 +29,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * The scope check happens inside the command, not in front of it -- see
- * {@link EnterMaintenanceController}'s Javadoc. These tests exercise
- * both halves of that same predicate: authority (a token with the
- * wrong scope, or none at all) and availability (state), the same way
- * every other command's tests exercise refusal.
+ * {@link TriggerEmergencyRecallController}'s Javadoc, and {@code
+ * EnterMaintenanceControllerTest}'s equivalents for the same predicate
+ * shape.
  */
 @SpringBootTest
 @Import(TestJwtDecoderConfig.class)
 @AutoConfigureMockMvc
 @Transactional
-class EnterMaintenanceControllerTest {
+class TriggerEmergencyRecallControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -46,73 +45,91 @@ class EnterMaintenanceControllerTest {
     @Autowired
     private ElevatorAggregateStore store;
 
-    private static JwtRequestPostProcessor maintenanceToken() {
-        return jwt().authorities(new SimpleGrantedAuthority("SCOPE_elevator:maintenance"));
-    }
-
     private static JwtRequestPostProcessor recallToken() {
         return jwt().authorities(new SimpleGrantedAuthority("SCOPE_elevator:recall"));
     }
 
+    private static JwtRequestPostProcessor maintenanceToken() {
+        return jwt().authorities(new SimpleGrantedAuthority("SCOPE_elevator:maintenance"));
+    }
+
+    private void seedAtRecallFloor() {
+        store.save(Elevator.restore(
+                new ElevatorId(1),
+                new Floor(1, true),
+                new ElevatorState.Idle(),
+                Doors.closed(),
+                new Load(0, 800),
+                RequestQueue.empty()));
+    }
+
+    private void seedAwayFromRecallFloor() {
+        store.save(Elevator.restore(
+                new ElevatorId(1),
+                new Floor(3),
+                new ElevatorState.Idle(),
+                Doors.closed(),
+                new Load(0, 800),
+                RequestQueue.empty()));
+    }
+
     @Test
-    void enteringMaintenanceWithTheScopeSucceeds() throws Exception {
+    void triggeringRecallWithTheScopeSettlesImmediatelyWhenAlreadyAtTheRecallFloor()
+            throws Exception {
+        seedAtRecallFloor();
+
         mockMvc.perform(post("/elevators/1")
-                        .with(maintenanceToken())
+                        .with(recallToken())
                         .header(HttpHeaders.ACCEPT, "application/vnd.siren+json")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"type\": \"EnterMaintenance\"}"))
+                        .content("{\"type\": \"TriggerEmergencyRecall\"}"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("\"state\" : \"outOfService\"")));
     }
 
     @Test
-    void enteringMaintenanceWithoutTheScopeIsForbidden() throws Exception {
+    void triggeringRecallWithTheScopeStartsTravelWhenElsewhere() throws Exception {
+        seedAwayFromRecallFloor();
+
         mockMvc.perform(post("/elevators/1")
                         .with(recallToken())
-                        .header(HttpHeaders.ACCEPT, "application/problem+json")
+                        .header(HttpHeaders.ACCEPT, "application/vnd.siren+json")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"type\": \"EnterMaintenance\"}"))
-                .andExpect(status().isForbidden());
+                        .content("{\"type\": \"TriggerEmergencyRecall\"}"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("\"state\" : \"emergencyRecall\"")));
     }
 
     @Test
-    void enteringMaintenanceAnonymouslyIsForbidden() throws Exception {
-        mockMvc.perform(post("/elevators/1")
-                        .header(HttpHeaders.ACCEPT, "application/problem+json")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"type\": \"EnterMaintenance\"}"))
-                .andExpect(status().isForbidden());
-    }
-
-    // Mid-recall refusal at the domain level is exercised by
-    // ElevatorMaintenanceTest; this is the same predicate through the
-    // full HTTP/persistence stack, now that EmergencyRecall round-trips
-    // through the aggregate store (slice 7).
-    @Test
-    void enteringMaintenanceMidRecallIsAConflict() throws Exception {
-        store.save(Elevator.restore(
-                new ElevatorId(1),
-                new Floor(3),
-                new ElevatorState.EmergencyRecall(new Floor(1, true)),
-                Doors.closed(),
-                new Load(0, 800),
-                RequestQueue.empty()));
+    void triggeringRecallWithoutTheScopeIsForbidden() throws Exception {
+        seedAwayFromRecallFloor();
 
         mockMvc.perform(post("/elevators/1")
                         .with(maintenanceToken())
                         .header(HttpHeaders.ACCEPT, "application/problem+json")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"type\": \"EnterMaintenance\"}"))
-                .andExpect(status().isConflict());
+                        .content("{\"type\": \"TriggerEmergencyRecall\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void triggeringRecallAnonymouslyIsForbidden() throws Exception {
+        seedAwayFromRecallFloor();
+
+        mockMvc.perform(post("/elevators/1")
+                        .header(HttpHeaders.ACCEPT, "application/problem+json")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\": \"TriggerEmergencyRecall\"}"))
+                .andExpect(status().isForbidden());
     }
 
     @Test
     void anUnknownElevatorIsNotFound() throws Exception {
         mockMvc.perform(post("/elevators/999")
-                        .with(maintenanceToken())
+                        .with(recallToken())
                         .header(HttpHeaders.ACCEPT, "application/problem+json")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"type\": \"EnterMaintenance\"}"))
+                        .content("{\"type\": \"TriggerEmergencyRecall\"}"))
                 .andExpect(status().isNotFound());
     }
 }

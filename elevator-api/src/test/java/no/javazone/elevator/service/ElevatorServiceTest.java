@@ -196,49 +196,8 @@ class ElevatorServiceTest {
         assertThat(service.getStatus(ELEVATOR_ID).getState()).isEqualTo(ElevatorState.IDLE);
     }
 
-    @Test
-    @DisplayName("emergency recall pre-empts a journey already under way")
-    void emergencyRecallPreEmptsTravel() {
-        parkIdleAt(6);
-        pendingCarCall(9);
-
-        Elevator recalled = service.triggerEmergencyRecall(ELEVATOR_ID);
-
-        assertThat(recalled.getState()).isEqualTo(ElevatorState.EMERGENCY_RECALL);
-        assertThat(recalled.getTargetFloor()).isEqualTo(1);
-        assertThat(recalled.getDirection()).isEqualTo(Direction.DOWN);
-        assertThat(carCalls.findByElevatorIdAndServedAtIsNullOrderByCreatedAtAsc(ELEVATOR_ID))
-                .isEmpty();
-    }
-
-    @Test
-    @DisplayName("emergency recall pre-empts maintenance too")
-    void emergencyRecallPreEmptsMaintenance() {
-        parkIdleAt(6);
-        service.enterMaintenance(ELEVATOR_ID);
-
-        Elevator recalled = service.triggerEmergencyRecall(ELEVATOR_ID);
-
-        assertThat(recalled.getState()).isEqualTo(ElevatorState.EMERGENCY_RECALL);
-    }
-
-    @Test
-    @DisplayName("recall at the recall floor skips EMERGENCY_RECALL and leaves the doors shut")
-    void emergencyRecallAtTheRecallFloorGoesStraightOutOfService() {
-        // The seeded car sits at floor 1, which is the recall floor.
-        Elevator recalled = service.triggerEmergencyRecall(ELEVATOR_ID);
-
-        assertThat(recalled.getState()).isEqualTo(ElevatorState.OUT_OF_SERVICE);
-        assertThat(recalled.getTargetFloor()).isNull();
-
-        // Recorded rather than endorsed. docs/architecture.md says recall
-        // "opens its doors and then automatically transitions to
-        // outOfService", but on this path the doors are set CLOSED and the
-        // EMERGENCY_RECALL state is never entered at all -- so a client
-        // watching for it would miss the transition entirely. Worth
-        // resolving when recall moves onto the aggregate.
-        assertThat(recalled.getDoorState()).isEqualTo(DoorState.CLOSED);
-    }
+    // Emergency recall moved onto Elevator.triggerEmergencyRecall in
+    // slice 7 -- see ElevatorEmergencyRecallTest.
 
     // ──────────────────────────────────────────────
     //  Helpers

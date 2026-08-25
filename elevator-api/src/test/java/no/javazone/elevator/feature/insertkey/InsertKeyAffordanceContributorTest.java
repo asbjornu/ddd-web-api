@@ -29,4 +29,11 @@ class InsertKeyAffordanceContributorTest {
     void absentAtTheEntryPoint() {
         assertThat(contributor.contribute(AffordanceContext.root())).isEmpty();
     }
+
+    @Test
+    void absentForAnyoneDuringAnEmergencyRecall() {
+        assertThat(contributor.contribute(
+                        AffordanceContext.forElevator("1", "emergencyRecall", false, false)))
+                .isEmpty();
+    }
 }

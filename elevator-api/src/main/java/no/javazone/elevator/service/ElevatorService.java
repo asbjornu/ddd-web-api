@@ -193,33 +193,11 @@ public class ElevatorService {
         return elevatorRepository.save(elevator);
     }
 
-    public Elevator triggerEmergencyRecall(Long id) {
-        Elevator elevator = findElevator(id);
-        recomputeState(elevator);
-
-        int recallFloor = properties.recallFloor();
-        clearPendingCalls(elevator);
-        clearPendingCarCalls(elevator);
-        elevator.setObstructed(false);
-        elevator.setCurrentWeightKg(0);
-
-        if (elevator.getCurrentFloor() == recallFloor) {
-            elevator.setState(ElevatorState.OUT_OF_SERVICE);
-            elevator.setDirection(Direction.NONE);
-            elevator.setDoorState(DoorState.CLOSED);
-            elevator.setTargetFloor(null);
-        } else {
-            Direction direction = recallFloor > elevator.getCurrentFloor()
-                    ? Direction.UP : Direction.DOWN;
-            elevator.setDepartureFloor(elevator.getCurrentFloor());
-            elevator.setDirection(direction);
-            elevator.setDoorState(DoorState.CLOSED);
-            elevator.setState(ElevatorState.EMERGENCY_RECALL);
-            elevator.setTargetFloor(recallFloor);
-        }
-        elevator.setStateSince(Instant.now());
-        return elevatorRepository.save(elevator);
-    }
+    // triggerEmergencyRecall moved onto POST /elevators/{id} in slice 7
+    // (see feature.triggeremergencyrecall); the EMERGENCY_RECALL state
+    // itself, and the other methods' guards against it above, stay --
+    // this old model still represents the read side these methods
+    // serve, and nothing in this slice touches that.
 
     private boolean isOverloaded(Elevator elevator) {
         return elevator.getCurrentWeightKg() > elevator.getWeightCapacityKg();
