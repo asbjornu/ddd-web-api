@@ -3,9 +3,10 @@ package no.javazone.elevator.feature.viewstatus;
 import java.util.Optional;
 import no.javazone.elevator.shared.domain.ElevatorId;
 import no.javazone.elevator.shared.hypermedia.AffordanceCatalog;
-import no.javazone.elevator.shared.hypermedia.AffordanceContext;
-import no.javazone.elevator.shared.hypermedia.Link;
 import no.javazone.elevator.shared.hypermedia.Representation;
+import no.javazone.elevator.shared.security.Principal;
+import no.javazone.elevator.shared.security.PrincipalResolver;
+import no.javazone.elevator.shared.web.ElevatorRepresentations;
 import no.javazone.elevator.shared.web.RepresentationResponses;
 import no.javazone.elevator.shared.web.UriResolver;
 import org.springframework.http.HttpHeaders;
@@ -23,8 +24,11 @@ import org.springframework.web.bind.annotation.RestController;
  * -- see {@code docs/architecture.md}'s "CQRS and domain events" section.
  *
  * <p>Affordances are computed from the read model's own {@code state}
- * string via {@link AffordanceContext}, never from the write-side
- * aggregate -- the query side has no reason to depend on it.
+ * string via {@link no.javazone.elevator.shared.hypermedia.AffordanceContext},
+ * never from the write-side aggregate -- the query side has no reason
+ * to depend on it. The same {@link Principal} every command resolves is
+ * resolved here too: a technician's {@code GET} carries their own
+ * operations, exactly as their next command response would.
  */
 @RestController
 public class ViewStatusController {
@@ -33,16 +37,19 @@ public class ViewStatusController {
     private final UriResolver uriResolver;
     private final AffordanceCatalog affordanceCatalog;
     private final RepresentationResponses responses;
+    private final PrincipalResolver principalResolver;
 
     public ViewStatusController(
             ElevatorViewProjection projection,
             UriResolver uriResolver,
             AffordanceCatalog affordanceCatalog,
-            RepresentationResponses responses) {
+            RepresentationResponses responses,
+            PrincipalResolver principalResolver) {
         this.projection = projection;
         this.uriResolver = uriResolver;
         this.affordanceCatalog = affordanceCatalog;
         this.responses = responses;
+        this.principalResolver = principalResolver;
     }
 
     @GetMapping("/elevators/{segment}")
@@ -52,9 +59,12 @@ public class ViewStatusController {
         Optional<ElevatorId> id = resolve(segment);
         Optional<ElevatorView> view = id.flatMap(projection::find);
         if (view.isEmpty()) {
-            return responses.problem(HttpStatus.NOT_FOUND, accept, notFound(segment));
+            return responses.problem(
+                    HttpStatus.NOT_FOUND, accept, ElevatorRepresentations.notFound(segment));
         }
-        return responses.ok(accept, representation(segment, view.get()));
+        Representation representation = ElevatorRepresentations.representation(
+                segment, view.get(), affordanceCatalog, principalResolver.resolve());
+        return responses.ok(accept, representation);
     }
 
     private Optional<ElevatorId> resolve(String segment) {
@@ -63,32 +73,5 @@ public class ViewStatusController {
         } catch (RuntimeException invalidSegment) {
             return Optional.empty();
         }
-    }
-
-    private Representation representation(String segment, ElevatorView view) {
-        String self = "/elevators/" + segment;
-        return Representation.builder("Elevator")
-                .property("currentFloor", view.currentFloor())
-                .property("state", view.state())
-                .property("direction", view.direction())
-                .property("doorPosition", view.doorPosition())
-                .property("obstructed", view.obstructed())
-                .property("weightKg", view.weightKg())
-                .property("capacityKg", view.capacityKg())
-                .property("destinationFloor", view.destinationFloor())
-                .link(new Link("self", self))
-                .link(new Link("updates", self + "/events", "text/event-stream"))
-                .affordances(affordanceCatalog.affordances(
-                        AffordanceContext.forElevator(segment, view.state(), view.obstructed(), view.weightKg() > view.capacityKg())))
-                .build();
-    }
-
-    private Representation notFound(String segment) {
-        return Representation.builder("Not Found")
-                .property("type", "about:blank")
-                .property("title", "Not Found")
-                .property("status", 404)
-                .property("detail", "No elevator known by the identifier \"" + segment + "\".")
-                .build();
     }
 }
