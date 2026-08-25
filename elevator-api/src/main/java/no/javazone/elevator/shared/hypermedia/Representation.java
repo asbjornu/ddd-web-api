@@ -1,5 +1,6 @@
 package no.javazone.elevator.shared.hypermedia;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -94,9 +95,12 @@ public final class Representation {
         }
 
         public Representation build() {
+            // Not Map.copyOf: several properties (e.g. destinationFloor)
+            // are legitimately null when the state they describe does
+            // not apply, and Map.copyOf/Map.of both reject null values.
             return new Representation(
                     title,
-                    Map.copyOf(properties),
+                    Collections.unmodifiableMap(new LinkedHashMap<>(properties)),
                     List.copyOf(links),
                     List.copyOf(affordances));
         }

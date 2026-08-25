@@ -7,7 +7,6 @@ import no.javazone.elevator.shared.domain.Direction;
 import no.javazone.elevator.shared.domain.Doors;
 import no.javazone.elevator.shared.domain.Elevator;
 import no.javazone.elevator.shared.domain.ElevatorId;
-import no.javazone.elevator.shared.domain.ElevatorState;
 import no.javazone.elevator.shared.domain.ElevatorStateNames;
 import no.javazone.elevator.shared.domain.Floor;
 import no.javazone.elevator.shared.domain.LandingCall;
@@ -52,7 +51,7 @@ public class ElevatorAggregateStore {
         entity.setId(elevator.id().value());
         entity.setCurrentFloor(elevator.currentFloor().level());
         entity.setState(ElevatorStateNames.of(elevator.state()));
-        entity.setDestinationFloor(destinationOf(elevator.state()));
+        entity.setDestinationFloor(ElevatorStateNames.destinationOf(elevator.state()));
         entity.setObstructed(elevator.doors().obstructed());
         entity.setDoorPosition(elevator.doors().position().name().toLowerCase());
         entity.setWeightKg(elevator.load().kilograms());
@@ -70,14 +69,6 @@ public class ElevatorAggregateStore {
         for (CarCall call : elevator.queue().pendingCarCalls()) {
             carCalls.save(new CarCallEntity(elevator.id().value(), call.floor().level()));
         }
-    }
-
-    private Integer destinationOf(ElevatorState state) {
-        return switch (state) {
-            case ElevatorState.MovingUp s -> s.destination().level();
-            case ElevatorState.MovingDown s -> s.destination().level();
-            default -> null;
-        };
     }
 
     private Elevator toDomain(ElevatorId id, ElevatorAggregateEntity entity) {

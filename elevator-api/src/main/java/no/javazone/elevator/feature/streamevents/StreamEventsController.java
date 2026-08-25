@@ -69,6 +69,7 @@ public class StreamEventsController {
                 .property("obstructed", view.obstructed())
                 .property("weightKg", view.weightKg())
                 .property("capacityKg", view.capacityKg())
+                .property("destinationFloor", view.destinationFloor())
                 .build();
     }
 }

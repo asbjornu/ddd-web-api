@@ -19,7 +19,8 @@ public record ElevatorView(
         String doorPosition,
         boolean obstructed,
         int weightKg,
-        int capacityKg) {
+        int capacityKg,
+        Integer destinationFloor) {
 
     static ElevatorView from(ElevatorViewEntity entity) {
         return new ElevatorView(
@@ -30,6 +31,7 @@ public record ElevatorView(
                 entity.getDoorPosition(),
                 entity.isObstructed(),
                 entity.getWeightKg(),
-                entity.getCapacityKg());
+                entity.getCapacityKg(),
+                entity.getDestinationFloor());
     }
 }

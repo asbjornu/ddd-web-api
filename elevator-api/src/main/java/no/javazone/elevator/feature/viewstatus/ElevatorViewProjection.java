@@ -45,6 +45,7 @@ public class ElevatorViewProjection {
         entity.setObstructed(elevator.doors().obstructed());
         entity.setWeightKg(elevator.load().kilograms());
         entity.setCapacityKg(elevator.load().capacityKilograms());
+        entity.setDestinationFloor(ElevatorStateNames.destinationOf(elevator.state()));
         repository.save(entity);
     }
 }

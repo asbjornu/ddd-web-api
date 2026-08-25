@@ -29,6 +29,7 @@ public final class ElevatorRepresentations {
                 .property("obstructed", view.obstructed())
                 .property("weightKg", view.weightKg())
                 .property("capacityKg", view.capacityKg())
+                .property("destinationFloor", view.destinationFloor())
                 .link(new Link("self", self))
                 .link(new Link("updates", self + "/events", "text/event-stream"))
                 .affordances(affordanceCatalog.affordances(
@@ -45,6 +46,7 @@ public final class ElevatorRepresentations {
                 .property("obstructed", view.obstructed())
                 .property("weightKg", view.weightKg())
                 .property("capacityKg", view.capacityKg())
+                .property("destinationFloor", view.destinationFloor())
                 .build();
     }
 

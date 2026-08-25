@@ -35,6 +35,15 @@ public final class ElevatorStateNames {
         };
     }
 
+    /** The destination floor a moving state carries, or {@code null} for every other state. */
+    public static Integer destinationOf(ElevatorState state) {
+        return switch (state) {
+            case ElevatorState.MovingUp s -> s.destination().level();
+            case ElevatorState.MovingDown s -> s.destination().level();
+            default -> null;
+        };
+    }
+
     /**
      * Reconstructs a state from its name, and -- for {@code movingUp} /
      * {@code movingDown} -- the destination floor a caller must already

@@ -42,6 +42,9 @@ public class ElevatorViewEntity {
     @Column(name = "capacity_kg")
     private int capacityKg;
 
+    @Column(name = "destination_floor")
+    private Integer destinationFloor;
+
     protected ElevatorViewEntity() {
         // JPA
     }
@@ -104,5 +107,13 @@ public class ElevatorViewEntity {
 
     public void setCapacityKg(int capacityKg) {
         this.capacityKg = capacityKg;
+    }
+
+    public Integer getDestinationFloor() {
+        return destinationFloor;
+    }
+
+    public void setDestinationFloor(Integer destinationFloor) {
+        this.destinationFloor = destinationFloor;
     }
 }

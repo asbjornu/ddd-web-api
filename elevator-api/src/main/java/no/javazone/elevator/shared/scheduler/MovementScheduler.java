@@ -81,6 +81,7 @@ public class MovementScheduler {
                 .property("obstructed", elevator.doors().obstructed())
                 .property("weightKg", elevator.load().kilograms())
                 .property("capacityKg", elevator.load().capacityKilograms())
+                .property("destinationFloor", ElevatorStateNames.destinationOf(elevator.state()))
                 .build();
     }
 }
