@@ -10,14 +10,12 @@ export default defineNuxtConfig({
     // output running in a container.
     serviceApiUrl: 'http://localhost:8080',
 
-    // Where elevator-auth lives, and which client this BFF presents itself
-    // as. Overridable via NUXT_OAUTH_ISSUER and NUXT_OAUTH_CLIENT_ID.
-    //
-    // Note that the issuer is configuration rather than something this
-    // application discovers, which is the CRUD-shaped part of an otherwise
-    // standards-based arrangement: a client told where to look cannot be
-    // moved without being reconfigured.
-    oauthIssuer: 'http://localhost:9000',
+    // Which client this BFF presents itself as when exchanging the
+    // technician's secret for a token -- overridable via
+    // NUXT_OAUTH_CLIENT_ID. The issuer itself is no longer configured
+    // here: exchangeKeyForToken discovers it from elevator-api's own
+    // RFC 9728 challenge, per docs/architecture.md's "Key-switch and
+    // authorization" section.
     oauthClientId: 'elevator-technician'
   }
 })

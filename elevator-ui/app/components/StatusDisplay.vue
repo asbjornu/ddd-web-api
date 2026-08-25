@@ -15,13 +15,11 @@ const obstructionWarning = computed(() => {
   return store.status?.obstructed ? 'Doors blocked — cannot close' : ''
 })
 
-const inMaintenance = computed(() => store.status?.state === 'outOfService')
-
 const keyInput = ref('')
 
 async function submitKey() {
   await store.insertKey(keyInput.value)
-  if (store.technicianKeyInserted) keyInput.value = ''
+  if (!store.insertKeyOperation) keyInput.value = ''
 }
 
 // Pushed, not polled: connectToEvents opens one SSE connection instead
@@ -30,7 +28,6 @@ async function submitKey() {
 // requires (Caddy's shared origin) that a bare `npm run dev` does not
 // provide.
 onMounted(() => {
-  store.refreshKeyState()
   store.connectToEvents()
 })
 
@@ -75,7 +72,7 @@ onUnmounted(() => {
     <hr class="divider" />
 
     <div class="tech-section">
-      <form v-if="!store.technicianKeyInserted" class="key-form" @submit.prevent="submitKey">
+      <form v-if="store.insertKeyOperation" class="key-form" @submit.prevent="submitKey">
         <input
           v-model="keyInput"
           type="password"
@@ -90,9 +87,13 @@ onUnmounted(() => {
         <span>Key inserted</span>
         <button @click="store.withdrawKey()">Withdraw key</button>
       </div>
-      <div v-if="store.technicianKeyInserted" class="tech-actions">
-        <button v-if="!inMaintenance" @click="store.enterMaintenance()">Enter maintenance</button>
-        <button v-if="inMaintenance" @click="store.exitMaintenance()">Exit maintenance</button>
+      <div v-if="!store.insertKeyOperation" class="tech-actions">
+        <button v-if="store.enterMaintenanceOperation" @click="store.enterMaintenance()">
+          Enter maintenance
+        </button>
+        <button v-if="store.exitMaintenanceOperation" @click="store.exitMaintenance()">
+          Exit maintenance
+        </button>
         <button class="emergency-btn" @click="store.triggerEmergencyRecall()">
           Emergency recall
         </button>

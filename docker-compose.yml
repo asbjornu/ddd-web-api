@@ -56,7 +56,6 @@ services:
     # recognise as belonging to elevator-api here instead.
     environment:
       NUXT_SERVICE_API_URL: http://elevator-api:8080
-      NUXT_OAUTH_ISSUER: http://elevator-auth:9000
       NUXT_OAUTH_CLIENT_ID: elevator-technician
     depends_on:
       elevator-api:

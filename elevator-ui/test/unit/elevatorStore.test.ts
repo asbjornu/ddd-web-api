@@ -24,14 +24,6 @@ let bffReachable = true
 let maintenanceAuthHeader: string | undefined
 
 registerEndpoint('/api/key', {
-  method: 'GET',
-  handler: () => {
-    if (!bffReachable) throw createError({ statusCode: 503 })
-    return { inserted: cookieInserted }
-  }
-})
-
-registerEndpoint('/api/key', {
   method: 'POST',
   handler: async (event) => {
     const body = await readBody<{ secret?: string }>(event)
@@ -51,11 +43,57 @@ registerEndpoint('/api/key', {
   }
 })
 
-registerEndpoint('/api/elevators/1/maintenance', {
+registerEndpoint('/api/elevators/1/commands', {
   method: 'POST',
   handler: (event) => {
     maintenanceAuthHeader = getHeader(event, 'authorization')
     return {}
+  }
+})
+
+// Stands in for elevator-api's own authenticated GET, proxied through
+// the BFF -- see server/api/elevators/[id]/status.get.ts. Reflects
+// `cookieInserted` the same way the real thing reflects whether the
+// Bearer token this route attaches actually carries a scope: no key,
+// only insert-key; key inserted, enter-maintenance instead.
+registerEndpoint('/api/elevators/1/status', {
+  method: 'GET',
+  handler: () => {
+    if (!bffReachable) throw createError({ statusCode: 503 })
+    const base = {
+      currentFloor: 1,
+      state: 'idle',
+      direction: 'none',
+      doorPosition: 'closed',
+      obstructed: false,
+      weightKg: 0,
+      capacityKg: 800,
+      destinationFloor: null
+    }
+    return cookieInserted
+      ? {
+          ...base,
+          operations: [
+            {
+              rel: 'enter-maintenance',
+              title: 'Enter maintenance',
+              method: 'POST',
+              href: '/elevators/1',
+              fields: [{ name: 'type', type: 'hidden', value: 'EnterMaintenance', required: true }]
+            }
+          ]
+        }
+      : {
+          ...base,
+          operations: [
+            {
+              rel: 'insert-key',
+              title: 'Insert technician key',
+              method: 'POST',
+              href: '/elevators/1/key-switch'
+            }
+          ]
+        }
   }
 })
 
@@ -368,7 +406,11 @@ describe('useElevatorStore doors', () => {
 // The technician secret is server-side only: the store never holds it and
 // never sends an Authorization header. It POSTs the key the user typed to
 // the BFF, which replies with an HttpOnly cookie. Because that cookie is
-// invisible to JavaScript, the store keeps its own mirrored boolean.
+// invisible to JavaScript, the store cannot infer its own privilege --
+// it re-reads the elevator's own representation through the BFF (which
+// attaches the Bearer token) and lets the operations that come back
+// speak for themselves, per docs/architecture.md's "Key-switch and
+// authorization" section.
 describe('useElevatorStore technician key session', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -381,16 +423,18 @@ describe('useElevatorStore technician key session', () => {
     const store = useElevatorStore()
     await store.insertKey(VALID_SECRET)
 
-    expect(store.technicianKeyInserted).toBe(true)
     expect(store.error).toBeNull()
     expect(cookieInserted).toBe(true)
+    // The authenticated re-read this triggers is what actually reveals
+    // the technician's operations -- not a mirrored boolean.
+    expect(store.enterMaintenanceOperation).not.toBeNull()
+    expect(store.insertKeyOperation).toBeNull()
   })
 
   it('rejects a wrong secret without inserting the key', async () => {
     const store = useElevatorStore()
     await store.insertKey('wrong')
 
-    expect(store.technicianKeyInserted).toBe(false)
     expect(store.error).toBe('Invalid technician key.')
     expect(cookieInserted).toBe(false)
   })
@@ -402,27 +446,16 @@ describe('useElevatorStore technician key session', () => {
 
     await store.withdrawKey()
 
-    expect(store.technicianKeyInserted).toBe(false)
     expect(cookieInserted).toBe(false)
+    expect(store.insertKeyOperation).not.toBeNull()
+    expect(store.enterMaintenanceOperation).toBeNull()
   })
 
-  it('mirrors the server answer when refreshing key state', async () => {
-    cookieInserted = true
-
-    const store = useElevatorStore()
-    await store.refreshKeyState()
-
-    expect(store.technicianKeyInserted).toBe(true)
-  })
-
-  it('treats an unreachable BFF as key not inserted', async () => {
+  it('tolerates an unreachable status refresh without throwing', async () => {
     bffReachable = false
 
     const store = useElevatorStore()
-    store.technicianKeyInserted = true
-    await store.refreshKeyState()
-
-    expect(store.technicianKeyInserted).toBe(false)
+    await expect(store.insertKey(VALID_SECRET)).resolves.not.toThrow()
   })
 
   // Regression guard for the security fix: the browser must not carry the

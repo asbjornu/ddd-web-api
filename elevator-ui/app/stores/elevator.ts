@@ -78,7 +78,6 @@ export const useElevatorStore = defineStore('elevator', {
     status: null as ElevatorView | null,
     loading: false,
     error: null as string | null,
-    technicianKeyInserted: false,
     eventSource: null as EventSource | null
   }),
   getters: {
@@ -108,7 +107,19 @@ export const useElevatorStore = defineStore('elevator', {
     // open, matching the physical setup it simulates -- see
     // docs/architecture.md's slice 5 roadmap entry.
     reportLoadOperation: (state) =>
-      state.status?.operations?.find((op) => op.rel === 'report-load') ?? null
+      state.status?.operations?.find((op) => op.rel === 'report-load') ?? null,
+    // The technician's own operations: present or absent by the exact
+    // same seam as every rider operation, computed server-side from
+    // one predicate over authority and state -- see
+    // docs/architecture.md's "Key-switch and authorization" section.
+    // This client never learns that "elevator:maintenance" exists, any
+    // more than it learns a URL: it renders whatever operations arrive.
+    insertKeyOperation: (state) =>
+      state.status?.operations?.find((op) => op.rel === 'insert-key') ?? null,
+    enterMaintenanceOperation: (state) =>
+      state.status?.operations?.find((op) => op.rel === 'enter-maintenance') ?? null,
+    exitMaintenanceOperation: (state) =>
+      state.status?.operations?.find((op) => op.rel === 'exit-maintenance') ?? null
   },
   actions: {
     // Replaces the 1.5 s poller: one connection, pushed to rather than
@@ -327,25 +338,29 @@ export const useElevatorStore = defineStore('elevator', {
         this.error = 'Unable to report load.'
       }
     },
-    // The technician cookie is HttpOnly, so the client cannot read it and
-    // has to ask the BFF whether the key is still inserted. This mirrored
-    // boolean is a second copy of authorization state the server already
-    // holds -- see docs/architecture.md.
-    async refreshKeyState() {
+    // The technician cookie is HttpOnly, so the client cannot read it,
+    // and the ordinary SSE stream every rider also uses carries no
+    // Bearer token and therefore never reflects a technician's own
+    // operations (see server/api/elevators/[id]/status.get.ts's own
+    // Javadoc-equivalent comment on that gap). This authenticated
+    // re-read is how the client picks up insert-key's disappearance
+    // and enter-maintenance/exit-maintenance's appearance right after
+    // the key actually turns, rather than mirroring a boolean the way
+    // the CRUD-shaped BFF used to.
+    async refreshAuthenticatedStatus() {
       try {
-        const res = await $fetch<{ inserted: boolean }>('/api/key')
-        this.technicianKeyInserted = res.inserted
+        const data = await $fetch<ElevatorView>(`/api/elevators/${ELEVATOR_ID}/status`)
+        this.status = data
       } catch {
-        this.technicianKeyInserted = false
+        // The SSE stream will catch up on its own next push.
       }
     },
     async insertKey(secret: string) {
       try {
         await $fetch('/api/key', { method: 'POST', body: { secret } })
-        this.technicianKeyInserted = true
         this.error = null
+        await this.refreshAuthenticatedStatus()
       } catch {
-        this.technicianKeyInserted = false
         this.error = 'Invalid technician key.'
       }
     },
@@ -353,29 +368,41 @@ export const useElevatorStore = defineStore('elevator', {
       try {
         await $fetch('/api/key', { method: 'DELETE' })
       } catch {
-        // Withdrawing is best-effort; the local flag is cleared regardless.
+        // Withdrawing is best-effort.
       }
-      this.technicianKeyInserted = false
       this.error = null
+      await this.refreshAuthenticatedStatus()
     },
     async enterMaintenance() {
+      const operation = this.enterMaintenanceOperation
+      if (!operation) {
+        this.error = 'Entering maintenance is not available right now.'
+        return
+      }
       try {
-        await $fetch(`/api/elevators/${ELEVATOR_ID}/maintenance`, {
+        await $fetch(`/api/elevators/${ELEVATOR_ID}/commands`, {
           method: 'POST',
-          body: { maintenance: true }
+          body: commandBody(operation)
         })
         this.error = null
+        await this.refreshAuthenticatedStatus()
       } catch {
         this.error = 'Unable to enter maintenance.'
       }
     },
     async exitMaintenance() {
+      const operation = this.exitMaintenanceOperation
+      if (!operation) {
+        this.error = 'Exiting maintenance is not available right now.'
+        return
+      }
       try {
-        await $fetch(`/api/elevators/${ELEVATOR_ID}/maintenance`, {
+        await $fetch(`/api/elevators/${ELEVATOR_ID}/commands`, {
           method: 'POST',
-          body: { maintenance: false }
+          body: commandBody(operation)
         })
         this.error = null
+        await this.refreshAuthenticatedStatus()
       } catch {
         this.error = 'Unable to exit maintenance.'
       }

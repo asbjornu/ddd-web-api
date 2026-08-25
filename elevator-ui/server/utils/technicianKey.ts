@@ -12,10 +12,12 @@
 // the lifetime is short -- and it keeps the cookie on the right side of the
 // line RFC-conscious reviewers draw between a session key and a credential.
 //
-// Note what is hard-coded here and should not be: the token endpoint's
-// location. A client that discovered it from the resource server's own
-// challenge would not need this constant at all. That is the point of the
-// refactoring, not an oversight in it.
+// The token endpoint's location is discovered, not configured: this
+// module follows insert-key's own RFC 9728 challenge (GET
+// /.well-known/oauth-protected-resource on elevator-api) to find the
+// issuer, the same document a machine client would follow, rather than
+// carrying a NUXT_OAUTH_ISSUER of its own that could drift from what
+// elevator-api actually validates against.
 
 import type { H3Event } from 'h3'
 
@@ -25,11 +27,23 @@ export const TECHNICIAN_COOKIE = 'technician_token'
 // cookie lives under /api, so it is never attached to anything else.
 const COOKIE_PATH = '/api'
 
+interface ProtectedResourceMetadata {
+  authorization_servers: string[]
+}
+
 interface TokenResponse {
   access_token: string
   token_type: string
   expires_in: number
   scope: string
+}
+
+async function discoverIssuer(): Promise<string> {
+  const config = useRuntimeConfig()
+  const metadata = await $fetch<ProtectedResourceMetadata>(
+    `${config.serviceApiUrl}/.well-known/oauth-protected-resource`
+  )
+  return metadata.authorization_servers[0]
 }
 
 /**
@@ -38,10 +52,11 @@ interface TokenResponse {
  */
 export async function exchangeKeyForToken(secret: string): Promise<TokenResponse | null> {
   const config = useRuntimeConfig()
-  const credentials = Buffer.from(`${config.oauthClientId}:${secret}`).toString('base64')
 
   try {
-    return await $fetch<TokenResponse>(`${config.oauthIssuer}/oauth2/token`, {
+    const issuer = await discoverIssuer()
+    const credentials = Buffer.from(`${config.oauthClientId}:${secret}`).toString('base64')
+    return await $fetch<TokenResponse>(`${issuer}/oauth2/token`, {
       method: 'POST',
       headers: {
         Authorization: `Basic ${credentials}`,
@@ -53,9 +68,10 @@ export async function exchangeKeyForToken(secret: string): Promise<TokenResponse
       }).toString()
     })
   } catch {
-    // A refused credential and an unreachable authorization server are
-    // indistinguishable from here, and both mean the same thing to the
-    // technician: the key did not turn.
+    // A refused credential, an unreachable authorization server and an
+    // unreachable resource server are indistinguishable from here, and
+    // all three mean the same thing to the technician: the key did not
+    // turn.
     return null
   }
 }
