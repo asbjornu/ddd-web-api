@@ -1,5 +1,6 @@
 package no.javazone.elevator.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -37,6 +38,13 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 public class SecurityConfig {
 
+    private final String issuer;
+
+    public SecurityConfig(
+            @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuer) {
+        this.issuer = issuer;
+    }
+
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         return http
@@ -44,7 +52,18 @@ public class SecurityConfig {
                         .requestMatchers("/elevators/*/emergency-recall")
                             .hasAuthority("SCOPE_elevator:recall")
                         .anyRequest().permitAll())
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(Customizer.withDefaults())
+                        // GET /.well-known/oauth-protected-resource, built in since
+                        // Spring Security 7.1 -- what insert-key's 401 challenge
+                        // points a client at, per docs/architecture.md's
+                        // "Key-switch and authorization" section and
+                        // docs/plan.html's worked challengeSample.
+                        .protectedResourceMetadata(metadata -> metadata
+                                .protectedResourceMetadataCustomizer(builder -> builder
+                                        .authorizationServer(issuer)
+                                        .scope("elevator:maintenance")
+                                        .scope("elevator:recall"))))
                 // A resource server has no session to protect, and CSRF
                 // defends cookie-authenticated requests. There are none.
                 .csrf(csrf -> csrf.disable())

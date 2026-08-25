@@ -37,6 +37,21 @@ public class RepresentationResponses {
         return respond(status, rendererRegistry.selectForFailure(accept), problem);
     }
 
+    /** Same as {@link #problem}, but also carries a {@code WWW-Authenticate}
+     * challenge -- the one response in this API that is a genuine
+     * authentication challenge (RFC 9728 discovery via {@code
+     * insert-key}), not a domain refusal or a missing/unauthorised
+     * command. */
+    public ResponseEntity<String> challenge(
+            HttpStatus status, String accept, Representation problem, String wwwAuthenticate) {
+        Renderer renderer = rendererRegistry.selectForFailure(accept);
+        ResponseEntity<String> response = respond(status, renderer, problem);
+        return ResponseEntity.status(response.getStatusCode())
+                .headers(response.getHeaders())
+                .header(HttpHeaders.WWW_AUTHENTICATE, wwwAuthenticate)
+                .body(response.getBody());
+    }
+
     private ResponseEntity<String> notAcceptable(String accept) {
         Representation problem = Representation.builder("Not Acceptable")
                 .property("type", "about:blank")
