@@ -2,3 +2,4 @@
 build/
 bin/
 !gradle/wrapper/gradle-wrapper.jar
+bin/
