@@ -1,5 +1,6 @@
 package no.javazone.elevator.feature.viewstatus;
 
+import java.util.List;
 import java.util.Optional;
 import no.javazone.elevator.shared.domain.Elevator;
 import no.javazone.elevator.shared.domain.ElevatorId;
@@ -31,6 +32,12 @@ public class ElevatorViewProjection {
 
     public Optional<ElevatorView> find(ElevatorId id) {
         return repository.findById(id.value()).map(ElevatorView::from);
+    }
+
+    /** Every known elevator's id, in a stable order -- see
+     * {@link ElevatorViewRepository#findAllIds()}. */
+    public List<ElevatorId> findAllIds() {
+        return repository.findAllIds().stream().map(ElevatorId::new).toList();
     }
 
     public void syncFrom(Elevator elevator) {

@@ -83,12 +83,16 @@ Notes:
 
 ## Repository structure
 
-This is a monorepo with two applications, described in full in
+This is a monorepo with three applications, described in full in
 [`docs/architecture.md`][1]:
 
-- `elevator-api/`: Java 21 + Spring Boot 4 (Gradle Kotlin DSL)
-- `elevator-ui/`: Nuxt.js 4 -- serves both the front-end pages and the
-  backend-for-frontend (BFF) routes in one app
+- `elevator-api/`: Java 21 + Spring Boot 4 (Gradle Kotlin DSL) -- the
+  hypermedia API
+- `elevator-ui/`: Nuxt.js 4 -- a front-end shell only (pages, layouts,
+  CSS, the shaft animation); no backend-for-frontend (BFF). Every
+  request, including the technician's, goes straight to `elevator-api`
+- `elevator-auth/`: Spring Authorization Server; issues the
+  technician's scoped tokens and nothing else
 
 See [`AGENTS.md`][2] for coding conventions and more detailed run/test
 instructions.
@@ -123,12 +127,13 @@ npm install
 npm run dev
 ```
 
-Note that `elevator-ui`'s status display connects to `elevator-api`'s
-`GET /elevators/{id}/events` (Server-Sent Events) via a relative URL,
-which only resolves correctly behind the shared Caddy origin above --
-running `npm run dev` standalone, without Docker Compose in front of it,
-will show "Unable to reach the elevator" until it is proxied the same
-way.
+Note that `elevator-ui` discovers its elevator by following links from
+`elevator-api`'s own entry point (`GET /`, then the `elevators`
+collection it names), and connects to that elevator's own event stream
+the same way -- all via relative URLs, which only resolve correctly
+behind the shared Caddy origin above. Running `npm run dev` standalone,
+without Docker Compose in front of it, will show "Unable to reach the
+elevator" until it is proxied the same way.
 
 ## Technician key
 
@@ -137,9 +142,10 @@ recall -- are not tied to a login. They simulate physical key-switch
 access, and are authorised with OAuth 2.0 access tokens carrying one of
 two scopes: `elevator:maintenance` or `elevator:recall`.
 
-`elevator-auth` issues the tokens, `elevator-api` validates them by
-signature against that issuer, and `elevator-ui`'s BFF exchanges what the
-technician types for a token which it keeps in an `HttpOnly` cookie. The
+`elevator-auth` issues the tokens; `elevator-api` both validates them by
+signature against that issuer for every command, and -- the one place it
+plays OAuth2 client rather than resource server -- exchanges what the
+technician types for a token it keeps in an `HttpOnly` cookie. The
 credential never reaches browser JavaScript, and neither does the token.
 
 The dev credential is `dev-secret-key`, configured on `elevator-auth` via

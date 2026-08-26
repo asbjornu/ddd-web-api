@@ -1,6 +1,8 @@
 package no.javazone.elevator.shared.web;
 
+import jakarta.servlet.http.HttpServletRequest;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -13,7 +15,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -31,6 +32,10 @@ import org.springframework.web.bind.annotation.RestController;
  * elevator and dispatches by that name; each slice's own
  * {@link no.javazone.elevator.shared.hypermedia.AffordanceContributor}
  * still decides, independently, whether its command is legal right now.
+ *
+ * <p>Accepts either JSON or form-encoded bodies -- see
+ * {@link RequestBodies} -- since every affordance is rendered as a
+ * plain HTML {@code <form>}.
  */
 @RestController
 public class CommandsController {
@@ -39,23 +44,26 @@ public class CommandsController {
     private final Map<String, CommandEndpoint> endpointsByType;
     private final RepresentationResponses responses;
     private final PrincipalResolver principalResolver;
+    private final ObjectMapper objectMapper;
 
     public CommandsController(
             UriResolver uriResolver,
             List<CommandEndpoint> endpoints,
             RepresentationResponses responses,
-            PrincipalResolver principalResolver) {
+            PrincipalResolver principalResolver,
+            ObjectMapper objectMapper) {
         this.uriResolver = uriResolver;
         this.endpointsByType = endpoints.stream()
                 .collect(Collectors.toMap(CommandEndpoint::type, Function.identity()));
         this.responses = responses;
         this.principalResolver = principalResolver;
+        this.objectMapper = objectMapper;
     }
 
     @PostMapping("/elevators/{segment}")
     public ResponseEntity<String> dispatch(
             @PathVariable String segment,
-            @RequestBody(required = false) JsonNode body,
+            HttpServletRequest request,
             @RequestHeader(value = HttpHeaders.ACCEPT, required = false) String accept) {
         Optional<ElevatorId> id = resolve(segment);
         if (id.isEmpty()) {
@@ -63,6 +71,7 @@ public class CommandsController {
                     HttpStatus.NOT_FOUND, accept, ElevatorRepresentations.notFound(segment));
         }
 
+        JsonNode body = RequestBodies.read(request, objectMapper);
         String type = commandType(body);
         CommandEndpoint endpoint = type == null ? null : endpointsByType.get(type);
         if (endpoint == null) {

@@ -63,6 +63,14 @@ class EntryPointControllerTest {
     }
 
     @Test
+    void carriesALinkToTheElevatorsCollection() throws Exception {
+        mockMvc.perform(get("/").header(HttpHeaders.ACCEPT, "application/vnd.siren+json"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("\"rel\" : [ \"elevators\" ]")))
+                .andExpect(content().string(containsString("/elevators")));
+    }
+
+    @Test
     void refusesAnUnsupportedFormatWithAProblem() throws Exception {
         mockMvc.perform(get("/").header(HttpHeaders.ACCEPT, "application/xml"))
                 .andExpect(status().isNotAcceptable())

@@ -4,13 +4,13 @@ import java.time.Instant;
 import java.util.List;
 import no.javazone.elevator.config.ElevatorProperties;
 import no.javazone.elevator.feature.streamevents.ElevatorViewUpdates;
+import no.javazone.elevator.feature.viewstatus.ElevatorViewProjection;
 import no.javazone.elevator.shared.domain.DomainEvent;
 import no.javazone.elevator.shared.domain.DoorsClosingStarted;
 import no.javazone.elevator.shared.domain.DoorsOpened;
 import no.javazone.elevator.shared.domain.Elevator;
 import no.javazone.elevator.shared.domain.ElevatorId;
 import no.javazone.elevator.shared.persistence.ElevatorAggregateStore;
-import no.javazone.elevator.shared.render.ElevatorStateJsonRenderer;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
@@ -40,7 +40,7 @@ public class DoorScheduler {
     private final TaskScheduler taskScheduler;
     private final ElevatorAggregateStore store;
     private final ElevatorViewUpdates updates;
-    private final ElevatorStateJsonRenderer renderer;
+    private final ElevatorViewProjection projection;
     private final ElevatorProperties properties;
     private final CommandEffects effects;
 
@@ -48,13 +48,13 @@ public class DoorScheduler {
             TaskScheduler movementTaskScheduler,
             ElevatorAggregateStore store,
             ElevatorViewUpdates updates,
-            ElevatorStateJsonRenderer renderer,
+            ElevatorViewProjection projection,
             ElevatorProperties properties,
             CommandEffects effects) {
         this.taskScheduler = movementTaskScheduler;
         this.store = store;
         this.updates = updates;
-        this.renderer = renderer;
+        this.projection = projection;
         this.properties = properties;
         this.effects = effects;
     }
@@ -97,6 +97,6 @@ public class DoorScheduler {
         }
         store.save(elevator);
         effects.apply(elevator, events);
-        updates.publish(elevator.id(), renderer.render(EventRepresentations.of(elevator, properties)));
+        updates.publish(elevator.id(), projection.find(elevator.id()).orElseThrow());
     }
 }

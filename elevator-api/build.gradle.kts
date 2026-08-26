@@ -34,6 +34,8 @@ dependencies {
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3")
+    implementation("dev.data-star:datastar-java-sdk-core:1.0.0")
+    implementation("dev.data-star:datastar-java-sdk-jaxrs:1.0.0")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.security:spring-security-test")

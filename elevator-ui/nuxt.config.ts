@@ -1,21 +1,28 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
-  devtools: { enabled: true },
-  modules: ['@pinia/nuxt', '@nuxt/eslint'],
-  runtimeConfig: {
-    // Overridable at runtime via the NUXT_SERVICE_API_URL env var (Nuxt's
-    // standard runtimeConfig env override convention) -- setting a plain
-    // SERVICE_API_URL would only apply at build time, not in the built
-    // output running in a container.
-    serviceApiUrl: 'http://localhost:8080',
-
-    // Which client this BFF presents itself as when exchanging the
-    // technician's secret for a token -- overridable via
-    // NUXT_OAUTH_CLIENT_ID. The issuer itself is no longer configured
-    // here: exchangeKeyForToken discovers it from elevator-api's own
-    // RFC 9728 challenge, per docs/architecture.md's "Key-switch and
-    // authorization" section.
-    oauthClientId: 'elevator-technician'
+  // Disabled: DevTools injects an extra element into its SSR output that
+  // the client doesn't expect, which Vue reports as a hydration mismatch
+  // -- harmless directly against Nuxt's own dev server, but fatal to the
+  // renderer once a request also passes through Caddy's reverse proxy
+  // (the actual `docker compose up` path everyone else uses).
+  devtools: { enabled: false },
+  modules: ['@nuxt/eslint'],
+  css: ['~/assets/css/main.css'],
+  app: {
+    head: {
+      // Datastar drives every interactive part of this app -- see
+      // docs/architecture.md's "elevator-ui: front-end only, no BFF"
+      // section. There is no Pinia store, no typed API model, and no
+      // hard-coded domain constant left in this project: the server
+      // renders forms, this script morphs them in and keeps them
+      // live over SSE, and that is the entire client.
+      script: [
+        {
+          type: 'module',
+          src: 'https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.2/bundles/datastar.js'
+        }
+      ]
+    }
   }
 })

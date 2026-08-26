@@ -2,14 +2,13 @@ package no.javazone.elevator.feature.reportload;
 
 import tools.jackson.databind.JsonNode;
 import java.util.Optional;
-import no.javazone.elevator.config.ElevatorProperties;
 import no.javazone.elevator.feature.streamevents.ElevatorViewUpdates;
 import no.javazone.elevator.feature.viewstatus.ElevatorView;
 import no.javazone.elevator.feature.viewstatus.ElevatorViewProjection;
 import no.javazone.elevator.shared.domain.CommandRefused;
 import no.javazone.elevator.shared.domain.ElevatorId;
+import no.javazone.elevator.config.ElevatorProperties;
 import no.javazone.elevator.shared.hypermedia.AffordanceCatalog;
-import no.javazone.elevator.shared.render.ElevatorStateJsonRenderer;
 import no.javazone.elevator.shared.web.CommandEndpoint;
 import no.javazone.elevator.shared.security.Principal;
 import no.javazone.elevator.shared.web.ElevatorRepresentations;
@@ -29,26 +28,23 @@ public class ReportLoadController implements CommandEndpoint {
     private final ReportLoadHandler handler;
     private final ElevatorViewProjection projection;
     private final ElevatorViewUpdates updates;
-    private final ElevatorStateJsonRenderer eventRenderer;
     private final AffordanceCatalog affordanceCatalog;
-    private final RepresentationResponses responses;
     private final ElevatorProperties properties;
+    private final RepresentationResponses responses;
 
     public ReportLoadController(
             ReportLoadHandler handler,
             ElevatorViewProjection projection,
             ElevatorViewUpdates updates,
-            ElevatorStateJsonRenderer eventRenderer,
             AffordanceCatalog affordanceCatalog,
-            RepresentationResponses responses,
-            ElevatorProperties properties) {
+            ElevatorProperties properties,
+            RepresentationResponses responses) {
         this.handler = handler;
         this.projection = projection;
         this.updates = updates;
-        this.eventRenderer = eventRenderer;
         this.affordanceCatalog = affordanceCatalog;
-        this.responses = responses;
         this.properties = properties;
+        this.responses = responses;
     }
 
     @Override
@@ -79,7 +75,7 @@ public class ReportLoadController implements CommandEndpoint {
         }
 
         ElevatorView view = projection.find(id).orElseThrow();
-        updates.publish(id, eventRenderer.render(ElevatorRepresentations.eventRepresentation(view, properties)));
+        updates.publish(id, view);
         return responses.ok(accept, ElevatorRepresentations.representation(segment, view, affordanceCatalog, principal, properties));
     }
 

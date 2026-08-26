@@ -1,15 +1,16 @@
 import { test, expect } from '@playwright/test'
 
 // Smoke test: the rider page shell renders regardless of whether
-// elevator-api is reachable (API connectivity is covered separately by
-// elevator-api's own test suite).
+// elevator-api is reachable -- there is nothing else static left to
+// assert on here, since every other piece of content (forms, status)
+// is fetched and rendered by elevator-api itself and morphed in by
+// Datastar; API connectivity is covered separately by elevator-api's
+// own test suite and by manual `docker compose up` verification.
 test.describe('rider page', () => {
-  test('renders heading and main panels', async ({ page }) => {
+  test('renders the page shell', async ({ page }) => {
     await page.goto('/')
 
     await expect(page.getByRole('heading', { name: 'Elevator', exact: true })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Call elevator' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Elevator status' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Public status page' })).toBeVisible()
   })
 

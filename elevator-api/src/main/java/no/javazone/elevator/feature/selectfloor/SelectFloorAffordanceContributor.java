@@ -1,10 +1,12 @@
 package no.javazone.elevator.feature.selectfloor;
 
 import java.util.List;
+import no.javazone.elevator.config.ElevatorProperties;
 import no.javazone.elevator.shared.hypermedia.Affordance;
 import no.javazone.elevator.shared.hypermedia.AffordanceContext;
 import no.javazone.elevator.shared.hypermedia.AffordanceContributor;
 import no.javazone.elevator.shared.hypermedia.Field;
+import no.javazone.elevator.shared.hypermedia.FloorOptions;
 import org.springframework.stereotype.Component;
 
 /**
@@ -22,6 +24,12 @@ public class SelectFloorAffordanceContributor implements AffordanceContributor {
 
     private static final List<String> UNAVAILABLE_STATES = List.of("outOfService", "emergencyRecall");
 
+    private final ElevatorProperties properties;
+
+    public SelectFloorAffordanceContributor(ElevatorProperties properties) {
+        this.properties = properties;
+    }
+
     @Override
     public List<Affordance> contribute(AffordanceContext context) {
         if (context.elevatorSegment().isEmpty()) {
@@ -37,6 +45,8 @@ public class SelectFloorAffordanceContributor implements AffordanceContributor {
                 "Select a floor",
                 "POST",
                 href,
-                List.of(Field.hidden("type", "SelectFloor"), Field.text("floor", null))));
+                List.of(
+                        Field.hidden("type", "SelectFloor"),
+                        Field.select("floor", null, FloorOptions.upTo(properties.floors())))));
     }
 }

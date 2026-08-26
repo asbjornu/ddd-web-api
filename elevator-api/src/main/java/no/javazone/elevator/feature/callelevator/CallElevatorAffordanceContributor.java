@@ -1,10 +1,12 @@
 package no.javazone.elevator.feature.callelevator;
 
 import java.util.List;
+import no.javazone.elevator.config.ElevatorProperties;
 import no.javazone.elevator.shared.hypermedia.Affordance;
 import no.javazone.elevator.shared.hypermedia.AffordanceContext;
 import no.javazone.elevator.shared.hypermedia.AffordanceContributor;
 import no.javazone.elevator.shared.hypermedia.Field;
+import no.javazone.elevator.shared.hypermedia.FloorOptions;
 import org.springframework.stereotype.Component;
 
 /**
@@ -23,6 +25,12 @@ public class CallElevatorAffordanceContributor implements AffordanceContributor 
 
     private static final List<String> UNAVAILABLE_STATES = List.of("outOfService", "emergencyRecall");
 
+    private final ElevatorProperties properties;
+
+    public CallElevatorAffordanceContributor(ElevatorProperties properties) {
+        this.properties = properties;
+    }
+
     @Override
     public List<Affordance> contribute(AffordanceContext context) {
         if (context.elevatorSegment().isEmpty()) {
@@ -40,7 +48,7 @@ public class CallElevatorAffordanceContributor implements AffordanceContributor 
                 href,
                 List.of(
                         Field.hidden("type", "CallElevator"),
-                        Field.text("floor", null),
+                        Field.select("floor", null, FloorOptions.upTo(properties.floors())),
                         Field.select("direction", null, List.of("up", "down")))));
     }
 }

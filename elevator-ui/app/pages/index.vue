@@ -1,35 +1,13 @@
 <template>
   <main>
     <h1>Elevator</h1>
+    <p class="tagline">Call it, ride it, and (with the right key) service it.</p>
     <div class="layout">
-      <div class="left-col">
-        <CallPanel />
-        <StatusDisplay />
-      </div>
-      <ElevatorShaft />
+      <div id="entry-point" data-init="@get('/')"></div>
+      <div id="shaft"></div>
     </div>
-    <p>
-      <NuxtLink to="/status">Public status page</NuxtLink>
-    </p>
+    <nav>
+      <a href="/status">Public status page</a>
+    </nav>
   </main>
 </template>
-
-<style scoped>
-main {
-  max-width: 45rem;
-  margin: 2rem auto;
-  padding: 0 1rem;
-  font-family: system-ui, sans-serif;
-}
-.layout {
-  display: flex;
-  gap: 2rem;
-  align-items: flex-start;
-}
-.left-col {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  width: 17rem;
-}
-</style>

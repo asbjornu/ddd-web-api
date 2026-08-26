@@ -37,23 +37,23 @@ public class ViewStatusController {
     private final ElevatorViewProjection projection;
     private final UriResolver uriResolver;
     private final AffordanceCatalog affordanceCatalog;
+    private final ElevatorProperties properties;
     private final RepresentationResponses responses;
     private final PrincipalResolver principalResolver;
-    private final ElevatorProperties properties;
 
     public ViewStatusController(
             ElevatorViewProjection projection,
             UriResolver uriResolver,
             AffordanceCatalog affordanceCatalog,
+            ElevatorProperties properties,
             RepresentationResponses responses,
-            PrincipalResolver principalResolver,
-            ElevatorProperties properties) {
+            PrincipalResolver principalResolver) {
         this.projection = projection;
         this.uriResolver = uriResolver;
         this.affordanceCatalog = affordanceCatalog;
+        this.properties = properties;
         this.responses = responses;
         this.principalResolver = principalResolver;
-        this.properties = properties;
     }
 
     @GetMapping("/elevators/{segment}")
@@ -67,7 +67,7 @@ public class ViewStatusController {
                     HttpStatus.NOT_FOUND, accept, ElevatorRepresentations.notFound(segment));
         }
         Representation representation = ElevatorRepresentations.representation(
-                segment, view.get(), affordanceCatalog, principalResolver.resolve(), properties);
+                segment, view.get(), affordanceCatalog, principalResolver.resolve(), properties, true);
         return responses.ok(accept, representation);
     }
 

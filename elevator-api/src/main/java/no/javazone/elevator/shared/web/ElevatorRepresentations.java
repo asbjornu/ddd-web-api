@@ -21,11 +21,38 @@ public final class ElevatorRepresentations {
     private ElevatorRepresentations() {
     }
 
+    /** The one content wrapper id every live-patched fragment of this
+     * elevator shares -- see {@link no.javazone.elevator.shared.hypermedia.Representation}'s
+     * own Javadoc and {@link no.javazone.elevator.feature.streamevents.ElevatorViewUpdates}. */
+    public static final String CONTENT_WRAPPER_ID = "elevator-content";
+
     public static Representation representation(
             String segment, ElevatorView view, AffordanceCatalog affordanceCatalog,
             Principal principal, ElevatorProperties properties) {
+        return representation(segment, view, affordanceCatalog, principal, properties, false);
+    }
+
+    /** {@code asPageEntry}: only the caller reaching this elevator for
+     * the first time in a discovery chain (the elevators collection's
+     * own auto-init, or a browser/machine navigating straight here)
+     * needs the outer {@code containerId} and the {@code updates}
+     * auto-init that opens the live stream -- every later response (a
+     * command's own, or the stream's own patches) must omit both, or
+     * the stream would be re-opened on every single patch. See {@link
+     * no.javazone.elevator.shared.render.HtmlRenderer}'s own Javadoc.
+     *
+     * <p>{@code travelSecondsPerFloor}/{@code doorOpenTimeoutSeconds}
+     * (from {@code properties}) ride along on every representation, not
+     * just the page-entry one, so a client animating a transition (see
+     * {@code docs/plan.html} &sect;12's "what actually happened" callout)
+     * always has the duration to animate over without hard-coding it --
+     * the same reason {@link no.javazone.elevator.shared.hypermedia.FloorOptions}
+     * exists for the floor count instead of a client-side constant. */
+    public static Representation representation(
+            String segment, ElevatorView view, AffordanceCatalog affordanceCatalog,
+            Principal principal, ElevatorProperties properties, boolean asPageEntry) {
         String self = "/elevators/" + segment;
-        return Representation.builder("Elevator")
+        Representation.Builder builder = Representation.builder("Elevator")
                 .property("currentFloor", view.currentFloor())
                 .property("state", view.state())
                 .property("direction", view.direction())
@@ -34,35 +61,20 @@ public final class ElevatorRepresentations {
                 .property("weightKg", view.weightKg())
                 .property("capacityKg", view.capacityKg())
                 .property("destinationFloor", view.destinationFloor())
-                // Rides along on every representation, not just while a
-                // trip is in progress, so a client already has this the
-                // instant a command's own response reports movingUp/
-                // movingDown -- never a client-side guessed-physics
-                // constant, per docs/architecture.md's rule against
-                // hard-coding travel timing; see ElevatorShaft.vue's own
-                // startCarAnimation.
                 .property("travelSecondsPerFloor", properties.travelSecondsPerFloor())
+                .property("doorOpenTimeoutSeconds", properties.doorOpenTimeoutSeconds())
                 .link(new Link("self", self))
                 .link(new Link("updates", self + "/events", "text/event-stream"))
                 .affordances(affordanceCatalog.affordances(AffordanceContext.forElevator(
                         segment, view.state(), view.obstructed(), view.weightKg() > view.capacityKg(),
                         principal)))
-                .build();
+                .contentWrapperId(CONTENT_WRAPPER_ID);
+        if (asPageEntry) {
+            builder.containerId("elevator").autoInit("elevator-events", self + "/events");
+        }
+        return builder.build();
     }
 
-    public static Representation eventRepresentation(ElevatorView view, ElevatorProperties properties) {
-        return Representation.builder("Elevator")
-                .property("currentFloor", view.currentFloor())
-                .property("state", view.state())
-                .property("direction", view.direction())
-                .property("doorPosition", view.doorPosition())
-                .property("obstructed", view.obstructed())
-                .property("weightKg", view.weightKg())
-                .property("capacityKg", view.capacityKg())
-                .property("destinationFloor", view.destinationFloor())
-                .property("travelSecondsPerFloor", properties.travelSecondsPerFloor())
-                .build();
-    }
 
     public static Representation notFound(String segment) {
         return Representation.builder("Not Found")
@@ -138,6 +150,7 @@ public final class ElevatorRepresentations {
                 .affordances(affordanceCatalog.affordances(AffordanceContext.forElevator(
                         segment, current.state(), current.obstructed(),
                         current.weightKg() > current.capacityKg(), principal)))
+                .contentWrapperId(CONTENT_WRAPPER_ID)
                 .build();
     }
 }

@@ -76,6 +76,27 @@ public class RepresentationResponses {
                             link.href(), link.rel(), link.type());
             response.header(HttpHeaders.LINK, header);
         }
+        // Any representation naming a containerId or a contentWrapperId is
+        // meant to patch one specific div, not replace the page: Datastar's
+        // @get/@post, given a plain text/html response with no selector/mode
+        // of its own, defaults to morphing the *entire* document body
+        // against it -- wiping out every sibling of the div this response
+        // is actually meant to replace (the page shell's nav, headings, and
+        // any decoration living outside it), for a command's own POST
+        // response exactly as much as for a discovery-chain GET. These two
+        // response headers are Datastar's own documented mechanism for
+        // narrowing that to exactly one div -- see
+        // https://data-star.dev/reference/actions#response-handling. A
+        // page-entry response's outer containerId wins when both are
+        // present, since it is the one actually facing the DOM's existing
+        // element (see Representation's own Javadoc).
+        String target = representation.containerId() != null
+                ? representation.containerId()
+                : representation.contentWrapperId();
+        if (target != null) {
+            response.header("datastar-selector", "#" + target);
+            response.header("datastar-mode", "outer");
+        }
         return response.body(renderer.render(representation));
     }
 }

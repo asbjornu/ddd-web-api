@@ -6,12 +6,25 @@
 # exists and docs/architecture.md's "elevator-ui: front-end only, no
 # BFF" section for what it replaces.
 #
-# elevator-api's own root ("/") is deliberately NOT routed here: it
-# stays reachable only on the internal Docker network, as the entry
-# point for machine clients addressing the service directly rather than
-# through this shared origin.
+# "/" is content-negotiated, not split by path: a browser navigating
+# here (Accept starting with text/html, as every browser's own
+# top-level navigation does) gets elevator-ui's page; elevator-ui's own
+# client-side code asking for one of this API's media types (see
+# no.javazone.elevator.shared.web.EntryPointController, the one URL a
+# client is ever configured with) reaches elevator-api instead, the
+# same way a machine client addressing this shared origin would. A
+# machine client on elevator-api's own internal network can still
+# reach "/" directly regardless of this rule.
 
 :8000 {
+	@entryPoint {
+		path /
+		not header Accept text/html*
+	}
+	handle @entryPoint {
+		reverse_proxy elevator-api:8080
+	}
+
 	handle /elevators* {
 		reverse_proxy elevator-api:8080
 	}

@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 class CallElevatorAffordanceContributorTest {
 
     private final CallElevatorAffordanceContributor contributor =
-            new CallElevatorAffordanceContributor();
+            new CallElevatorAffordanceContributor(new no.javazone.elevator.config.ElevatorProperties(9, 1, 2, 6, 800));
 
     @Test
     void presentWhenIdle() {
@@ -18,6 +18,20 @@ class CallElevatorAffordanceContributorTest {
                 contributor.contribute(AffordanceContext.forElevator("1", "idle", false, false));
 
         assertThat(affordances).extracting(Affordance::rel).containsExactly("call-elevator");
+    }
+
+    @Test
+    void offersEveryFloorAsAnOption() {
+        List<Affordance> affordances =
+                contributor.contribute(AffordanceContext.forElevator("1", "idle", false, false));
+
+        assertThat(affordances)
+                .singleElement()
+                .satisfies(affordance -> assertThat(affordance.fields())
+                        .filteredOn(field -> "floor".equals(field.name()))
+                        .singleElement()
+                        .satisfies(field -> assertThat(field.options())
+                                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9")));
     }
 
     @Test

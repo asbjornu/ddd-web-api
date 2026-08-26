@@ -1,24 +1,20 @@
 <template>
   <main>
     <h1>Elevator status</h1>
-    <p>Public, read-only -- no key required.</p>
+    <!--
+      Public and read-only in spirit, but there is no separate
+      "read-only" resource to point at any more than there is a
+      hard-coded one to visit instead: this renders the exact same
+      representation index.vue does, forms included -- an anonymous
+      caller's own operations are whatever elevator-api decided they
+      are, the same seam every other caller goes through.
+    -->
     <div class="layout">
-      <ElevatorShaft />
-      <StatusDisplay />
+      <div id="entry-point" data-init="@get('/')"></div>
+      <div id="shaft"></div>
     </div>
+    <nav>
+      <a href="/">Back to the rider console</a>
+    </nav>
   </main>
 </template>
-
-<style scoped>
-main {
-  max-width: 30rem;
-  margin: 2rem auto;
-  padding: 0 1rem;
-  font-family: system-ui, sans-serif;
-}
-.layout {
-  display: flex;
-  gap: 2rem;
-  align-items: flex-start;
-}
-</style>

@@ -8,13 +8,24 @@ import org.junit.jupiter.api.Test;
 class SelectFloorAffordanceContributorTest {
 
     private final SelectFloorAffordanceContributor contributor =
-            new SelectFloorAffordanceContributor();
+            new SelectFloorAffordanceContributor(new no.javazone.elevator.config.ElevatorProperties(9, 1, 2, 6, 800));
 
     @Test
     void presentWhenIdle() {
         assertThat(contributor.contribute(AffordanceContext.forElevator("1", "idle", false, false)))
                 .extracting(a -> a.rel())
                 .containsExactly("select-floor");
+    }
+
+    @Test
+    void offersEveryFloorAsAnOption() {
+        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "idle", false, false)))
+                .singleElement()
+                .satisfies(affordance -> assertThat(affordance.fields())
+                        .filteredOn(field -> "floor".equals(field.name()))
+                        .singleElement()
+                        .satisfies(field -> assertThat(field.options())
+                                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9")));
     }
 
     @Test

@@ -3,9 +3,11 @@ package no.javazone.elevator.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import no.javazone.elevator.shared.security.TechnicianCookieAuthenticationFilter;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
@@ -34,6 +36,13 @@ import org.springframework.security.web.SecurityFilterChain;
  * themselves, the same place a domain refusal would be, using the
  * {@code Principal} {@code CommandsController} resolves for every
  * command.
+ *
+ * <p>{@link TechnicianCookieAuthenticationFilter} runs immediately
+ * before the resource server's own Bearer filter, so a plain HTML form
+ * submission carrying only the technician's {@code HttpOnly} cookie
+ * (see {@code KeySwitchSessionController}) is authenticated exactly as
+ * if it had presented that same token as an {@code Authorization}
+ * header itself.
  */
 @Configuration
 public class SecurityConfig {
@@ -50,6 +59,8 @@ public class SecurityConfig {
         return http
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
 
+                .addFilterBefore(
+                        new TechnicianCookieAuthenticationFilter(), BearerTokenAuthenticationFilter.class)
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(Customizer.withDefaults())
                         // GET /.well-known/oauth-protected-resource, built in since

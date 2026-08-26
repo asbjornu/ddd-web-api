@@ -67,14 +67,13 @@ services:
     # treatment as the other two for a consistent pre-talk routine.)
     image: elevator-ui:${IMAGE_TAG:-json-hypermedia}
     # No published port either: caddy forwards everything it does not
-    # recognise as belonging to elevator-api here instead.
-    environment:
-      NUXT_SERVICE_API_URL: http://elevator-api:8080
-      NUXT_OAUTH_CLIENT_ID: elevator-technician
+    # recognise as belonging to elevator-api here instead. No
+    # environment either, now that server/ (the BFF) is gone: this is a
+    # front-end shell with no service URL or OAuth client id of its own
+    # to be configured with -- see docs/architecture.md's "elevator-ui:
+    # front-end only, no BFF" section.
     depends_on:
       elevator-api:
-        condition: service_healthy
-      elevator-auth:
         condition: service_healthy
     volumes:
       - ./elevator-ui:/app

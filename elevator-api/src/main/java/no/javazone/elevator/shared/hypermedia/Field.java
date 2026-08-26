@@ -32,6 +32,10 @@ public record Field(
         return new Field(name, "hidden", value, true, null);
     }
 
+    public static Field password(String name, Object value) {
+        return new Field(name, "password", value, true, null);
+    }
+
     public static Field select(String name, Object value, List<String> options) {
         return new Field(name, "select", value, true, options);
     }

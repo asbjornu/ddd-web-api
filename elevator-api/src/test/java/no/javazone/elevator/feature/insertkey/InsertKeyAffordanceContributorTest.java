@@ -18,6 +18,17 @@ class InsertKeyAffordanceContributorTest {
     }
 
     @Test
+    void pointsAtTheSessionEndpointWithASecretField() {
+        assertThat(contributor.contribute(AffordanceContext.forElevator("1", "idle", false, false)))
+                .singleElement()
+                .satisfies(affordance -> {
+                    assertThat(affordance.href()).isEqualTo("/elevators/1/key-switch/session");
+                    assertThat(affordance.method()).isEqualTo("POST");
+                    assertThat(affordance.fields()).extracting(f -> f.name()).containsExactly("secret");
+                });
+    }
+
+    @Test
     void absentForACallerAlreadyHoldingAScope() {
         Principal technician = new Principal(java.util.Set.of("elevator:maintenance"));
         assertThat(contributor.contribute(

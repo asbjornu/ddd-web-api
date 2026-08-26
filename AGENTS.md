@@ -44,11 +44,11 @@ argument, worked examples, media-type samples, and open questions.
 /docs              architecture.md and plan.html
 ```
 
-`elevator-ui` is being reduced to a front-end shell (pages, the shaft/car
-animation chrome, the Playwright suite) as each slice's BFF routes are
-deleted — see `docs/architecture.md`'s "elevator-ui: front-end only, no
-BFF" section. Code not yet touched by a slice still has BFF routes under
-`server/api/`; don't delete those ahead of their slice.
+`elevator-ui` is a front-end shell (pages, the shaft/car animation
+chrome, the Playwright suite) with no backend-for-frontend — see
+`docs/architecture.md`'s "elevator-ui: front-end only, no BFF" section.
+Every request, including the technician's, goes straight to
+`elevator-api`; there is no `server/` directory to reintroduce one in.
 
 Within `elevator-api`, the target layout is **one directory per domain
 behaviour** (`callelevator/`, `selectfloor/`, `opendoors/`, ...), each
@@ -75,13 +75,15 @@ moving it piecemeal.
   migrated to a vertical slice; don't be surprised by (and don't
   silently clean up) inconsistent naming elsewhere — that's one of the
   intentional smells still awaiting its slice.
-- **elevator-ui**: Nuxt 4, TypeScript, Vue 3 Composition API, `<script
-  setup>`, Pinia for state, server routes under `server/api/` (until
-  their slice deletes them). ESLint + Prettier are configured and
-  enforced in CI — keep code passing lint even where it's intentionally
-  smelly in other ways (naming, structure); lint failures are not part
-  of the demo. Do not add rules that would flag the deliberate smells:
-  lint is here to catch mistakes, not to improve the design.
+- **elevator-ui**: Nuxt 4, TypeScript, Vue 3 Composition API. No
+  client-side state management: Datastar drives every interactive part
+  of the page directly from elevator-api's own rendered HTML, so there
+  is no store to keep in sync with it. ESLint + Prettier are configured
+  and enforced in CI — keep code passing lint even where it's
+  intentionally smelly in other ways (naming, structure); lint failures
+  are not part of the demo. Do not add rules that would flag the
+  deliberate smells: lint is here to catch mistakes, not to improve the
+  design.
 
 ## How to run things
 
@@ -96,9 +98,10 @@ moving it piecemeal.
   `npm run lint:fix` to autofix
 - elevator-ui formatting: `npm run format:check` (Prettier, from
   `elevator-ui/`); `npm run format` to rewrite
-- elevator-ui unit tests: `npm run test:unit` (Vitest, from `elevator-ui/`)
 - elevator-ui e2e tests: `npm run test:e2e` (Playwright, from
-  `elevator-ui/`; requires `npx playwright install chromium` once)
+  `elevator-ui/`; requires `npx playwright install chromium` once) --
+  the only test suite this project has: there is no client-side logic
+  of its own left to unit test
 - Full stack locally: `docker compose up` (from the repo root); starts both
   `elevator-api` (`http://localhost:8080`) and `elevator-ui`
   (`http://localhost:3000`)
@@ -128,7 +131,7 @@ missing with `brew install <formula>`.
 
 | Tool    | Formula      | Needed for                                  |
 | ------- | ------------ | ------------------------------------------- |
-| Node.js | `node`       | elevator-ui dev server, Vitest, Playwright  |
+| Node.js | `node`       | elevator-ui dev server, Playwright          |
 | JDK 21  | `openjdk@21` | elevator-api — the Gradle toolchain pins 21 |
 | GnuPG   | `gnupg`      | signed commits (`commit.gpgsign` is `true`) |
 | actionlint | `actionlint` | validating `.github/workflows`            |
