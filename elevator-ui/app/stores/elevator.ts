@@ -119,7 +119,9 @@ export const useElevatorStore = defineStore('elevator', {
     enterMaintenanceOperation: (state) =>
       state.status?.operations?.find((op) => op.rel === 'enter-maintenance') ?? null,
     exitMaintenanceOperation: (state) =>
-      state.status?.operations?.find((op) => op.rel === 'exit-maintenance') ?? null
+      state.status?.operations?.find((op) => op.rel === 'exit-maintenance') ?? null,
+    triggerEmergencyRecallOperation: (state) =>
+      state.status?.operations?.find((op) => op.rel === 'trigger-emergency-recall') ?? null
   },
   actions: {
     // Replaces the 1.5 s poller: one connection, pushed to rather than
@@ -408,11 +410,18 @@ export const useElevatorStore = defineStore('elevator', {
       }
     },
     async triggerEmergencyRecall() {
+      const operation = this.triggerEmergencyRecallOperation
+      if (!operation) {
+        this.error = 'Emergency recall is not available right now.'
+        return
+      }
       try {
-        await $fetch(`/api/elevators/${ELEVATOR_ID}/emergency-recall`, {
-          method: 'POST'
+        await $fetch(`/api/elevators/${ELEVATOR_ID}/commands`, {
+          method: 'POST',
+          body: commandBody(operation)
         })
         this.error = null
+        await this.refreshAuthenticatedStatus()
       } catch {
         this.error = 'Unable to trigger emergency recall.'
       }

@@ -15,6 +15,20 @@ const obstructionWarning = computed(() => {
   return store.status?.obstructed ? 'Doors blocked — cannot close' : ''
 })
 
+// Whether *any* technician operation is on offer -- true exactly when
+// the caller holds a scope and the state allows at least one, false
+// both for an anonymous caller and (like insert-key itself) during an
+// ongoing emergency recall, when nothing is offered to anyone. This is
+// what tells "key inserted" apart from "recall is in progress": both
+// leave insertKeyOperation absent, but only the former should still
+// show a withdraw-key button.
+const hasAnyTechnicianOperation = computed(
+  () =>
+    store.enterMaintenanceOperation != null ||
+    store.exitMaintenanceOperation != null ||
+    store.triggerEmergencyRecallOperation != null
+)
+
 const keyInput = ref('')
 
 async function submitKey() {
@@ -83,18 +97,22 @@ onUnmounted(() => {
         />
         <button type="submit">Insert key</button>
       </form>
-      <div v-else class="key-inserted">
+      <div v-if="hasAnyTechnicianOperation" class="key-inserted">
         <span>Key inserted</span>
         <button @click="store.withdrawKey()">Withdraw key</button>
       </div>
-      <div v-if="!store.insertKeyOperation" class="tech-actions">
+      <div v-if="hasAnyTechnicianOperation" class="tech-actions">
         <button v-if="store.enterMaintenanceOperation" @click="store.enterMaintenance()">
           Enter maintenance
         </button>
         <button v-if="store.exitMaintenanceOperation" @click="store.exitMaintenance()">
           Exit maintenance
         </button>
-        <button class="emergency-btn" @click="store.triggerEmergencyRecall()">
+        <button
+          v-if="store.triggerEmergencyRecallOperation"
+          class="emergency-btn"
+          @click="store.triggerEmergencyRecall()"
+        >
           Emergency recall
         </button>
       </div>

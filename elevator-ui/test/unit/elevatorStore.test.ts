@@ -22,6 +22,7 @@ const VALID_SECRET = 'dev-secret-key'
 let cookieInserted = false
 let bffReachable = true
 let maintenanceAuthHeader: string | undefined
+let lastTechnicianCommandBody: Record<string, unknown> | undefined
 
 registerEndpoint('/api/key', {
   method: 'POST',
@@ -45,8 +46,9 @@ registerEndpoint('/api/key', {
 
 registerEndpoint('/api/elevators/1/commands', {
   method: 'POST',
-  handler: (event) => {
+  handler: async (event) => {
     maintenanceAuthHeader = getHeader(event, 'authorization')
+    lastTechnicianCommandBody = await readBody(event)
     return {}
   }
 })
@@ -212,6 +214,30 @@ describe('useElevatorStore getters', () => {
     }
 
     expect(store.selectFloorOperation?.rel).toBe('select-floor')
+  })
+
+  it('finds the trigger-emergency-recall operation among the current status operations', () => {
+    const store = useElevatorStore()
+    store.status = {
+      currentFloor: 3,
+      state: 'idle',
+      direction: 'none',
+      doorPosition: 'closed',
+      obstructed: false,
+      weightKg: 0,
+      capacityKg: 800,
+      destinationFloor: null,
+      operations: [
+        {
+          rel: 'trigger-emergency-recall',
+          title: 'Trigger emergency recall',
+          method: 'POST',
+          href: '/elevators/1'
+        }
+      ]
+    }
+
+    expect(store.triggerEmergencyRecallOperation?.rel).toBe('trigger-emergency-recall')
   })
 })
 
@@ -467,5 +493,69 @@ describe('useElevatorStore technician key session', () => {
     await store.enterMaintenance()
 
     expect(maintenanceAuthHeader).toBeUndefined()
+  })
+})
+
+// trigger-emergency-recall follows the same "no operation, no request"
+// and "echo the operation's own fields, including its hidden type"
+// shape as every other technician command -- see
+// docs/architecture.md's slice 7 roadmap entry. Unlike enter/exit
+// maintenance, it is offered from almost every state, which is why
+// there is no dedicated getter test here beyond the one already in
+// 'useElevatorStore getters'.
+describe('useElevatorStore triggerEmergencyRecall', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    lastTechnicianCommandBody = undefined
+  })
+
+  it('does nothing when no trigger-emergency-recall operation is present', async () => {
+    const store = useElevatorStore()
+    store.status = {
+      currentFloor: 1,
+      state: 'emergencyRecall',
+      direction: 'none',
+      doorPosition: 'closed',
+      obstructed: false,
+      weightKg: 0,
+      capacityKg: 800,
+      destinationFloor: null,
+      operations: []
+    }
+
+    await store.triggerEmergencyRecall()
+
+    expect(store.error).toBe('Emergency recall is not available right now.')
+    expect(lastTechnicianCommandBody).toBeUndefined()
+  })
+
+  it("posts to the BFF's commands proxy, echoing the operation's hidden type", async () => {
+    const store = useElevatorStore()
+    store.status = {
+      currentFloor: 3,
+      state: 'idle',
+      direction: 'none',
+      doorPosition: 'closed',
+      obstructed: false,
+      weightKg: 0,
+      capacityKg: 800,
+      destinationFloor: null,
+      operations: [
+        {
+          rel: 'trigger-emergency-recall',
+          title: 'Trigger emergency recall',
+          method: 'POST',
+          href: '/elevators/1',
+          fields: [
+            { name: 'type', type: 'hidden', value: 'TriggerEmergencyRecall', required: true }
+          ]
+        }
+      ]
+    }
+
+    await store.triggerEmergencyRecall()
+
+    expect(lastTechnicianCommandBody).toEqual({ type: 'TriggerEmergencyRecall' })
+    expect(store.error).toBeNull()
   })
 })
