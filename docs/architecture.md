@@ -157,7 +157,8 @@ a success already understands a failure.
 The same resource, the same state, four content-negotiated
 serialisations on the same URL:
 
-- `text/html` — server-rendered forms (JTE templates).
+- `text/html` — server-rendered forms (a hand-built `HtmlRenderer`, not
+  a templating engine — see plan §12 for why JTE was dropped).
 - `application/vnd.elevator.state+json` — a minimal bespoke format, kept
   only as a teaching device (see plan §18), not a recommendation.
 - `application/vnd.siren+json` — the complete standard format.
@@ -363,16 +364,32 @@ constructs its own request body.
 
 ## elevator-ui: front-end only, no BFF
 
-`elevator-api` serves HTML directly (JTE templates) alongside the
-JSON/JSON-LD formats, from one origin — fronted by a Caddy reverse proxy
-in `docker-compose` (added in slice 0), so the browser never crosses
-origins and the technician cookie needs no CORS/`SameSite` negotiation.
+`elevator-api` serves HTML directly (a hand-built `HtmlRenderer`, not a
+templating engine) alongside the JSON/JSON-LD formats, from one origin —
+fronted by a Caddy reverse proxy in `docker-compose` (added in slice 0),
+so the browser never crosses origins and the technician cookie needs no
+CORS/`SameSite` negotiation.
 
-`elevator-ui`'s only remaining job is the shaft/car animation chrome and
-the Playwright suite. Datastar handles server-driven DOM updates over
-SSE; Vue never owns the Datastar-morphed subtree. `server/api/`,
-`app/stores/elevator.ts`, every typed API model, and every hard-coded
-domain constant are deleted, not migrated.
+`elevator-ui`'s only remaining job is the page shell (nav chrome, CSS)
+and the Playwright suite, plus one purely decorative exception: a CSS
+transition standing in for a car/shaft animation, positioned and timed
+entirely from the DOM `elevator-api` already rendered (the status
+fields' own `currentFloor`/`travelSecondsPerFloor`, and the floor count
+already present in any rendered `select[name=floor]`) rather than a
+constant of its own — see the "Timing" section above and `docs/plan.html`
+§12's own account of exposing that timing on the representation.
+Datastar handles every server-driven DOM update over SSE, including the
+affordances/forms themselves; Vue never owns the Datastar-morphed
+subtree, and the shaft's own reading of it is one-way (DOM → CSS custom
+property), never state of its own to keep in sync. `server/api/`,
+`app/stores/elevator.ts`, every Vue component that rendered elevator
+state, every typed API model, and every hard-coded domain constant are
+deleted, not migrated. Discovery is a self-triggering chain of three
+`GET`s (entry point → elevators collection → the one elevator → its SSE
+stream), not a single request, because the entry point cannot itself
+know which elevator resource to auto-fetch next — each hop's response
+carries the next hop's link, and each renders its own auto-fetching
+`data-init` div rather than the client constructing the next URL.
 
 ## Repository and file structure
 

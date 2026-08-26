@@ -1894,7 +1894,13 @@ sequenceDiagram
   participant A as elevator-api
   B->>D: page loads, one div with data-init
   D->>A: GET / (the only known URL)
-  A-->>D: text/html + affordances
+  A-->>D: text/html + link to /elevators, own data-init div
+  D->>B: morph into #entry-point
+  D->>A: GET /elevators (from the rendered data-init)
+  A-->>D: text/html + link to /elevators/1, own data-init div
+  D->>B: morph into #elevators-collection
+  D->>A: GET /elevators/1 (from the rendered data-init)
+  A-->>D: text/html + affordances + data-init for the SSE stream
   D->>B: morph into #elevator
   D->>A: GET /elevators/1/events (text/event-stream)
   Note over A: connection held open
@@ -1920,8 +1926,8 @@ sequenceDiagram
     <div class="card">
       <h3 style="margin-top:0">What survives in <code class="inline">elevator-ui</code></h3>
       <ul class="clean">
-        <li>Nuxt, routing, layouts, CSS, the shaft chrome</li>
-        <li>Vitest and Playwright suites</li>
+        <li>Nuxt, routing, layouts, CSS</li>
+        <li>The Playwright suite</li>
         <li>One injected config value: the entry-point URL</li>
       </ul>
       <h3>What is deleted</h3>
@@ -1931,6 +1937,12 @@ sequenceDiagram
         <li class="kill">every typed API model</li>
         <li class="kill">every hard-coded path and domain constant</li>
         <li class="kill">the 1.5&nbsp;s poller</li>
+        <li class="kill">the four rider/technician Vue components, including the old
+          Pinia-store-reading shaft chrome &mdash; there is nothing left for Vue to render once
+          every affordance and status field comes from <code class="inline">elevator-api</code>
+          as HTML (a much smaller, purely decorative CSS-only shaft replaced it afterward; see
+          &sect;16's "Where hypermedia genuinely yields")</li>
+        <li class="kill">Vitest &mdash; nothing client-side is left to unit test</li>
       </ul>
     </div>
   </div>
@@ -1943,6 +1955,44 @@ sequenceDiagram
     <code class="inline">:8080</code> are different origins and the key-switch cookie must ride along;
     and that Vue never owns the Datastar-morphed subtree.
     Server-side templating: <strong>JTE</strong> (compiled, type-safe) over Thymeleaf.</p>
+  </div>
+  <div class="callout ok">
+    <p><strong>What actually happened (slice 8).</strong> A Datastar Java SDK does exist
+    (<code class="inline">dev.data-star:datastar-java-sdk-core</code> and
+    <code class="inline">-jaxrs</code>) and is what <code class="inline">ElevatorViewUpdates</code> uses to write
+    <code class="inline">datastar-patch-elements</code> SSE events (<code
+    class="inline">ServerSentEventGenerator</code>, <code class="inline">PatchElements</code>) &mdash;
+    only its Spring MVC integration was missing at implementation time, so the raw
+    <code class="inline">HttpServletResponse</code>/<code class="inline">AsyncContext</code> plumbing around it (see <code
+    class="inline">StreamEventsController</code>) is hand-rolled, not the SSE framing itself. JTE was dropped before it was
+    tried: once forms had to be reused identically by the full-page renderer, the SSE patch renderer, and
+    every command's own POST response, a hand-built <code class="inline">HtmlRenderer</code> emitting
+    <code class="inline">&lt;form data-on:submit&gt;</code> directly turned out simpler than a templating
+    layer sitting between three call sites and one shared shape. The cross-origin CORS/cookie question
+    never materialized: the Caddy reverse proxy (slice 0) already puts <code
+    class="inline">elevator-ui</code> and <code class="inline">elevator-api</code> on one origin, so the
+    key-switch cookie rides along with no special-casing. What did surface, and wasn't anticipated here,
+    is that a single <code class="inline">GET /</code> can't itself deep-link to a specific elevator's SSE
+    stream &mdash; the entry point doesn't know which elevator resource to fetch next. The fix is a
+    three-hop, self-triggering chain instead of one request: <code class="inline">GET /</code> renders a
+    <code class="inline">data-init</code> div pointing at the elevators collection, which renders one
+    pointing at the one seeded elevator, which is the first response to also open its SSE stream and
+    render the affordances themselves &mdash; each hop names only the next hop's link, never a URL the
+    client constructs.</p>
+    <p style="margin-top:.6rem">A second, more surprising gap only surfaced once a purely decorative shaft
+    animation tried to read the DOM Datastar had patched: Datastar's <code
+    class="inline">datastar-selector</code>/<code class="inline">datastar-mode</code> response headers
+    say <em>where</em> to place a <code class="inline">text/html</code> response, but the whole response
+    body becomes the replacement content there &mdash; it is not first narrowed down to whatever matches
+    the selector within it. A full standalone document's own <code class="inline">&lt;html&gt;</code>/
+    <code class="inline">&lt;h1&gt;</code> wrapper (needed for a machine client reading
+    <code class="inline">elevator-api</code> directly) was leaking in as stray sibling elements at every
+    hop of the discovery chain, and on every command response, because <code class="inline">HtmlRenderer</code> always
+    rendered that wrapper regardless of caller. The fix reads the <code
+    class="inline">Datastar-Request: true</code> header Datastar's own <code class="inline">@get</code>/
+    <code class="inline">@post</code> already send on every request (see the SDK's own <a
+    href="https://data-star.dev/reference/actions#get">actions reference</a>) and renders just the
+    targeted div's own content for those, the full document for everyone else.</p>
   </div>
 </section>
 
@@ -2620,7 +2670,13 @@ flowchart LR
     and no sane design re-renders a fragment per frame. His guidance is that
     <em>&ldquo;it is typically easier to embed SPA components within a larger hypermedia architecture, than
     vice-versa&rdquo;</em> &mdash; which is precisely the shape <a href="#datastar">&sect;12</a> arrives at:
-    server-driven affordances everywhere, the shaft animation left to the client.
+    server-driven affordances everywhere, the shaft animation left to the client. In the event, the demo's
+    version of this is deliberately minimal: not a stateful Vue component re-deriving position from a
+    store, just a CSS transition whose two endpoints (start floor, end floor) and duration
+    (<code class="inline">travelSecondsPerFloor</code>) are read directly off the DOM
+    <code class="inline">elevator-api</code> already rendered, every time it changes. No signal, no store,
+    no polling -- the browser's own CSS engine does the interpolating, exactly the part Gross is right
+    that hypermedia itself should not be pushing sixty times a second.
   </p>
 
   <h3>Data APIs and application APIs want different things</h3>
@@ -3941,7 +3997,7 @@ elevator-api/src/test/java/no/javazone/elevator/
         └── CallElevatorTest.java
 
 elevator-ui/
-├── app/                                     // pages, layouts, CSS, shaft chrome
+├── app/                                     // pages, layouts, CSS (page shell only)
 └── server/                                  // DELETED — was 14 BFF routes`);
 
 document.getElementById('contribOut').innerHTML = hlTs(
