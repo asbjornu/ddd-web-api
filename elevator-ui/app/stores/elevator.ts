@@ -31,6 +31,27 @@ export interface Operation {
   fields?: OperationField[]
 }
 
+/**
+ * Every command now shares one URL (see docs/architecture.md's
+ * "Command endpoints: no verbs in URLs" note), so which behaviour a
+ * POST invokes is the body's job -- specifically its hidden "type"
+ * field, which the server already put in the operation's own fields
+ * list. This client never names a command: it just echoes every
+ * field's value back, overriding only the ones a form actually
+ * collects (floor, direction, weightKg), so "type" (and any other
+ * fixed field the server ever adds) rides along unexamined.
+ */
+function commandBody(
+  operation: Operation,
+  values: Record<string, unknown> = {}
+): Record<string, unknown> {
+  const body: Record<string, unknown> = {}
+  for (const field of operation.fields ?? []) {
+    body[field.name] = field.name in values ? values[field.name] : field.value
+  }
+  return body
+}
+
 // The read side's own shape, from GET /elevators/{id}/events on
 // elevator-api directly -- not the BFF, and not the same fields as the
 // old CRUD status endpoint this replaces (state and direction are now
@@ -82,7 +103,12 @@ export const useElevatorStore = defineStore('elevator', {
     obstructDoorsOperation: (state) =>
       state.status?.operations?.find((op) => op.rel === 'obstruct-doors') ?? null,
     clearObstructionOperation: (state) =>
-      state.status?.operations?.find((op) => op.rel === 'clear-obstruction') ?? null
+      state.status?.operations?.find((op) => op.rel === 'clear-obstruction') ?? null,
+    // feature.reportload's operation: present only while doors are
+    // open, matching the physical setup it simulates -- see
+    // docs/architecture.md's slice 5 roadmap entry.
+    reportLoadOperation: (state) =>
+      state.status?.operations?.find((op) => op.rel === 'report-load') ?? null
   },
   actions: {
     // Replaces the 1.5 s poller: one connection, pushed to rather than
@@ -147,7 +173,7 @@ export const useElevatorStore = defineStore('elevator', {
         const data = await $fetch<ElevatorView>(operation.href, {
           method: operation.method as 'POST',
           headers: { Accept: 'application/vnd.elevator.state+json' },
-          body: { floor, direction }
+          body: commandBody(operation, { floor, direction })
         })
         this.status = data
         this.error = null
@@ -181,7 +207,7 @@ export const useElevatorStore = defineStore('elevator', {
         const data = await $fetch<ElevatorView>(operation.href, {
           method: operation.method as 'POST',
           headers: { Accept: 'application/vnd.elevator.state+json' },
-          body: { floor }
+          body: commandBody(operation, { floor })
         })
         this.status = data
         this.error = null
@@ -204,7 +230,17 @@ export const useElevatorStore = defineStore('elevator', {
         return
       }
       try {
-        await $fetch(operation.href, { method: operation.method as 'POST' })
+        // Without an explicit Accept header, $fetch's default
+        // ("application/json") matches none of elevator-api's negotiated
+        // formats and gets refused with 406 -- the command still runs,
+        // but this client would never see it succeed, or pick up the
+        // operations its own new state now offers (the SSE stream
+        // carries properties, never operations).
+        this.status = await $fetch<ElevatorView>(operation.href, {
+          method: operation.method as 'POST',
+          headers: { Accept: 'application/vnd.elevator.state+json' },
+          body: commandBody(operation)
+        })
         this.error = null
       } catch {
         this.error = 'Unable to open doors.'
@@ -218,7 +254,11 @@ export const useElevatorStore = defineStore('elevator', {
       }
       try {
         this.error = null
-        await $fetch(operation.href, { method: operation.method as 'POST' })
+        this.status = await $fetch<ElevatorView>(operation.href, {
+          method: operation.method as 'POST',
+          headers: { Accept: 'application/vnd.elevator.state+json' },
+          body: commandBody(operation)
+        })
       } catch (e) {
         // The API answers 409 with a domain reason ("Obstruction detected",
         // "Overload detected"), which is the one place a server-side rule
@@ -235,7 +275,11 @@ export const useElevatorStore = defineStore('elevator', {
         return
       }
       try {
-        await $fetch(operation.href, { method: operation.method as 'POST' })
+        this.status = await $fetch<ElevatorView>(operation.href, {
+          method: operation.method as 'POST',
+          headers: { Accept: 'application/vnd.elevator.state+json' },
+          body: commandBody(operation)
+        })
         this.error = null
       } catch {
         this.error = 'Unable to simulate an obstruction.'
@@ -248,21 +292,39 @@ export const useElevatorStore = defineStore('elevator', {
         return
       }
       try {
-        await $fetch(operation.href, { method: operation.method as 'POST' })
+        this.status = await $fetch<ElevatorView>(operation.href, {
+          method: operation.method as 'POST',
+          headers: { Accept: 'application/vnd.elevator.state+json' },
+          body: commandBody(operation)
+        })
         this.error = null
       } catch {
         this.error = 'Unable to clear the obstruction.'
       }
     },
-    async setWeight(weightKg: number) {
+    // Sensor telemetry, not a rider's intention -- report-load is only
+    // ever offered while doors are open, matching the physical setup:
+    // only boarding/alighting changes what the car carries. Replaces
+    // the old direct BFF call to /api/elevators/{id}/weight -- deleted
+    // with it, along with the client-side "is this overloaded?"
+    // re-derivation that gated the slider: canReportLoad now comes
+    // from the operation's presence, the same seam every other command
+    // uses.
+    async reportLoad(weightKg: number) {
+      const operation = this.reportLoadOperation
+      if (!operation) {
+        this.error = 'Reporting load is not available right now.'
+        return
+      }
       try {
-        await $fetch(`/api/elevators/${ELEVATOR_ID}/weight`, {
-          method: 'PUT',
-          body: { weightKg }
+        this.status = await $fetch<ElevatorView>(operation.href, {
+          method: operation.method as 'POST',
+          headers: { Accept: 'application/vnd.elevator.state+json' },
+          body: commandBody(operation, { weightKg })
         })
         this.error = null
       } catch {
-        this.error = 'Unable to set weight.'
+        this.error = 'Unable to report load.'
       }
     },
     // The technician cookie is HttpOnly, so the client cannot read it and

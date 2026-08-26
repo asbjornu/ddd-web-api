@@ -59,6 +59,58 @@ registerEndpoint('/api/elevators/1/maintenance', {
   }
 })
 
+// Every command now shares one URL (see docs/architecture.md's "Command
+// endpoints: no verbs in URLs" note), so one stub captures every
+// command's body -- each test asserts on the "type" field the server's
+// hidden field put there, never a URL of its own. Every response gets
+// the full elevator-state+json shape back, exactly as the real
+// CommandsController would answer, since the store now assigns every
+// command's response straight to status: the SSE stream never carries
+// operations, only properties.
+let lastCommandBody: Record<string, unknown> | undefined
+
+const BASE_VIEW = {
+  currentFloor: 1,
+  state: 'idle',
+  direction: 'none',
+  doorPosition: 'closed',
+  obstructed: false,
+  weightKg: 0,
+  capacityKg: 800,
+  destinationFloor: null
+}
+
+// All five door-related operations at once, so a sequence of them (as
+// the 'doors' describe block below exercises) keeps every next one
+// available exactly as the real doorsOpen representation would.
+const DOOR_OPERATIONS = [
+  { rel: 'open-doors', type: 'OpenDoors' },
+  { rel: 'close-doors', type: 'CloseDoors' },
+  { rel: 'obstruct-doors', type: 'ObstructDoors' },
+  { rel: 'clear-obstruction', type: 'ClearObstruction' },
+  { rel: 'report-load', type: 'ReportLoad' }
+].map((op) => ({
+  rel: op.rel,
+  title: op.rel,
+  method: 'POST',
+  href: '/elevators/1',
+  fields:
+    op.type === 'ReportLoad'
+      ? [
+          { name: 'type', type: 'hidden', value: op.type, required: true },
+          { name: 'weightKg', type: 'text', value: null, required: true }
+        ]
+      : [{ name: 'type', type: 'hidden', value: op.type, required: true }]
+}))
+
+registerEndpoint('/elevators/1', {
+  method: 'POST',
+  handler: async (event) => {
+    lastCommandBody = await readBody(event)
+    return { ...BASE_VIEW, state: 'doorsOpen', doorPosition: 'open', operations: DOOR_OPERATIONS }
+  }
+})
+
 describe('useElevatorStore getters', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -125,37 +177,18 @@ describe('useElevatorStore getters', () => {
   })
 })
 
-// The store follows the operation's own href and method rather than
-// constructing a URL -- see docs/architecture.md's "Vertical slices"
-// rule that the client may not hard-code a URL. registerEndpoint here
-// stubs elevator-api directly (not the BFF): there is no "/api" prefix,
-// since callElevator no longer goes through one.
+// Every operation shares one URL now (see docs/architecture.md's
+// "Command endpoints: no verbs in URLs" note): the store follows
+// whatever href and method the operation carries, and the body is
+// built entirely from the operation's own fields -- including its
+// hidden "type" -- never a URL or command name the client invents.
+// registerEndpoint here stubs elevator-api directly (not the BFF):
+// there is no "/api" prefix, since these commands no longer go
+// through one.
 describe('useElevatorStore callElevator', () => {
-  let calledBody: unknown
-
-  registerEndpoint('/elevators/1/calls', {
-    method: 'POST',
-    handler: async (event) => {
-      calledBody = await readBody(event)
-      // The response is what the store's own callElevator now assigns to
-      // status, since the SSE stream never carries operations -- only
-      // this response tells the client what it may do next.
-      return {
-        currentFloor: 1,
-        state: 'idle',
-        direction: 'none',
-        doorPosition: 'closed',
-        obstructed: false,
-        weightKg: 0,
-        capacityKg: 800,
-        operations: []
-      }
-    }
-  })
-
   beforeEach(() => {
     setActivePinia(createPinia())
-    calledBody = undefined
+    lastCommandBody = undefined
   })
 
   it('does nothing when no call-elevator operation is present', async () => {
@@ -175,10 +208,10 @@ describe('useElevatorStore callElevator', () => {
     await store.callElevator(3, 'up')
 
     expect(store.error).toBe('Calling the elevator is not available right now.')
-    expect(calledBody).toBeUndefined()
+    expect(lastCommandBody).toBeUndefined()
   })
 
-  it("posts to the operation's own href and method", async () => {
+  it("posts to the operation's own href and method, echoing its hidden type", async () => {
     const store = useElevatorStore()
     store.status = {
       currentFloor: 1,
@@ -190,44 +223,37 @@ describe('useElevatorStore callElevator', () => {
       capacityKg: 800,
       destinationFloor: null,
       operations: [
-        { rel: 'call-elevator', title: 'Call elevator', method: 'POST', href: '/elevators/1/calls' }
+        {
+          rel: 'call-elevator',
+          title: 'Call elevator',
+          method: 'POST',
+          href: '/elevators/1',
+          fields: [
+            { name: 'type', type: 'hidden', value: 'CallElevator', required: true },
+            { name: 'floor', type: 'text', value: null, required: true },
+            {
+              name: 'direction',
+              type: 'select',
+              value: null,
+              required: true,
+              options: ['up', 'down']
+            }
+          ]
+        }
       ]
     }
 
     await store.callElevator(5, 'up')
 
-    expect(calledBody).toEqual({ floor: 5, direction: 'up' })
+    expect(lastCommandBody).toEqual({ type: 'CallElevator', floor: 5, direction: 'up' })
     expect(store.error).toBeNull()
   })
 })
 
 describe('useElevatorStore selectFloor', () => {
-  let calledBody: unknown
-
-  registerEndpoint('/elevators/1/car-calls', {
-    method: 'POST',
-    handler: async (event) => {
-      calledBody = await readBody(event)
-      // The response is what the store's own selectFloor now assigns to
-      // status, since the SSE stream never carries operations -- only
-      // this response tells the client what it may do next.
-      return {
-        currentFloor: 1,
-        state: 'movingUp',
-        direction: 'up',
-        doorPosition: 'closed',
-        obstructed: false,
-        weightKg: 0,
-        capacityKg: 800,
-        destinationFloor: null,
-        operations: []
-      }
-    }
-  })
-
   beforeEach(() => {
     setActivePinia(createPinia())
-    calledBody = undefined
+    lastCommandBody = undefined
   })
 
   it('does nothing when no select-floor operation is present', async () => {
@@ -247,10 +273,10 @@ describe('useElevatorStore selectFloor', () => {
     await store.selectFloor(5)
 
     expect(store.error).toBe('Selecting a floor is not available right now.')
-    expect(calledBody).toBeUndefined()
+    expect(lastCommandBody).toBeUndefined()
   })
 
-  it("posts to the operation's own href and method", async () => {
+  it("posts to the operation's own href and method, echoing its hidden type", async () => {
     const store = useElevatorStore()
     store.status = {
       currentFloor: 1,
@@ -266,117 +292,76 @@ describe('useElevatorStore selectFloor', () => {
           rel: 'select-floor',
           title: 'Select a floor',
           method: 'POST',
-          href: '/elevators/1/car-calls'
+          href: '/elevators/1',
+          fields: [
+            { name: 'type', type: 'hidden', value: 'SelectFloor', required: true },
+            { name: 'floor', type: 'text', value: null, required: true }
+          ]
         }
       ]
     }
 
     await store.selectFloor(6)
 
-    expect(calledBody).toEqual({ floor: 6 })
+    expect(lastCommandBody).toEqual({ type: 'SelectFloor', floor: 6 })
     expect(store.error).toBeNull()
   })
 })
 
-// Same shape once more: open-doors, close-doors, obstruct-doors and
-// clear-obstruction each follow their own operation's href/method, with
-// no body -- see docs/architecture.md's slice 4 roadmap entry for why
-// toggleObstruction (one endpoint, a boolean payload) is gone.
+// Same shape once more: open-doors, close-doors, obstruct-doors,
+// clear-obstruction and report-load each follow their own operation's
+// href/method/fields -- see docs/architecture.md's slice 4 roadmap
+// entry for why toggleObstruction (one endpoint, a boolean payload) is
+// gone.
 describe('useElevatorStore doors', () => {
-  let openCalled = false
-  let closeCalled = false
-  let obstructCalled = false
-  let clearCalled = false
-
-  registerEndpoint('/elevators/1/open-doors', {
-    method: 'POST',
-    handler: () => {
-      openCalled = true
-      return {}
-    }
-  })
-  registerEndpoint('/elevators/1/close-doors', {
-    method: 'POST',
-    handler: () => {
-      closeCalled = true
-      return {}
-    }
-  })
-  registerEndpoint('/elevators/1/obstruct-doors', {
-    method: 'POST',
-    handler: () => {
-      obstructCalled = true
-      return {}
-    }
-  })
-  registerEndpoint('/elevators/1/clear-obstruction', {
-    method: 'POST',
-    handler: () => {
-      clearCalled = true
-      return {}
-    }
-  })
-
   beforeEach(() => {
     setActivePinia(createPinia())
-    openCalled = false
-    closeCalled = false
-    obstructCalled = false
-    clearCalled = false
+    lastCommandBody = undefined
   })
-
-  function statusWithOperations(...operations: Array<{ rel: string; href: string }>) {
-    return {
-      currentFloor: 1,
-      state: 'doorsOpen',
-      direction: 'none',
-      doorPosition: 'open',
-      obstructed: false,
-      weightKg: 0,
-      capacityKg: 800,
-      destinationFloor: null,
-      operations: operations.map((op) => ({
-        title: op.rel,
-        method: 'POST',
-        ...op
-      }))
-    }
-  }
 
   it('does nothing when no matching operation is present', async () => {
     const store = useElevatorStore()
-    store.status = statusWithOperations()
+    store.status = { ...BASE_VIEW, state: 'doorsOpen', doorPosition: 'open', operations: [] }
 
     await store.openDoors()
     await store.closeDoors()
     await store.obstructDoors()
     await store.clearObstruction()
+    await store.reportLoad(500)
 
-    expect(openCalled).toBe(false)
-    expect(closeCalled).toBe(false)
-    expect(obstructCalled).toBe(false)
-    expect(clearCalled).toBe(false)
+    expect(lastCommandBody).toBeUndefined()
+    expect(store.error).toBe('Reporting load is not available right now.')
   })
 
-  it('follows each operation when present', async () => {
+  it('follows each operation when present, echoing its hidden type', async () => {
     const store = useElevatorStore()
-    store.status = statusWithOperations(
-      { rel: 'open-doors', href: '/elevators/1/open-doors' },
-      { rel: 'close-doors', href: '/elevators/1/close-doors' },
-      { rel: 'obstruct-doors', href: '/elevators/1/obstruct-doors' },
-      { rel: 'clear-obstruction', href: '/elevators/1/clear-obstruction' }
-    )
+    store.status = {
+      ...BASE_VIEW,
+      state: 'doorsOpen',
+      doorPosition: 'open',
+      operations: DOOR_OPERATIONS
+    }
 
     await store.openDoors()
-    await store.closeDoors()
-    await store.obstructDoors()
-    await store.clearObstruction()
+    expect(lastCommandBody).toEqual({ type: 'OpenDoors' })
 
-    expect(openCalled).toBe(true)
-    expect(closeCalled).toBe(true)
-    expect(obstructCalled).toBe(true)
-    expect(clearCalled).toBe(true)
+    await store.closeDoors()
+    expect(lastCommandBody).toEqual({ type: 'CloseDoors' })
+
+    await store.obstructDoors()
+    expect(lastCommandBody).toEqual({ type: 'ObstructDoors' })
+
+    await store.clearObstruction()
+    expect(lastCommandBody).toEqual({ type: 'ClearObstruction' })
+
+    await store.reportLoad(500)
+    expect(lastCommandBody).toEqual({ type: 'ReportLoad', weightKg: 500 })
+
     expect(store.error).toBeNull()
+    // Each response (stubbed to echo the same DOOR_OPERATIONS) is what
+    // keeps the next command's own operation available -- not a stale
+    // copy of what an earlier status happened to carry.
+    expect(store.status?.operations).toEqual(DOOR_OPERATIONS)
   })
 })
 

@@ -9,8 +9,6 @@ const maxWeight = computed(() => store.status?.capacityKg ?? 800)
 
 const overloaded = computed(() => (store.status?.weightKg ?? 0) > (store.status?.capacityKg ?? 0))
 
-const doorsOpen = computed(() => store.status?.doorPosition === 'open')
-
 // "Pending" (a list of queued car calls) has no equivalent in the new
 // read model -- feature.viewstatus exposes only the single
 // destinationFloor the car is already committed to, which is a more
@@ -29,6 +27,14 @@ function canSelect(floor: number) {
 
 function select(floor: number) {
   store.selectFloor(floor)
+}
+
+function canReportLoad() {
+  return store.reportLoadOperation != null
+}
+
+function reportLoad(weightKg: number) {
+  store.reportLoad(weightKg)
 }
 </script>
 
@@ -58,8 +64,8 @@ function select(floor: number) {
           :min="0"
           :max="maxWeight + 200"
           :value="store.status?.weightKg ?? 0"
-          :disabled="!doorsOpen"
-          @input="store.setWeight(Number(($event.target as HTMLInputElement).value))"
+          :disabled="!canReportLoad()"
+          @input="reportLoad(Number(($event.target as HTMLInputElement).value))"
         />
       </label>
       <p v-if="overloaded" class="overload-warning">Overloaded — reduce weight to close doors</p>
