@@ -1,11 +1,13 @@
 {
   "name": "ddd-web-api",
   "private": true,
-  "description": "Tooling for the ddd-web-api demo repository (Markdown linting only for now; app-level tooling lives in elevator-api/ and elevator-ui/).",
+  "description": "Tooling for the ddd-web-api demo repository (Markdown linting and the CRUD-vs-REST+DDD metrics report; app-level tooling lives in elevator-api/ and elevator-ui/).",
   "scripts": {
-    "lint:md": "remark . --frail --quiet"
+    "lint:md": "remark . --frail --quiet",
+    "measure": "node docs/measure-refactor.mjs"
   },
   "devDependencies": {
+    "jscpd": "^5.0.16",
     "remark-cli": "^12.0.1",
     "remark-lint-maximum-line-length": "^4.1.1",
     "remark-preset-lint-consistent": "^6.0.1",

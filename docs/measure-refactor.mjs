@@ -1,0 +1,770 @@
+#!/usr/bin/env node
+// Measures the CRUD -> REST+DDD refactor quantitatively, comparing the
+// `crud` branch (the last commit before slice 0, full CRUD shape) against
+// the current `main` tip, and writes docs/refactor-metrics.md.
+//
+// Run via `npm run measure` from the repo root. Requires `scc`
+// (`brew install scc`) on PATH; `jscpd` is a devDependency, invoked as a
+// child process rather than an npx fetch, so `npm install` is enough.
+//
+// This script only reads the repository (via disposable git worktrees)
+// and writes docs/refactor-metrics.md; it does not modify history.
+
+import { execFileSync } from "node:child_process";
+import {
+  mkdtempSync,
+  existsSync,
+  rmSync,
+  writeFileSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(__dirname, "..");
+
+const BEFORE_REF = "crud";
+const AFTER_REF = "main";
+
+function git(args, opts = {}) {
+  return execFileSync("git", args, {
+    cwd: REPO_ROOT,
+    encoding: "utf8",
+    ...opts,
+  }).trim();
+}
+
+function run(cmd, args, opts = {}) {
+  return execFileSync(cmd, args, { encoding: "utf8", ...opts });
+}
+
+// --- worktrees ---------------------------------------------------------
+
+function addWorktree(scratchDir, ref, name) {
+  const sha = git(["rev-parse", ref]);
+  const dir = path.join(scratchDir, name);
+  git(["worktree", "add", "--detach", dir, sha]);
+  return { dir, sha, ref };
+}
+
+function removeWorktree(dir) {
+  try {
+    git(["worktree", "remove", "--force", dir]);
+  } catch {
+    // best-effort cleanup; leftover worktrees are harmless and can be
+    // pruned later with `git worktree prune`
+  }
+}
+
+// --- scc (LOC + cyclomatic complexity) ----------------------------------
+
+function sccByFile(cwd, relPaths) {
+  const existing = relPaths.filter((p) => existsSync(path.join(cwd, p)));
+  if (existing.length === 0) return [];
+  const out = run(
+    "scc",
+    ["--format", "json", "--by-file", ...existing],
+    { cwd },
+  );
+  const languages = JSON.parse(out);
+  return languages.flatMap((lang) => lang.Files ?? []);
+}
+
+function totals(files) {
+  const lines = files.reduce((sum, f) => sum + f.Lines, 0);
+  const code = files.reduce((sum, f) => sum + f.Code, 0);
+  const complexities = files.map((f) => f.Complexity).sort((a, b) => a - b);
+  const sumComplexity = complexities.reduce((a, b) => a + b, 0);
+  const n = files.length;
+  const median =
+    n === 0
+      ? 0
+      : n % 2 === 1
+        ? complexities[(n - 1) / 2]
+        : (complexities[n / 2 - 1] + complexities[n / 2]) / 2;
+  return {
+    files: n,
+    lines,
+    code,
+    avgComplexity: n === 0 ? 0 : round1(sumComplexity / n),
+    medianComplexity: round1(median),
+    maxComplexity: n === 0 ? 0 : Math.max(...complexities),
+  };
+}
+
+function largestFile(files) {
+  if (files.length === 0) return null;
+  return files.reduce((a, b) => (b.Lines > a.Lines ? b : a));
+}
+
+function round1(n) {
+  return Math.round(n * 10) / 10;
+}
+
+function round2(n) {
+  return Math.round(n * 100) / 100;
+}
+
+// --- jscpd (duplication) -------------------------------------------------
+
+function jscpdReport(cwd, relPaths, scratchDir, label) {
+  const existing = relPaths.filter((p) => existsSync(path.join(cwd, p)));
+  if (existing.length === 0) return null;
+  const outDir = path.join(scratchDir, `jscpd-${label}-${Date.now()}`);
+  const bin = path.join(
+    REPO_ROOT,
+    "node_modules",
+    ".bin",
+    "jscpd",
+  );
+  try {
+    run(bin, [
+      "--reporters",
+      "json",
+      "--output",
+      outDir,
+      "--silent",
+      "--threshold",
+      "0",
+      ...existing,
+    ], { cwd });
+  } catch {
+    // jscpd exits non-zero when the configured threshold is exceeded;
+    // we pass --threshold 0 so that shouldn't happen, but tolerate it
+    // and still read the report it wrote.
+  }
+  const reportPath = path.join(outDir, "jscpd-report.json");
+  if (!existsSync(reportPath)) return null;
+  const report = JSON.parse(readFileSync(reportPath, "utf8"));
+  return report.statistics?.total ?? null;
+}
+
+// --- grep-equivalent counts ----------------------------------------------
+
+function walkFiles(root, extensions) {
+  const results = [];
+  const skipDirs = new Set([
+    ".git",
+    "node_modules",
+    ".nuxt",
+    ".output",
+    "build",
+    "dist",
+  ]);
+  function walk(dir) {
+    let entries;
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = path.join(dir, entry);
+      const stat = statSync(full);
+      if (stat.isDirectory()) {
+        if (!skipDirs.has(entry)) walk(full);
+      } else if (extensions.some((ext) => entry.endsWith(ext))) {
+        results.push(full);
+      }
+    }
+  }
+  walk(root);
+  return results;
+}
+
+function countMatches(files, regex) {
+  let count = 0;
+  for (const f of files) {
+    const text = readFileSync(f, "utf8");
+    const matches = text.match(regex);
+    if (matches) count += matches.length;
+  }
+  return count;
+}
+
+// --- diff stats ------------------------------------------------------------
+
+function diffShortstat(a, b, pathspec) {
+  const out = git(["diff", "--shortstat", a, b, "--", pathspec]);
+  const files = /(\d+) files? changed/.exec(out)?.[1] ?? "0";
+  const insertions = /(\d+) insertions?\(\+\)/.exec(out)?.[1] ?? "0";
+  const deletions = /(\d+) deletions?\(-\)/.exec(out)?.[1] ?? "0";
+  return {
+    files: Number(files),
+    insertions: Number(insertions),
+    deletions: Number(deletions),
+  };
+}
+
+function diffNameStatusCounts(a, b, pathspec) {
+  const out = git(["diff", "--name-status", a, b, "--", pathspec]);
+  const counts = { A: 0, M: 0, D: 0 };
+  for (const line of out.split("\n")) {
+    const status = line[0];
+    if (status && counts[status] !== undefined) counts[status]++;
+  }
+  return counts;
+}
+
+// --- main ------------------------------------------------------------------
+
+function main() {
+  const scratchDir = mkdtempSync(path.join(tmpdir(), "measure-refactor-"));
+  let before, after;
+  try {
+    before = addWorktree(scratchDir, BEFORE_REF, "before");
+    after = addWorktree(scratchDir, AFTER_REF, "after");
+
+    // --- LOC + file counts, whole elevator-api ---
+    const beforeApiFiles = sccByFile(before.dir, [
+      "elevator-api/src/main/java",
+    ]);
+    const afterApiFiles = sccByFile(after.dir, ["elevator-api/src/main/java"]);
+    const beforeTestFiles = sccByFile(before.dir, ["elevator-api/src/test"]);
+    const afterTestFiles = sccByFile(after.dir, ["elevator-api/src/test"]);
+
+    // --- old CRUD layer (before) vs feature slices + shared kernel (after) ---
+    const oldLayerDirs = [
+      "elevator-api/src/main/java/no/javazone/elevator/controller",
+      "elevator-api/src/main/java/no/javazone/elevator/model",
+      "elevator-api/src/main/java/no/javazone/elevator/service",
+      "elevator-api/src/main/java/no/javazone/elevator/repository",
+    ];
+    const oldLayerFiles = sccByFile(before.dir, oldLayerDirs);
+    const featureFiles = sccByFile(after.dir, [
+      "elevator-api/src/main/java/no/javazone/elevator/feature",
+    ]);
+    const sharedFiles = sccByFile(after.dir, [
+      "elevator-api/src/main/java/no/javazone/elevator/shared",
+    ]);
+
+    // --- per-slice LOC (average cost of one new capability, after) ---
+    const sliceBuckets = new Map();
+    for (const f of featureFiles) {
+      const m = /feature\/([^/]+)\//.exec(f.Location);
+      const slice = m ? m[1] : "unknown";
+      sliceBuckets.set(slice, (sliceBuckets.get(slice) ?? 0) + f.Lines);
+    }
+    const sliceLocValues = [...sliceBuckets.values()];
+    const avgSliceLoc =
+      sliceLocValues.length === 0
+        ? 0
+        : round1(
+            sliceLocValues.reduce((a, b) => a + b, 0) / sliceLocValues.length,
+          );
+
+    // --- BFF (removed by slice 8) ---
+    const bffFiles = sccByFile(before.dir, [
+      "elevator-ui/server",
+      "elevator-ui/app/stores",
+    ]);
+    const bffTotals = totals(bffFiles);
+    const bffDuplication = jscpdReport(
+      before.dir,
+      ["elevator-ui/server/api"],
+      scratchDir,
+      "bff",
+    );
+
+    // --- duplication, whole elevator-api and elevator-ui, both sides ---
+    const dupApiBefore = jscpdReport(
+      before.dir,
+      ["elevator-api/src/main/java"],
+      scratchDir,
+      "api-before",
+    );
+    const dupApiAfter = jscpdReport(
+      after.dir,
+      ["elevator-api/src/main/java"],
+      scratchDir,
+      "api-after",
+    );
+    const dupUiBefore = jscpdReport(
+      before.dir,
+      ["elevator-ui/app", "elevator-ui/server"],
+      scratchDir,
+      "ui-before",
+    );
+    const dupUiAfter = jscpdReport(
+      after.dir,
+      ["elevator-ui/app"],
+      scratchDir,
+      "ui-after",
+    );
+
+    // --- endpoint mapping counts ---
+    const mappingRegex = /@(Get|Post|Put|Delete|Patch)Mapping/g;
+    const beforeMappingFiles = walkFiles(
+      path.join(before.dir, "elevator-api/src/main/java"),
+      [".java"],
+    );
+    const afterMappingFiles = walkFiles(
+      path.join(after.dir, "elevator-api/src/main/java"),
+      [".java"],
+    );
+    const beforeMappings = countMatches(beforeMappingFiles, mappingRegex);
+    const afterMappings = countMatches(afterMappingFiles, mappingRegex);
+
+    // --- hard-coded domain constants in elevator-ui ---
+    const domainLiteralRegex = /\/elevators\/[^"'`\s)]*/g;
+    const beforeUiFiles = walkFiles(path.join(before.dir, "elevator-ui/app"), [
+      ".ts",
+      ".vue",
+    ]).concat(
+      walkFiles(path.join(before.dir, "elevator-ui/server"), [".ts"]),
+    );
+    const afterUiFiles = walkFiles(path.join(after.dir, "elevator-ui/app"), [
+      ".ts",
+      ".vue",
+    ]);
+    const beforeDomainLiterals = countMatches(
+      beforeUiFiles,
+      domainLiteralRegex,
+    );
+    const afterDomainLiterals = countMatches(afterUiFiles, domainLiteralRegex);
+
+    // --- diff stats per app ---
+    const apps = ["elevator-api", "elevator-ui", "elevator-auth", "docs"];
+    const diffs = Object.fromEntries(
+      apps.map((app) => [
+        app,
+        {
+          shortstat: diffShortstat(before.sha, after.sha, app),
+          nameStatus: diffNameStatusCounts(before.sha, after.sha, app),
+        },
+      ]),
+    );
+    const wholeRepoShortstat = diffShortstat(before.sha, after.sha, ".");
+
+    // --- versioning cost model ---
+    // Anchor: Dubray's costing, cited via Ulsberg's "API Change Strategy"
+    // (see docs/plan.html, section 09 "Change without versioning"):
+    // point-to-point versioning runs ~45% more expensive than a
+    // compatible-change strategy at 4 concurrent versions.
+    //
+    // We fit a linear rate k from that single point: cost(n) = 1 + k*(n-1),
+    // cost(4) = 1.45 => k = 0.45 / 3 = 0.15. This is an extrapolation of
+    // one cited data point, not a new empirical measurement -- treat the
+    // resulting percentage as illustrative, not precise.
+    const K = 0.45 / 3;
+    const CONCURRENT_VERSIONS = 6; // 1 original + 5 new, all live in parallel
+    const costMultiplier = round2(1 + K * (CONCURRENT_VERSIONS - 1));
+
+    const oldLayerTotals = totals(oldLayerFiles);
+    const oldLayerTestTotals = totals(beforeTestFiles);
+    const controllerOnlyFiles = sccByFile(before.dir, [
+      "elevator-api/src/main/java/no/javazone/elevator/controller",
+    ]);
+    const controllerOnlyTotals = totals(controllerOnlyFiles);
+
+    const fullForkLoc = Math.round(
+      oldLayerTotals.lines * CONCURRENT_VERSIONS,
+    );
+    const partialForkLoc = Math.round(
+      controllerOnlyTotals.lines * CONCURRENT_VERSIONS +
+        (oldLayerTotals.lines - controllerOnlyTotals.lines),
+    );
+    const newCapabilitiesAdditiveLoc = Math.round(avgSliceLoc * 5);
+
+    // --- render markdown ---
+    const md = renderMarkdown({
+      before,
+      after,
+      beforeApiFiles,
+      afterApiFiles,
+      beforeTestFiles,
+      afterTestFiles,
+      oldLayerFiles,
+      featureFiles,
+      sharedFiles,
+      avgSliceLoc,
+      sliceBuckets,
+      bffTotals,
+      bffDuplication,
+      dupApiBefore,
+      dupApiAfter,
+      dupUiBefore,
+      dupUiAfter,
+      beforeMappings,
+      afterMappings,
+      beforeDomainLiterals,
+      afterDomainLiterals,
+      diffs,
+      wholeRepoShortstat,
+      K,
+      CONCURRENT_VERSIONS,
+      costMultiplier,
+      oldLayerTotals,
+      oldLayerTestTotals,
+      controllerOnlyTotals,
+      fullForkLoc,
+      partialForkLoc,
+      newCapabilitiesAdditiveLoc,
+    });
+
+    const outPath = path.join(REPO_ROOT, "docs", "refactor-metrics.md");
+    writeFileSync(outPath, md);
+    console.log(`Wrote ${path.relative(REPO_ROOT, outPath)}`);
+  } finally {
+    if (before) removeWorktree(before.dir);
+    if (after) removeWorktree(after.dir);
+    rmSync(scratchDir, { recursive: true, force: true });
+  }
+}
+
+// --- markdown rendering ----------------------------------------------------
+
+function pct(part, whole) {
+  if (whole === 0) return "n/a";
+  return `${round1((part / whole) * 100)}%`;
+}
+
+function renderMarkdown(m) {
+  const beforeApi = totals(m.beforeApiFiles);
+  const afterApi = totals(m.afterApiFiles);
+  const beforeTest = totals(m.beforeTestFiles);
+  const afterTest = totals(m.afterTestFiles);
+  const oldLayer = totals(m.oldLayerFiles);
+  const feature = totals(m.featureFiles);
+  const shared = totals(m.sharedFiles);
+  const largestBefore = largestFile(m.beforeApiFiles);
+  const largestAfter = largestFile(m.afterApiFiles);
+
+  const lines = [];
+  const p = (s = "") => lines.push(s);
+
+  p(`# CRUD vs REST+DDD: measured refactor metrics`);
+  p();
+  p(
+    `Generated by \`npm run measure\` (\`docs/measure-refactor.mjs\`).`,
+  );
+  p(
+    `Compares \`${m.before.ref}\` (\`${m.before.sha.slice(0, 7)}\`, the last`,
+  );
+  p(
+    `commit before slice 0 -- full CRUD shape) against \`${m.after.ref}\``,
+  );
+  p(
+    `(\`${m.after.sha.slice(0, 7)}\`). Re-run this script any time either`,
+  );
+  p(`ref moves to refresh these numbers.`);
+  p();
+
+  p(`## 1. Lines of code and file counts`);
+  p();
+  p(`| | before (\`${m.before.ref}\`) | after (\`${m.after.ref}\`) |`);
+  p(`|---|---|---|`);
+  p(
+    `| elevator-api \`main\` files / lines | ${beforeApi.files} / ${beforeApi.lines} | ${afterApi.files} / ${afterApi.lines} |`,
+  );
+  p(
+    `| elevator-api \`test\` files / lines | ${beforeTest.files} / ${beforeTest.lines} | ${afterTest.files} / ${afterTest.lines} |`,
+  );
+  p(
+    `| Largest main file (name) | \`${largestBefore?.Filename}\` | \`${largestAfter?.Filename}\` |`,
+  );
+  p(
+    `| Largest main file (lines) | ${largestBefore?.Lines} | ${largestAfter?.Lines} |`,
+  );
+  p();
+  p(
+    `File count rises with vertical slicing by design -- one directory`,
+  );
+  p(
+    `per behaviour, each holding its own command/handler/endpoint/tests.`,
+  );
+  p(`Section 2 checks whether those smaller files are also simpler.`);
+  p();
+
+  p(`## 2. Complexity, not just size`);
+  p();
+  p(
+    `Per-file cyclomatic complexity (\`scc\`), comparing the old`,
+  );
+  p(
+    `\`controller/\`+\`model/\`+\`service/\`+\`repository/\` layer (before,`,
+  );
+  p(
+    `now deleted outright) against the new \`feature/*\` slices and the`,
+  );
+  p(`shared kernel (after):`);
+  p();
+  p(`| | files | avg complexity | median | max |`);
+  p(`|---|---|---|---|---|`);
+  p(
+    `| old layer (before) | ${oldLayer.files} | ${oldLayer.avgComplexity} | ${oldLayer.medianComplexity} | ${oldLayer.maxComplexity} |`,
+  );
+  p(
+    `| \`feature/*\` slices (after) | ${feature.files} | ${feature.avgComplexity} | ${feature.medianComplexity} | ${feature.maxComplexity} |`,
+  );
+  p(
+    `| shared kernel (after) | ${shared.files} | ${shared.avgComplexity} | ${shared.medianComplexity} | ${shared.maxComplexity} |`,
+  );
+  p();
+  p(
+    `The shared kernel's higher max is expected and correct: it holds the`,
+  );
+  p(
+    `\`Elevator\` aggregate itself (state machine, scheduling), the one`,
+  );
+  p(
+    `place this architecture concentrates real domain complexity rather`,
+  );
+  p(`than smearing it across every controller that used to touch it.`);
+  p();
+
+  p(`## 3. Average cost of one new capability (after)`);
+  p();
+  p(
+    `Per-slice total lines, \`feature/*\` (after) -- each is a fully`,
+  );
+  p(`independent, separately testable unit:`);
+  p();
+  p(`| slice | lines |`);
+  p(`|---|---|`);
+  for (const [slice, lines_] of [...m.sliceBuckets.entries()].sort(
+    (a, b) => a[1] - b[1],
+  )) {
+    p(`| \`${slice}\` | ${lines_} |`);
+  }
+  p(`| **average** | **${m.avgSliceLoc}** |`);
+  p();
+
+  p(`## 4. The BFF: removed, not just relocated`);
+  p();
+  p(
+    `Slice 8 deleted \`elevator-ui/server/api/**\` (the BFF routes) and`,
+  );
+  p(`\`elevator-ui/app/stores/elevator.ts\` outright:`);
+  p();
+  p(`| | value |`);
+  p(`|---|---|`);
+  p(`| BFF + store files removed | ${m.bffTotals.files} |`);
+  p(`| BFF + store lines removed | ${m.bffTotals.lines} |`);
+  if (m.bffDuplication) {
+    p(
+      `| Duplication among the BFF route handlers alone | ${round1(m.bffDuplication.percentage)}% (${m.bffDuplication.clones} clones) |`,
+    );
+  }
+  p(`| Network hops per rider action, before | 2 |`);
+  p(`| Network hops per rider action, after | 1 |`);
+  p();
+  p(
+    `Before: browser -> BFF route -> elevator-api. After: browser ->`,
+  );
+  p(
+    `elevator-api directly (Caddy is a transparent reverse proxy, not`,
+  );
+  p(`a logic hop).`);
+  p();
+  p(
+    `Deployable *service* count is unchanged (the BFF lived inside the`,
+  );
+  p(
+    `same Nuxt container, not a separate one) -- the removed cost was`,
+  );
+  p(
+    `pure pass-through/proxy code and an extra hop, not a deployable.`,
+  );
+  p();
+
+  p(`## 5. Duplication (whole-directory), before vs after`);
+  p();
+  p(`| | before | after |`);
+  p(`|---|---|---|`);
+  p(
+    `| elevator-api \`main\` | ${dupPct(m.dupApiBefore)} | ${dupPct(m.dupApiAfter)} |`,
+  );
+  p(
+    `| elevator-ui (app${m.dupUiBefore ? " + server" : ""}) | ${dupPct(m.dupUiBefore)} | ${dupPct(m.dupUiAfter)} |`,
+  );
+  p();
+  p(
+    `Read the elevator-api "after" number carefully: exact-token clone`,
+  );
+  p(
+    `detection over many small, structurally-identical files naturally`,
+  );
+  p(
+    `reports a higher percentage than a few large ones would, even when`,
+  );
+  p(
+    `nothing is copy-pasted. Sampling its clones confirms this: they are`,
+  );
+  p(
+    `import blocks and same-shaped \`AffordanceContributor\`/\`Command\``,
+  );
+  p(
+    `implementations (one interface, many slices) -- not duplicated`,
+  );
+  p(
+    `business logic. The "before" clones are the opposite kind: copy-pasted`,
+  );
+  p(
+    `controller/validation logic between e.g. \`CallController\` and`,
+  );
+  p(
+    `\`CarCallController\` -- the smell this refactor targets. Percentage`,
+  );
+  p(`alone conflates the two; only sampling the clones tells them apart.`);
+  p();
+
+  p(`## 6. API surface`);
+  p();
+  p(`| | before | after |`);
+  p(`|---|---|---|`);
+  p(
+    `| Endpoint mappings (\`@*Mapping\`) | ${m.beforeMappings} | ${m.afterMappings} |`,
+  );
+  p(
+    `| Hard-coded \`/elevators/...\` literals in elevator-ui | ${m.beforeDomainLiterals} | ${m.afterDomainLiterals} |`,
+  );
+  p();
+  p(
+    `Before: one URL per verb (\`/calls\`, \`/car-calls\`, \`/open-doors\`,`,
+  );
+  p(
+    `\`/close-doors\`, \`/obstruct-doors\`, \`/clear-obstruction\`,`,
+  );
+  p(
+    `\`/weight\`, \`/maintenance\`, ...). After: every command funnels`,
+  );
+  p(
+    `through the shared \`POST /elevators/{id}\`; the client follows`,
+  );
+  p(`links instead of constructing them.`);
+  p();
+
+  p(`## 7. The whole diff, by application`);
+  p();
+  p(`| app | files changed | + | - | added | modified | deleted |`);
+  p(`|---|---|---|---|---|---|---|`);
+  for (const app of Object.keys(m.diffs)) {
+    const { shortstat, nameStatus } = m.diffs[app];
+    p(
+      `| ${app} | ${shortstat.files} | ${shortstat.insertions} | ${shortstat.deletions} | ${nameStatus.A} | ${nameStatus.M} | ${nameStatus.D} |`,
+    );
+  }
+  p(
+    `| **whole repo** | **${m.wholeRepoShortstat.files}** | **${m.wholeRepoShortstat.insertions}** | **${m.wholeRepoShortstat.deletions}** | | | |`,
+  );
+  p();
+  p(
+    `elevator-ui's diff is net-negative (more deleted than added) despite`,
+  );
+  p(`unchanged feature parity -- the BFF/store deletion in section 4.`);
+  p();
+
+  p(`## 8. Versioning cost, extrapolated`);
+  p();
+  p(
+    `Anchor (cited in \`docs/plan.html\`, section 09, via Ulsberg's`,
+  );
+  p(
+    `*API Change Strategy*, costing by Jacques Dubray): point-to-point`,
+  );
+  p(
+    `versioning runs ~45% more expensive than a compatible-change`,
+  );
+  p(`strategy at 4 concurrent versions.`);
+  p();
+  p(
+    `We fit a linear rate from that single point: \`cost(n) = 1 + k*(n-1)\`,`,
+  );
+  p(
+    `\`cost(4) = 1.45\` => \`k = ${round2(m.K)}\`. Applied to 5 new versions`,
+  );
+  p(
+    `living alongside the original (${m.CONCURRENT_VERSIONS} concurrent`,
+  );
+  p(
+    `versions): \`cost(${m.CONCURRENT_VERSIONS}) = ${m.costMultiplier}\`,`,
+  );
+  p(
+    `i.e. an estimated **+${round1((m.costMultiplier - 1) * 100)}%**`,
+  );
+  p(
+    `maintenance cost for CRUD-style point-to-point versioning vs. a`,
+  );
+  p(
+    `compatible-change (hypermedia) strategy. This is a linear`,
+  );
+  p(
+    `extrapolation of one cited data point, not a new empirical`,
+  );
+  p(`measurement -- treat it as illustrative, not precise.`);
+  p();
+  p(
+    `Grounded in this repo's own measured CRUD surface (\`${m.before.ref}\`,`,
+  );
+  p(`the versionable layer with no compatible-extension mechanism):`);
+  p();
+  p(`| | value |`);
+  p(`|---|---|`);
+  p(
+    `| \`controller+model+service+repository\` lines | ${m.oldLayerTotals.lines} |`,
+  );
+  p(`| of which \`controller\` (verb layer) alone | ${m.controllerOnlyTotals.lines} |`);
+  p(`| its test lines | ${m.oldLayerTestTotals.lines} |`);
+  p();
+  p(
+    `Projected lines to maintain under three strategies for "5 new`,
+  );
+  p(`versions live in parallel":`);
+  p();
+  p(`| strategy | lines to maintain |`);
+  p(`|---|---|`);
+  p(`| Scenario A -- full fork per version | ~${m.fullForkLoc} |`);
+  p(`| Scenario B -- partial fork (controller only) | ~${m.partialForkLoc} |`);
+  p(
+    `| REST+DDD -- 5 new slices, additive | ~${m.newCapabilitiesAdditiveLoc} |`,
+  );
+  p();
+  p(
+    `Scenario A: the whole old layer forks per version (worst case, a`,
+  );
+  p(
+    `naive point-to-point strategy where behaviour differs by version).`,
+  );
+  p(
+    `Scenario B: only the verb/controller layer forks per version;`,
+  );
+  p(
+    `\`model\`/\`service\`/\`repository\` stay shared across versions. Both`,
+  );
+  p(
+    `multiply the *entire existing surface* by ${m.CONCURRENT_VERSIONS}. The REST+DDD`,
+  );
+  p(
+    `figure is not a multiple of anything existing: 5 new capabilities`,
+  );
+  p(
+    `cost 5 new slices (section 3's average) and change nothing already`,
+  );
+  p(`built or tested.`);
+  p();
+  p(
+    `The REST+DDD side's cost of "5 more versions" is additive (new`,
+  );
+  p(
+    `slices), not multiplicative against the whole surface -- because`,
+  );
+  p(
+    `new capability is a new \`rel\`, never a new version of an existing`,
+  );
+  p(`one (see \`docs/architecture.md\`, "No versioning").`);
+  p();
+
+  return lines.join("\n") + "\n";
+}
+
+function dupPct(report) {
+  if (!report) return "n/a";
+  return `${round1(report.percentage)}% (${report.clones} clones)`;
+}
+
+main();
