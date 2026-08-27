@@ -3142,7 +3142,11 @@ const COMPARISON = [
   { c: "Auth surface",
     a: "Client mirrors the server\u2019s authorization state in a boolean, and hard-codes which operations are privileged",
     b: "Privileged affordances are simply present or absent; the client never learns the distinction",
-    ev: "// stores/elevator.ts \u2014 asks the server what it is allowed to be\nconst res = await $fetch('/api/key')\nthis.technicianKeyInserted = res.inserted\n\n// StatusDisplay.vue \u2014 and still decides what that implies\nv-if=\"store.technicianKeyInserted\"\nv-if=\"inMaintenance\"" }
+    ev: "// stores/elevator.ts \u2014 asks the server what it is allowed to be\nconst res = await $fetch('/api/key')\nthis.technicianKeyInserted = res.inserted\n\n// StatusDisplay.vue \u2014 and still decides what that implies\nv-if=\"store.technicianKeyInserted\"\nv-if=\"inMaintenance\"" },
+  { c: "What tests verify",
+    a: "That a value survived the round trip from client to database \u2014 characterisation tests pin down what the God Object happens to do, not what it means",
+    b: "Our own understanding of the domain. A test is a Given/When/Then specification of one business rule, not a database assertion.",
+    ev: "// service/ElevatorServiceTest.java \u2014 the CRUD side\n/**\n * These pin down what the service does today rather than what it\n * ought to do. \u2026 the least directly covered.\n */\nservice.carCall(ELEVATOR_ID, carCallFor(8));\nassertThat(service.getStatus(ELEVATOR_ID).getTargetFloor()).isEqualTo(8);\n\n// shared/domain/ElevatorTest.java \u2014 the DDD+REST side\n@Test\nvoid givenIdle_whenCalled_thenElevatorCalledIsEmitted() {\n  var events = elevator.call(new Floor(5), Direction.UP);\n  assertThat(events).hasAtLeastOneElementOfType(ElevatorCalled.class);\n}" }
 ];
 
 document.getElementById('cmpBody').innerHTML = COMPARISON.map(r => `
