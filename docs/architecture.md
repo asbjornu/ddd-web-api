@@ -442,7 +442,18 @@ pause for review.
    `app/stores/elevator.ts`, every typed API model, every hard-coded
    path/id/constant in `elevator-ui`. The Playwright suite must pass
    unchanged against a client that knows exactly one URL.
-
+9. **Delete the CRUD scaffolding** (removes only, elevator-api's own
+   side of slice 8): the original `controller`/`model`/`service`/
+   `repository` packages, kept piecemeal only as long as some
+   not-yet-migrated behaviour still read through `ElevatorService`
+   (the God Object this whole refactor exists to dissolve). Slices 1–7
+   had already moved every behaviour that mattered onto the new
+   aggregate; what was left behind was dead code its own comments no
+   longer justified, plus `/health`, replaced with an equivalent in
+   the shared kernel so docker-compose's healthcheck keeps working.
+   The three now-orphaned CRUD tables (`elevators`, `calls`,
+   `car_calls`) are dropped in a follow-up Flyway migration, not left
+   behind either.
 ## Devops
 
 Containerized with Docker Compose: `elevator-api`, `elevator-ui`,
