@@ -186,6 +186,33 @@ function countMatches(files, regex) {
   return count;
 }
 
+// --- framework/infrastructure coupling ------------------------------------
+
+const FRAMEWORK_IMPORT_REGEX =
+  /^import ((?:org\.springframework|jakarta\.|lombok\.)[^;]+);/gm;
+
+function frameworkImportAnalysis(files) {
+  let filesWithImports = 0;
+  const symbols = new Set();
+  for (const f of files) {
+    const text = readFileSync(f, "utf8");
+    const matches = [...text.matchAll(FRAMEWORK_IMPORT_REGEX)];
+    if (matches.length > 0) filesWithImports++;
+    for (const match of matches) symbols.add(match[1]);
+  }
+  return {
+    totalFiles: files.length,
+    filesWithImports,
+    distinctSymbols: symbols.size,
+  };
+}
+
+function javaFilesMatching(root, namePredicate) {
+  return walkFiles(root, [".java"]).filter((f) =>
+    namePredicate(path.basename(f)),
+  );
+}
+
 // --- diff stats ------------------------------------------------------------
 
 function diffShortstat(a, b, pathspec) {
@@ -370,6 +397,68 @@ function main() {
     );
     const newCapabilitiesAdditiveLoc = Math.round(avgSliceLoc * 5);
 
+    // --- framework/infrastructure coupling ---
+    // Hypothesis: the REST+DDD side moved infrastructure "in-house" (its
+    // own hypermedia/affordance model, its own persistence mapping at the
+    // boundary) so its domain and application layers depend on far fewer
+    // framework symbols than the CRUD side's equivalent layers, where the
+    // domain model doubles as the JPA entity (see "Model reuse" in
+    // docs/architecture.md's git history) and the service layer throws
+    // framework-specific HTTP exceptions directly.
+    const beforeDomainFiles = walkFiles(
+      path.join(
+        before.dir,
+        "elevator-api/src/main/java/no/javazone/elevator/model",
+      ),
+      [".java"],
+    );
+    const beforeBizFiles = walkFiles(
+      path.join(
+        before.dir,
+        "elevator-api/src/main/java/no/javazone/elevator/service",
+      ),
+      [".java"],
+    );
+    const afterDomainFiles = walkFiles(
+      path.join(
+        after.dir,
+        "elevator-api/src/main/java/no/javazone/elevator/shared/domain",
+      ),
+      [".java"],
+    );
+    const afterAppFiles = javaFilesMatching(
+      path.join(
+        after.dir,
+        "elevator-api/src/main/java/no/javazone/elevator/feature",
+      ),
+      (name) => /(Command|Handler|AffordanceContributor)\.java$/.test(name),
+    );
+    const wholeBeforeJavaFiles = walkFiles(
+      path.join(before.dir, "elevator-api/src/main/java"),
+      [".java"],
+    );
+    const wholeAfterJavaFiles = walkFiles(
+      path.join(after.dir, "elevator-api/src/main/java"),
+      [".java"],
+    );
+
+    const frameworkCoupling = {
+      beforeDomain: frameworkImportAnalysis(beforeDomainFiles),
+      beforeBiz: frameworkImportAnalysis(beforeBizFiles),
+      beforeDomainBiz: frameworkImportAnalysis([
+        ...beforeDomainFiles,
+        ...beforeBizFiles,
+      ]),
+      afterDomain: frameworkImportAnalysis(afterDomainFiles),
+      afterApp: frameworkImportAnalysis(afterAppFiles),
+      afterDomainApp: frameworkImportAnalysis([
+        ...afterDomainFiles,
+        ...afterAppFiles,
+      ]),
+      beforeWhole: frameworkImportAnalysis(wholeBeforeJavaFiles),
+      afterWhole: frameworkImportAnalysis(wholeAfterJavaFiles),
+    };
+
     // --- render markdown ---
     const md = renderMarkdown({
       before,
@@ -404,6 +493,7 @@ function main() {
       fullForkLoc,
       partialForkLoc,
       newCapabilitiesAdditiveLoc,
+      frameworkCoupling,
     });
 
     const outPath = path.join(REPO_ROOT, "docs", "refactor-metrics.md");
@@ -433,6 +523,7 @@ function renderMarkdown(m) {
   const shared = totals(m.sharedFiles);
   const largestBefore = largestFile(m.beforeApiFiles);
   const largestAfter = largestFile(m.afterApiFiles);
+  const fc = m.frameworkCoupling;
 
   const lines = [];
   const p = (s = "") => lines.push(s);
@@ -757,6 +848,149 @@ function renderMarkdown(m) {
     `new capability is a new \`rel\`, never a new version of an existing`,
   );
   p(`one (see \`docs/architecture.md\`, "No versioning").`);
+  p();
+
+  p(`## 9. Framework coupling: infrastructure moved in-house`);
+  p();
+  p(
+    `Hypothesis: the REST+DDD side depends on far fewer framework symbols`,
+  );
+  p(
+    `in its domain and application code, because persistence, hypermedia`,
+  );
+  p(
+    `and rendering became purpose-built infrastructure at the boundary`,
+  );
+  p(
+    `instead of framework annotations reaching into the domain model`,
+  );
+  p(`itself. Measured directly, by counting \`import\` lines from`);
+  p(
+    `\`org.springframework.*\`, \`jakarta.*\` and \`lombok.*\` (Spring's DI`,
+  );
+  p(`stereotypes, JPA, and Lombok):`);
+  p();
+  p(`| | files | with framework imports | distinct symbols |`);
+  p(`|---|---|---|---|`);
+  p(
+    `| before: \`model/\` (domain) | ${fc.beforeDomain.totalFiles} | ${fc.beforeDomain.filesWithImports} | ${fc.beforeDomain.distinctSymbols} |`,
+  );
+  p(
+    `| before: \`service/\` (business logic) | ${fc.beforeBiz.totalFiles} | ${fc.beforeBiz.filesWithImports} | ${fc.beforeBiz.distinctSymbols} |`,
+  );
+  p(
+    `| before: domain+business logic, combined | ${fc.beforeDomainBiz.totalFiles} | ${fc.beforeDomainBiz.filesWithImports} | ${fc.beforeDomainBiz.distinctSymbols} |`,
+  );
+  p(
+    `| after: \`shared/domain\` | ${fc.afterDomain.totalFiles} | ${fc.afterDomain.filesWithImports} | ${fc.afterDomain.distinctSymbols} |`,
+  );
+  p(
+    `| after: Command+Handler+AffordanceContributor | ${fc.afterApp.totalFiles} | ${fc.afterApp.filesWithImports} | ${fc.afterApp.distinctSymbols} |`,
+  );
+  p(
+    `| after: domain+application, combined | ${fc.afterDomainApp.totalFiles} | ${fc.afterDomainApp.filesWithImports} | ${fc.afterDomainApp.distinctSymbols} |`,
+  );
+  p(
+    `| whole \`elevator-api\` main, before | ${fc.beforeWhole.totalFiles} | ${fc.beforeWhole.filesWithImports} | ${fc.beforeWhole.distinctSymbols} |`,
+  );
+  p(
+    `| whole \`elevator-api\` main, after | ${fc.afterWhole.totalFiles} | ${fc.afterWhole.filesWithImports} | ${fc.afterWhole.distinctSymbols} |`,
+  );
+  p();
+  p(
+    `Before: \`model/Elevator.java\` is itself \`@Entity\`-annotated --`,
+  );
+  p(
+    `the same class is the JPA entity, the domain model, and the JSON`,
+  );
+  p(
+    `response (the "Model reuse" smell). \`ElevatorService\` -- the`,
+  );
+  p(
+    `business logic -- imports \`org.springframework.http.HttpStatus\``,
+  );
+  p(
+    `and throws \`ResponseStatusException\` directly: a domain refusal`,
+  );
+  p(`is expressed as an HTTP status code inside the business logic.`);
+  p();
+  p(
+    `After: \`shared/domain\` has zero framework imports across`,
+  );
+  p(
+    `${fc.afterDomain.totalFiles} files (by design -- see`,
+  );
+  p(
+    `\`docs/architecture.md\`'s slice 0: "no Spring/JPA/Lombok"). Command`,
+  );
+  p(
+    `and handler classes carry exactly one framework symbol each`,
+  );
+  p(
+    `(\`@Component\`, for dependency injection), never a framework`,
+  );
+  p(
+    `exception type or persistence annotation. A refusal is`,
+  );
+  p(
+    `\`CommandRefused\`, a plain domain type with no framework`,
+  );
+  p(`dependency; only the controller layer decides how to render it.`);
+  p();
+  p(`### Upgrade-exposure proxy`);
+  p();
+  p(
+    `Distinct framework symbols are a proxy for exposure to a major`,
+  );
+  p(
+    `framework version bump (e.g. Spring Boot's next major, or a JPA`,
+  );
+  p(
+    `provider swap): each one is a place a breaking change can land, and`,
+  );
+  p(
+    `every file importing it is a file that may need to change. The`,
+  );
+  p(
+    `before side's domain+business-logic layer relies on`,
+  );
+  p(
+    `${fc.beforeDomainBiz.distinctSymbols} distinct framework symbols across`,
+  );
+  p(
+    `${fc.beforeDomainBiz.filesWithImports}/${fc.beforeDomainBiz.totalFiles} files; the after side's domain+application`,
+  );
+  p(
+    `layer relies on ${fc.afterDomainApp.distinctSymbols} across`,
+  );
+  p(
+    `${fc.afterDomainApp.filesWithImports}/${fc.afterDomainApp.totalFiles} files. A Spring or JPA major-version migration on the`,
+  );
+  p(
+    `before side plausibly touches the domain model itself; on the`,
+  );
+  p(
+    `after side it is contained to \`shared/web\`, \`shared/persistence\``,
+  );
+  p(
+    `and \`config/\` -- the files whose job is exactly to absorb that`,
+  );
+  p(
+    `kind of change -- without touching \`shared/domain\` or any slice's`,
+  );
+  p(
+    `\`Command\`/\`Handler\`. This repo has no in-history major-version`,
+  );
+  p(
+    `migration of elevator-api to point to directly (the one Spring Boot`,
+  );
+  p(
+    `v3->v4 bump in git history predates elevator-api's own code), so`,
+  );
+  p(
+    `this is reasoned from measured coupling, not a second empirical`,
+  );
+  p(`data point -- treat it accordingly.`);
   p();
 
   return lines.join("\n") + "\n";
