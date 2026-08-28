@@ -859,21 +859,105 @@ So we introduce something in between.
 
 ## 073
 
-Another application.
+But look at what this particular BFF actually does.
 
-Another translation layer.
+```ts
+export default defineEventHandler(async (event) => {
+  const id = getRouterParam(event, 'id')
+  const config = useRuntimeConfig()
 
-Another place to put knowledge.
+  return await $fetch(
+    `${config.serviceApiUrl}/elevators/${id}/open-doors`,
+    { method: 'POST' }
+  )
+})
+```
 
 ---
 
 ## 074
 
-Perhaps the problem isn't that we're missing a translation layer.
+That is not business logic.
+
+It is not orchestration.
+
+It is not adapting one domain to another.
+
+It is a URL and verb translation.
 
 ---
 
 ## 075
+
+There are fourteen route files shaped like this.
+
+Average size:
+
+**12.4 lines.**
+
+Duplication, measured at a threshold suitable for files this small:
+
+**20.2%.**
+
+---
+
+## 076
+
+For every rider action:
+
+```text
+Browser
+   ↓
+BFF route
+   ↓
+elevator-api
+```
+
+Two logical application hops.
+
+---
+
+## 077
+
+The BFF adds another copy of the API's URL space.
+
+Another place to encode the HTTP verb.
+
+Another file to change when the protocol changes.
+
+Another hop.
+
+---
+
+## 078
+
+This is important.
+
+The BFF is not the original problem.
+
+---
+
+## 079
+
+It is **evidence** of the original problem.
+
+---
+
+## 080
+
+The API does not tell the client how to proceed.
+
+So the client needs a translation layer that knows how to proceed on its behalf.
+
+---
+
+## 081
+
+Perhaps the problem isn't that we're missing a translation layer.
+
+---
+
+## 082
 
 Perhaps the API is saying too little.
 
@@ -3862,6 +3946,483 @@ That's a much healthier division of responsibility.
 
 # `</live-html>`
 
+# `<delete-the-bff>`
+
+---
+
+## Deleting the evidence
+
+Now we can do something more convincing than draw another architecture diagram.
+
+We can delete code.
+
+The point is not that the system has fewer lines overall. It doesn't.
+
+The point is that a category of **client-side knowledge is no longer necessary**.
+
+Measured result:
+
+```text
+BFF + store files removed     16
+BFF + store lines removed     493
+BFF route files               14
+BFF-route duplication         20.2%
+logical hops per rider action 2 → 1
+```
+
+The deployable service count did not change. The BFF lived inside the Nuxt container.
+
+What disappeared was pass-through code, duplicated protocol knowledge, and one logical hop.
+
+---
+
+And I want to show the deletion honestly.
+
+Not as bullets.
+
+As diffs.
+
+**The red code is the argument.**
+
+---
+
+## Delete: polling
+
+```diff
+--- StatusDisplay.vue
++++ StatusDisplay.vue
+@@
+-onMounted(() => {
+-  poller = setInterval(() => {
+-    store.fetchStatus()
+-    store.fetchCalls()
+-    store.fetchCarCalls()
+-  }, 1500)
+-})
+```
+
+We do not optimize the poller.
+
+We delete the poller.
+
+---
+
+## Delete: duplicated timing
+
+```diff
+--- ElevatorShaft.vue
++++ ElevatorShaft.vue
+@@
+-const TRAVEL_SECONDS_PER_FLOOR = 2
+```
+
+The remaining decorative shaft animation reads its endpoints and duration from DOM that the API rendered.
+
+---
+
+## Delete: status BFF route
+
+```diff
+--- status.get.ts
++++ /dev/null
+@@
+-[entire BFF route deleted]
+```
+
+The plan records the route deletion, but not its complete old body, so the slide should show the file deletion rather than invent code.
+
+---
+
+## Delete: call-elevator BFF routes
+
+```diff
+--- calls.get.ts
++++ /dev/null
+@@
+-[entire BFF route deleted]
+
+--- calls.post.ts
++++ /dev/null
+@@
+-[entire BFF route deleted]
+```
+
+The client can follow the affordance instead.
+
+---
+
+## Delete: client call action
+
+```diff
+--- app/stores/elevator.ts
++++ app/stores/elevator.ts
+@@
+-store.callElevator
+```
+
+The migration plan names this deletion explicitly. The full old method body is not preserved in the plan.
+
+---
+
+## Delete: hard-coded floor list
+
+```diff
+--- CallPanel.vue
++++ CallPanel.vue
+@@
+-[hard-coded floor list deleted]
+```
+
+The server now supplies the permitted values.
+
+---
+
+## Delete: car-call routes
+
+```diff
+--- car-calls routes
++++ /dev/null
+@@
+-[all car-call BFF routes deleted]
+```
+
+---
+
+## Delete: movement reconstruction
+
+```diff
+--- ElevatorService.java
++++ ElevatorService.java
+@@
+-recomputeState(...)
+-recomputeMovement(...)
+-dispatchToFloor(...)
+-serveNextPendingCall(...)
+```
+
+Movement becomes explicit domain behaviour around `RequestQueue`, commands, events and scheduled transitions.
+
+---
+
+## Delete: door routes
+
+```diff
+--- open-doors route
++++ /dev/null
+@@
+-[entire route deleted]
+
+--- close-doors route
++++ /dev/null
+@@
+-[entire route deleted]
+
+--- obstruction routes
++++ /dev/null
+@@
+-[all obstruction routes deleted]
+```
+
+---
+
+## Delete: obstruction as assignment
+
+```diff
+--- client/API payload
++++ client/API payload
+@@
+-{ "doorObstructed": true }
+-{ "doorObstructed": false }
+```
+
+The model now has `ObstructDoors` and `ClearObstruction`.
+
+---
+
+## Delete: weight route
+
+```diff
+--- weight route
++++ /dev/null
+@@
+-[entire route deleted]
+```
+
+---
+
+## Delete: client-side overload rule
+
+```diff
+--- client
++++ client
+@@
+-if (load > MAX_LOAD) {
+-  // decide that floor selection is unavailable
+-}
+```
+
+When overloaded, `select-floor` is simply absent.
+
+---
+
+## Delete: maintenance route
+
+```diff
+--- maintenance route
++++ /dev/null
+@@
+-[entire route deleted]
+```
+
+---
+
+## Delete: mirrored authorization state
+
+```diff
+--- app/stores/elevator.ts
++++ app/stores/elevator.ts
+@@
+-const res = await $fetch<{ inserted: boolean }>('/api/key')
+-this.technicianKeyInserted = res.inserted
+```
+
+The server already knows the caller's authority. The client no longer asks for a boolean copy of that knowledge.
+
+---
+
+## Delete: key-state round trip
+
+```diff
+--- client protocol
++++ client protocol
+@@
+-GET /api/key
+```
+
+---
+
+## Delete: privilege rules in Vue
+
+```diff
+--- StatusDisplay.vue
++++ StatusDisplay.vue
+@@
+-<div v-if="store.technicianKeyInserted" class="tech-actions">
+-  <button v-if="!inMaintenance" @click="store.enterMaintenance()">
+-  <button v-if="inMaintenance"  @click="store.exitMaintenance()">
+-</div>
+```
+
+Privileged affordances now appear or do not appear.
+
+---
+
+## Delete: configured OAuth issuer
+
+```diff
+--- elevator-ui configuration
++++ elevator-ui configuration
+@@
+-NUXT_OAUTH_ISSUER=...
+```
+
+The issuer is discovered rather than configured.
+
+---
+
+## Delete: emergency-recall route
+
+```diff
+--- emergency-recall route
++++ /dev/null
+@@
+-[entire route deleted]
+```
+
+---
+
+## Delete: the God Object
+
+```diff
+--- ElevatorService.java
++++ /dev/null
+@@
+-[the last of ElevatorService deleted]
+```
+
+By this point the behaviour has moved into the aggregate and slices.
+
+---
+
+## Delete: the entire BFF
+
+```diff
+--- elevator-ui/server/api/
++++ /dev/null
+@@
+-[all BFF routes deleted]
+```
+
+Not renamed.
+
+Not moved.
+
+Deleted.
+
+---
+
+## Delete: the Pinia elevator store
+
+```diff
+--- elevator-ui/app/stores/elevator.ts
++++ /dev/null
+@@
+-[store deleted]
+```
+
+The client-side state machine does not become a better client-side state machine.
+
+It disappears.
+
+---
+
+## Delete: typed API models
+
+```diff
+--- elevator-ui
++++ elevator-ui
+@@
+-[typed elevator API models deleted]
+```
+
+---
+
+## Delete: domain constants
+
+```diff
+--- app/stores/elevator.ts
++++ /dev/null
+@@
+-const ELEVATOR_ID = 1
+-const BUILDING_FLOORS = 9
+
+--- ElevatorShaft.vue
++++ /dev/null
+@@
+-const TRAVEL_SECONDS_PER_FLOOR = 2
+```
+
+---
+
+## Delete: hard-coded URL construction
+
+```diff
+--- elevator-ui
++++ elevator-ui
+@@
+-await $fetch(`/api/elevators/${ELEVATOR_ID}/car-calls`, { ... })
+-[33 other hard-coded /elevators/... literals deleted]
+```
+
+Measured result:
+
+```text
+hard-coded /elevators/... literals
+34 → 0
+```
+
+The client does not learn a nicer URL scheme.
+
+It stops owning the URL scheme.
+
+---
+
+## Delete: state-rendering Vue components
+
+```diff
+--- rider / technician Vue components
++++ /dev/null
+@@
+-[four state-rendering components deleted]
+```
+
+A small CSS-only shaft survives because animation is presentation, not domain interpretation.
+
+---
+
+## Delete: Vitest
+
+```diff
+--- elevator-ui test tooling
++++ /dev/null
+@@
+-[Vitest deleted]
+```
+
+There is no client-side store/domain logic left to unit-test.
+
+The Playwright suite survives.
+
+---
+
+## What survives
+
+```diff
+ elevator-ui/
++ page shell
++ routing
++ layouts
++ CSS
++ decorative shaft animation
++ Playwright
++ one injected entry-point URL
+
+-server/api/
+-app/stores/elevator.ts
+-state-rendering Vue components
+-typed API models
+-hard-coded domain constants
+-hard-coded elevator paths
+-poller
+-Vitest
+```
+
+---
+
+The Playwright suite passes against a client that knows exactly **one URL**.
+
+Everything else is discovered.
+
+---
+
+Before:
+
+```text
+Browser → BFF route → elevator-api
+```
+
+After:
+
+```text
+Browser → elevator-api
+```
+
+Caddy remains, but it is a transparent reverse proxy, not a logical application hop.
+
+---
+
+The BFF deletion is therefore not primarily:
+
+**493 fewer lines.**
+
+It is:
+
+**493 lines of evidence that the client used to know things it no longer needs to know.**
+
+---
+
+# `</delete-the-bff>`
+
 # `<representations>`
 
 ---
@@ -5031,125 +5592,135 @@ The message is invalid.
 
 ---
 
-## 615
+## Migration
 
-We didn't rewrite everything in one heroic weekend.
+We did not rewrite everything in one heroic weekend.
 
----
+We moved one behaviour at a time.
 
-## 616
+But now I want to describe the migration not only by what each slice added.
 
-We migrated behavior by behavior.
-
----
-
-## 617
-
-Foundation.
+I want to describe it by **what each slice made safe to delete**.
 
 ---
 
-## 618
+## Slice 0 — Hypermedia kernel
 
-Status view.
+```diff
+# nothing deleted yet
+```
 
----
+That is deliberate.
 
-## 619
-
-Call elevator.
-
----
-
-## 620
-
-Select floor and movement timing.
+The first slice creates somewhere for knowledge to move **to**.
 
 ---
 
-## 621
+## Slice 1 — Status + SSE
 
-Doors.
-
----
-
-## 622
-
-Overload.
+```diff
+-status.get.ts
+-setInterval(..., 1500)
+-TRAVEL_SECONDS_PER_FLOOR
+```
 
 ---
 
-## 623
+## Slice 2 — Call elevator
 
-Maintenance and authorization.
-
----
-
-## 624
-
-Emergency recall.
-
----
-
-## 625
-
-Then cleanup.
+```diff
+-calls.get.ts
+-calls.post.ts
+-store.callElevator
+-CallPanel hard-coded floor list
+```
 
 ---
 
-## 626
+## Slice 3 — Select floor
 
-Delete the BFF.
-
----
-
-## 627
-
-Delete the store.
-
----
-
-## 628
-
-Delete generated client models.
+```diff
+-car-calls routes
+-recomputeState
+-recomputeMovement
+-dispatchToFloor
+-serveNextPendingCall
+```
 
 ---
 
-## 629
+## Slice 4 — Doors
 
-Delete hard-coded paths.
-
----
-
-## 630
-
-Delete copied domain constants.
-
----
-
-## 631
-
-Delete the original CRUD scaffolding.
+```diff
+-open-doors route
+-close-doors route
+-obstruction routes
+-{ "doorObstructed": true|false }
+```
 
 ---
 
-## 632
+## Slice 5 — Overload
 
-The important migration rule was:
+```diff
+-weight route
+-client-side overload warning / legality logic
+```
 
 ---
 
-## 633
+## Slice 6 — Maintenance + authorization
+
+```diff
+-maintenance route
+-technicianKeyInserted
+-GET /api/key
+-v-if guards for privileged operations
+-NUXT_OAUTH_ISSUER
+```
+
+---
+
+## Slice 7 — Emergency recall
+
+```diff
+-emergency-recall route
+-ElevatorService.java
+```
+
+---
+
+## Slice 8 — Delete the evidence
+
+This slice adds nothing.
+
+That is the feature.
+
+```diff
+-server/api/
+-app/stores/elevator.ts
+-typed API models
+-ELEVATOR_ID
+-BUILDING_FLOORS
+-TRAVEL_SECONDS_PER_FLOOR
+-every hard-coded elevator path
+-state-rendering Vue components
+-Vitest
+```
+
+The Playwright suite must still pass.
+
+That commit's diff is the argument.
+
+---
+
+The migration rule remains:
 
 Move one piece of knowledge at a time.
 
----
+Give it one authoritative home.
 
-## 634
-
-And once it has an authoritative home...
-
-delete the copies.
+Then delete every other copy.
 
 ---
 
@@ -5347,13 +5918,21 @@ BFF and store files removed:
 
 **16**
 
+Of those, **14 are BFF route files**.
+
 ---
 
 ## 659
 
-Lines removed:
+BFF + store lines removed:
 
 **493**
+
+The BFF route files average **12.4 lines** each.
+
+At a clone-detection threshold suitable for files that small:
+
+**20.2% duplication.**
 
 ---
 
@@ -5408,6 +5987,10 @@ The BFF lived in the Nuxt container.
 We removed a logical application layer.
 
 Not a deployment.
+
+And we did not relocate those routes.
+
+Their protocol knowledge became unnecessary.
 
 ---
 
