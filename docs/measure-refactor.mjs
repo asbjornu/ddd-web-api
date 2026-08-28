@@ -101,6 +101,21 @@ function largestFile(files) {
   return files.reduce((a, b) => (b.Lines > a.Lines ? b : a));
 }
 
+function sizeStats(files) {
+  const sizes = files.map((f) => f.Lines).sort((a, b) => a - b);
+  const n = sizes.length;
+  if (n === 0) return { avg: 0, median: 0, max: 0, files: 0 };
+  const sum = sizes.reduce((a, b) => a + b, 0);
+  const median =
+    n % 2 === 1 ? sizes[(n - 1) / 2] : (sizes[n / 2 - 1] + sizes[n / 2]) / 2;
+  return {
+    avg: round1(sum / n),
+    median: round1(median),
+    max: Math.max(...sizes),
+    files: n,
+  };
+}
+
 function round1(n) {
   return Math.round(n * 10) / 10;
 }
@@ -111,7 +126,7 @@ function round2(n) {
 
 // --- jscpd (duplication) -------------------------------------------------
 
-function jscpdReport(cwd, relPaths, scratchDir, label) {
+function jscpdReport(cwd, relPaths, scratchDir, label, opts = {}) {
   const existing = relPaths.filter((p) => existsSync(path.join(cwd, p)));
   if (existing.length === 0) return null;
   const outDir = path.join(scratchDir, `jscpd-${label}-${Date.now()}`);
@@ -121,6 +136,7 @@ function jscpdReport(cwd, relPaths, scratchDir, label) {
     ".bin",
     "jscpd",
   );
+  const { minLines = 5, minTokens = 50 } = opts;
   try {
     run(bin, [
       "--reporters",
@@ -130,6 +146,10 @@ function jscpdReport(cwd, relPaths, scratchDir, label) {
       "--silent",
       "--threshold",
       "0",
+      "--min-lines",
+      String(minLines),
+      "--min-tokens",
+      String(minTokens),
       ...existing,
     ], { cwd });
   } catch {
@@ -290,11 +310,17 @@ function main() {
       "elevator-ui/app/stores",
     ]);
     const bffTotals = totals(bffFiles);
+    const bffRouteFiles = sccByFile(before.dir, ["elevator-ui/server/api"]);
+    const bffRouteTotals = sizeStats(bffRouteFiles);
+    // Default jscpd thresholds (min 5 lines / 50 tokens) miss duplication
+    // in files this small -- most BFF routes are 8-20 lines -- so this
+    // one run uses lower thresholds sized to that reality.
     const bffDuplication = jscpdReport(
       before.dir,
       ["elevator-ui/server/api"],
       scratchDir,
       "bff",
+      { minLines: 3, minTokens: 20 },
     );
 
     // --- duplication, whole elevator-api and elevator-ui, both sides ---
@@ -473,6 +499,7 @@ function main() {
       avgSliceLoc,
       sliceBuckets,
       bffTotals,
+      bffRouteTotals,
       bffDuplication,
       dupApiBefore,
       dupApiAfter,
@@ -636,9 +663,15 @@ function renderMarkdown(m) {
   p(`|---|---|`);
   p(`| BFF + store files removed | ${m.bffTotals.files} |`);
   p(`| BFF + store lines removed | ${m.bffTotals.lines} |`);
+  p(
+    `| BFF route files alone (\`server/api/**\`) | ${m.bffRouteTotals.files} |`,
+  );
+  p(
+    `| ... their avg / median / max lines | ${m.bffRouteTotals.avg} / ${m.bffRouteTotals.median} / ${m.bffRouteTotals.max} |`,
+  );
   if (m.bffDuplication) {
     p(
-      `| Duplication among the BFF route handlers alone | ${round1(m.bffDuplication.percentage)}% (${m.bffDuplication.clones} clones) |`,
+      `| Duplication among just those route files | ${round1(m.bffDuplication.percentage)}% (${m.bffDuplication.clones} clones) |`,
     );
   }
   p(`| Network hops per rider action, before | 2 |`);
@@ -651,6 +684,49 @@ function renderMarkdown(m) {
     `elevator-api directly (Caddy is a transparent reverse proxy, not`,
   );
   p(`a logic hop).`);
+  p();
+  p(
+    `Default jscpd thresholds (min 5 lines / 50 tokens) miss most of`,
+  );
+  p(
+    `this: at ${m.bffRouteTotals.avg} lines average, a route rarely reaches 50`,
+  );
+  p(
+    `tokens on its own. Lowering the thresholds to fit files this small`,
+  );
+  p(
+    `is what surfaces the ${m.bffDuplication ? round1(m.bffDuplication.percentage) : "?"}% above -- the`,
+  );
+  p(
+    `routes are near-identical, differing only in HTTP verb and path,`,
+  );
+  p(
+    "e.g. `open-doors.post.ts` and `close-doors.post.ts`:",
+  );
+  p();
+  p("```ts");
+  p(`export default defineEventHandler(async (event) => {`);
+  p(`  const id = getRouterParam(event, 'id')`);
+  p(`  const config = useRuntimeConfig()`);
+  p();
+  p(
+    "  return await $fetch(`${config.serviceApiUrl}/elevators/${id}/open-doors`, {",
+  );
+  p(`    method: 'POST'`);
+  p(`  })`);
+  p(`})`);
+  p("```");
+  p();
+  p(
+    `Every other route repeats this shape, varying only the path`,
+  );
+  p(
+    `segment and verb -- exactly the kind of repetition a client`,
+  );
+  p(
+    `following hypermedia links never has to write, because it never`,
+  );
+  p(`constructs the URL or the verb itself.`);
   p();
   p(
     `Deployable *service* count is unchanged (the BFF lived inside the`,
