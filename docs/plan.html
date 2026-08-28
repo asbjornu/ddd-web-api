@@ -507,6 +507,83 @@ flowchart TD
     </div>
     <p class="caption">One place decides legality. The client follows rels it was handed.</p>
   </div>
+
+  <p class="lede" style="margin-top:2rem">
+    The same two pictures again, but as deployment topology rather than call graph: which container each
+    box runs in, which framework does the work inside it, and how many network hops a single browser
+    action crosses before it reaches a database row.
+  </p>
+
+  <div class="tabs before-after" role="tablist" id="topoTabs">
+    <button role="tab" data-v="before" aria-selected="true">Before &mdash; CRUD</button>
+    <button role="tab" data-v="after" aria-selected="false">After &mdash; REST</button>
+  </div>
+
+  <div id="topoBefore">
+    <div class="diagram">
+      <script type="text/plain" class="msrc">
+flowchart TD
+  subgraph BR["Browser"]
+    V["Vue 3 + Pinia<br/><small>$fetch (JSON) &middot; setInterval poll, 1.5s</small>"]
+  end
+  subgraph UI["elevator-ui &mdash; :3000"]
+    NI["Nuxt 4 + Nitro<br/><small>Nitro *is* the BFF: server/api/*.ts,<br/>11 pass-through routes</small>"]
+  end
+  subgraph API["elevator-api &mdash; :8080"]
+    MVC["Spring MVC<br/><small>10 verb-shaped controllers</small>"]
+    SVC["ElevatorService<br/><small>~500 lines &middot; 12 methods &middot; God Object</small>"]
+    JPA["Spring Data JPA / Hibernate<br/><small>entity doubles as ORM row + wire DTO</small>"]
+    H2[("H2<br/><small>in-memory, embedded in-process</small>")]
+  end
+  subgraph AUTH["elevator-auth &mdash; :9000"]
+    AS["Spring Authorization Server"]
+  end
+  V -->|"HTTP"| NI
+  NI -->|"HTTP, Docker DNS<br/>(also published on host)"| MVC
+  MVC --> SVC --> JPA --> H2
+  MVC -.->|"slices 6/7 only:<br/>technician token exchange"| AS
+      </script>
+    </div>
+    <p class="caption">Three independently-published services. One extra application layer
+      (Nitro/BFF) whose only job is rewriting a hostname.</p>
+  </div>
+
+  <div id="topoAfter" hidden>
+    <div class="diagram">
+      <script type="text/plain" class="msrc">
+flowchart TD
+  subgraph BR2["Browser"]
+    DS["Datastar (client JS)<br/><small>@get/@post actions &middot; EventSource &middot; DOM morph</small>"]
+  end
+  subgraph CADDY["Caddy &mdash; :8000, the only published port"]
+    CD["Caddy 2<br/><small>content-negotiates &quot;/&quot;; routes<br/>/elevators*, /rels* always</small>"]
+  end
+  subgraph UI2["elevator-ui"]
+    NX["Nuxt 4 (Vite) + Vue 3<br/><small>page shell only &mdash; no BFF, no Pinia,<br/>no backend call of its own</small>"]
+  end
+  subgraph API2["elevator-api"]
+    MVC2["Spring MVC<br/><small>CommandsController, ViewStatusController, …</small>"]
+    AGG2["Elevator aggregate<br/><small>plain domain object, no Spring/JPA</small>"]
+    SEC["Spring Security<br/><small>Resource Server &mdash; validates the JWT</small>"]
+    SDK["Datastar Java SDK<br/><small>SSE event framing</small>"]
+    JPA2["Spring Data JPA / Hibernate + Flyway"]
+    H2b[("H2<br/><small>in-memory, embedded in-process</small>")]
+  end
+  subgraph AUTH2["elevator-auth"]
+    AS2["Spring Authorization Server"]
+  end
+  DS -->|"HTTP, one origin"| CD
+  CD -->|"text/html on &quot;/&quot;"| NX
+  CD -->|"/elevators*, /rels*,<br/>everything else"| MVC2
+  MVC2 --> AGG2
+  MVC2 --> JPA2 --> H2b
+  MVC2 --> SDK -.->|"SSE push"| DS
+  MVC2 -->|"validate JWT /<br/>exchange technician secret"| AS2
+      </script>
+    </div>
+    <p class="caption">One published port. elevator-ui carries no backend logic at all; the
+      browser talks to elevator-api directly, same origin.</p>
+  </div>
 </section>
 
 <!-- ============================================================ 3 -->
@@ -4253,6 +4330,10 @@ document.getElementById('timeline').innerHTML = SLICES.map(s => `
 tabs(document.getElementById('archTabs'), v => {
   document.getElementById('archBefore').hidden = v !== 'before';
   document.getElementById('archAfter').hidden = v !== 'after';
+});
+tabs(document.getElementById('topoTabs'), v => {
+  document.getElementById('topoBefore').hidden = v !== 'before';
+  document.getElementById('topoAfter').hidden = v !== 'after';
 });
 
 /* =========================================================================
