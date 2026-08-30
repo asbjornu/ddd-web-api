@@ -1269,6 +1269,616 @@ Perhaps the API is saying too little.
 
 # `</before>`
 
+# `<code-smells>`
+
+------------------------------------------------------------------------
+
+## 082a — Code smells are knowledge smells
+
+Before we go looking for a better model, I want to look inside the CRUD application once more.
+
+Not at the architecture diagram.
+
+At the code.
+
+Because there is another clue that we don't understand the domain well enough yet.
+
+Code smells.
+
+I don't mean that in the usual:
+
+“this method is too long, let's refactor it”
+
+sense.
+
+A lot of code smells are **knowledge smells**.
+
+They tell us that knowledge exists...
+
+but we haven't decided what it means,
+
+who owns it,
+
+or where it must be enforced.
+
+And that affects much more than code quality.
+
+It affects the domain model.
+
+It affects the API.
+
+And it affects security.
+
+------------------------------------------------------------------------
+
+## 082b — Primitive obsession
+
+Let's start with the most obvious one.
+
+```java
+void callElevator(
+    long elevatorId,
+    int floor,
+    String direction
+)
+```
+
+At the type-system level, all of these are perfectly reasonable:
+
+```text
+elevatorId = -400
+floor = 93
+direction = "sideways"
+```
+
+A `long` doesn't know what an elevator is.
+
+An `int` doesn't know what a floor is.
+
+A `String` doesn't know what a direction is.
+
+The domain knowledge has disappeared from the types.
+
+------------------------------------------------------------------------
+
+## 082c — An integer is not a floor
+
+So we compensate.
+
+```java
+if (floor < 1 || floor > 9) {
+    throw new IllegalArgumentException();
+}
+
+if (!direction.equals("UP")
+    && !direction.equals("DOWN")) {
+    throw new IllegalArgumentException();
+}
+```
+
+And then we compensate again at the HTTP boundary.
+
+And perhaps again in the frontend.
+
+And perhaps again in a test helper.
+
+The problem isn't validation itself.
+
+The problem is that we keep reconstructing the meaning that the primitive threw away.
+
+------------------------------------------------------------------------
+
+## 082d — Make invalid values harder to represent
+
+After the refactoring:
+
+```java
+ElevatorId
+Floor
+Direction
+Load
+```
+
+Those are not decorative wrapper classes.
+
+They reduce the number of meaningless values the rest of the application has to consider.
+
+A `Floor` can refuse `-400`.
+
+`Direction` cannot become `"sideways"`.
+
+`Load` can own what overloaded means instead of sending a number everywhere and hoping every consumer remembers the threshold.
+
+The larger the set of representable values...
+
+the larger the set of values we have to defend against.
+
+A richer domain model can shrink that space.
+
+------------------------------------------------------------------------
+
+## 082e — Domain-Driven Security
+
+This is where Domain-Driven Security becomes interesting.
+
+Dan Bergh Johnsson, Daniel Deogun and others in that community have explored the security consequences of taking the domain model seriously.
+
+Security bugs are not only malformed input, SQL injection, XSS, and broken crypto.
+
+Some attacks are made entirely out of technically legitimate operations.
+
+The HTTP is valid.
+
+The user may even be authenticated.
+
+Every primitive value may pass validation.
+
+And the action can still be nonsensical or dangerous **in the domain**.
+
+Consider:
+
+```http
+PATCH /elevators/1
+Content-Type: application/json
+
+{
+  "doorState": "OPEN"
+}
+```
+
+Perfectly valid JSON.
+
+Now imagine the elevator is moving.
+
+------------------------------------------------------------------------
+
+## 082f — “Valid” is a domain concept
+
+The security question is not merely:
+
+**Is this request well formed?**
+
+It is:
+
+**Can this elevator perform this operation, in this state, for this actor, now?**
+
+That is domain knowledge.
+
+And if our domain model cannot answer that question...
+
+some other layer will have to.
+
+Probably several of them.
+
+Primitive obsession is therefore not just ugly code.
+
+It expands the number of meaningless states and inputs that every boundary has to defend against.
+
+------------------------------------------------------------------------
+
+## 082g — Data clumps: something wants a name
+
+Now look at values that keep travelling together:
+
+```text
+floor
+direction
+timestamp
+```
+
+Whenever the same values keep appearing together, I start wondering whether we're looking at several fields...
+
+or one concept that hasn't been named yet.
+
+In this domain:
+
+```java
+LandingCall
+```
+
+And elsewhere:
+
+```java
+TravelPlan
+```
+
+The smell is called **Data Clumps**.
+
+The domain interpretation is:
+
+> This is one thing. Please give me a name.
+
+------------------------------------------------------------------------
+
+## 082h — Individually valid. Collectively nonsense.
+
+This has a security consequence too.
+
+Maybe:
+
+```text
+floor = 1
+direction = DOWN
+```
+
+contains two individually valid values.
+
+Floor one exists.
+
+DOWN is a real direction.
+
+Together, in this building, they may be meaningless.
+
+Validation gets interesting where individually valid values form an invalid sentence.
+
+A domain concept can validate the sentence.
+
+A bag of primitives can only validate the words.
+
+------------------------------------------------------------------------
+
+## 082i — Feature envy: the data has an owner, the behavior doesn't
+
+Then there is our request queue.
+
+The old code takes data out of the queue...
+
+sorts it,
+
+filters it,
+
+examines movement direction,
+
+examines the current floor,
+
+and decides which request should be served next.
+
+That is **Feature Envy**.
+
+The interesting problem isn't stylistic.
+
+The caller knows more about `RequestQueue` than `RequestQueue` does.
+
+After the refactoring, SCAN/LOOK ordering belongs to:
+
+```java
+RequestQueue
+```
+
+The object that owns the data also owns the rule.
+
+------------------------------------------------------------------------
+
+## 082j — Authority follows ownership
+
+That matters for the API.
+
+If the domain object doesn't own the behavior...
+
+the service has to interpret its data.
+
+Then the controller may interpret the result.
+
+Then the frontend may interpret the state.
+
+And eventually we have several implementations of what the queue means.
+
+It matters for security for the same reason.
+
+A domain object that cannot protect its own rules turns every caller into a potential implementation of those rules.
+
+The more interpreters we have...
+
+the more enforcement points we have to keep consistent.
+
+------------------------------------------------------------------------
+
+## 082k — Switch statements: the state machine has escaped
+
+Then we find this shape:
+
+```java
+switch (state) {
+    case MOVING_UP:
+        ...
+    case MOVING_DOWN:
+        ...
+    case IDLE:
+        ...
+    case DOORS_OPEN:
+        ...
+}
+```
+
+And another switch somewhere else.
+
+And then, in the frontend:
+
+```ts
+if (state !== "outOfService") {
+    showCallButton()
+}
+```
+
+The smell is **Switch Statements**.
+
+But the deeper problem is that the state machine has escaped its owner.
+
+------------------------------------------------------------------------
+
+## 082l — Every switch is a second opinion
+
+If a state value is something everybody can inspect...
+
+everybody can develop an opinion about what that state means.
+
+Add:
+
+```text
+EMERGENCY_RECALL
+```
+
+and now every switch statement is a place we might forget to update.
+
+That is a maintenance problem.
+
+It is an API problem because we send clients a state label and expect them to infer what can happen next.
+
+And it is a security problem because one forgotten state can become one forgotten restriction.
+
+Every `switch(state)` outside the owner of the state machine is a place where the domain can drift.
+
+------------------------------------------------------------------------
+
+## 082m — God object: everything knows nothing, so one thing knows everything
+
+And then we reach:
+
+```java
+ElevatorService
+```
+
+Five hundred and one lines in the original application.
+
+This is the predictable result of an anemic model.
+
+The controller is deliberately stupid.
+
+The persistence entity is deliberately data.
+
+The repository is deliberately generic.
+
+So where does the domain go?
+
+Into the service.
+
+Eventually `ElevatorService` means:
+
+> Everything about elevators that wasn't allowed to live anywhere more meaningful.
+
+------------------------------------------------------------------------
+
+## 082n — An anemic model doesn't remove complexity
+
+It relocates complexity into orchestration code.
+
+And then the HTTP API starts to mirror the service:
+
+```text
+/open-doors
+/close-doors
+/obstruct-doors
+/weight
+/maintenance
+/recall
+```
+
+One procedure.
+
+One endpoint.
+
+One little piece of the state machine exposed as RPC.
+
+The poor domain model and the poor API design are not two unrelated problems.
+
+The API is exposing the shape of the code we wrote because we never gave the domain a better shape to expose.
+
+------------------------------------------------------------------------
+
+## 082o — Long method: a state machine written as prose
+
+The original application also contains large methods such as:
+
+```java
+recomputeState(...)
+recomputeMovement(...)
+```
+
+Full of elapsed time,
+
+branches,
+
+state checks,
+
+and derived transitions.
+
+The code smell is **Long Method**.
+
+But when a long method contains a lot of:
+
+```text
+if this
+then that
+unless this
+after N seconds
+except when...
+```
+
+there is often a state machine or a process hiding inside it.
+
+------------------------------------------------------------------------
+
+## 082p — Name the transitions
+
+Once we model the transitions explicitly:
+
+```text
+MOVING
+   ↓ FloorReached
+IDLE
+
+DOORS_CLOSING
+   ↓ Obstructed
+DOORS_OPEN
+```
+
+we can ask a much stronger security question.
+
+Not:
+
+**Did we remember the right `if` statement?**
+
+But:
+
+**Which transitions exist?**
+
+And, equally important:
+
+**Which transitions do not exist?**
+
+The state machine is not only a design artifact.
+
+It is also a security boundary.
+
+------------------------------------------------------------------------
+
+## 082q — Shotgun surgery becomes shotgun validation
+
+Finally, look at a rule such as:
+
+**Only a technician may enter maintenance mode.**
+
+Before the refactoring, knowledge about privileged operations appears in several places:
+
+```text
+backend
+BFF
+Pinia store
+Vue v-if
+tests
+```
+
+Change the rule...
+
+and several places may need to change.
+
+That is **Shotgun Surgery**.
+
+For security-sensitive rules, I think there is an even better name:
+
+**Shotgun validation.**
+
+------------------------------------------------------------------------
+
+## 082r — Six implementations is not one invariant
+
+If an invariant has six implementations...
+
+we don't really have one invariant.
+
+We have six opinions that we hope agree.
+
+And the security of the whole system is determined by the weakest one.
+
+This is why concentrating knowledge is not merely a maintainability improvement.
+
+It gives us fewer enforcement points.
+
+Fewer opportunities for disagreement.
+
+Fewer places for an attacker—or an AI-generated patch—to find the copy we forgot.
+
+------------------------------------------------------------------------
+
+## 082s — The smells point at missing domain concepts
+
+So here is the pattern.
+
+```text
+Primitive Obsession
+    → Floor, Load, ElevatorId
+
+Data Clumps
+    → LandingCall, TravelPlan
+
+Feature Envy
+    → RequestQueue owns scheduling
+
+Switch Statements
+    → ElevatorState owns transitions
+
+God Object
+    → behavior moves into the domain
+
+Long Method
+    → explicit events and state transitions
+
+Shotgun Surgery
+    → one owner for authority and invariants
+```
+
+These aren't seven independent clean-code exercises.
+
+They are seven clues pointing toward the same thing:
+
+**our model is too weak.**
+
+------------------------------------------------------------------------
+
+## 082t — Three questions
+
+So when I see one of these smells now, I want to ask three questions.
+
+**Domain:**
+
+What concept or rule have we failed to model?
+
+**API:**
+
+What knowledge are we forcing across the network because the model doesn't own it?
+
+**Security:**
+
+How many places have to correctly reconstruct and enforce that knowledge?
+
+Those questions tend to lead to the same destination.
+
+------------------------------------------------------------------------
+
+## 082u — Move knowledge into constraints
+
+DDD asks:
+
+**Who owns this knowledge?**
+
+REST asks:
+
+**How should that knowledge shape the interaction?**
+
+Domain-Driven Security asks:
+
+**Can invalid uses become harder to represent rather than something every layer repeatedly checks?**
+
+Later, when we talk about AI, we are going to ask almost exactly the same question again.
+
+Don't put important knowledge in instructions...
+
+when you can put it in constraints.
+
+------------------------------------------------------------------------
+
+# `</code-smells>`
+
 # `<discovery>`
 
 ------------------------------------------------------------------------
@@ -8879,6 +9489,17 @@ Content-Type: application/json
 ```
 
 `@asbjornu`
+
+------------------------------------------------------------------------
+
+# Research notes for `<code-smells>`
+
+These notes are source material, not intended to be spoken verbatim.
+
+- The CRUD/refactoring plan explicitly identifies these smell-to-model moves: Primitive Obsession → `Floor`, `Load`, `ElevatorId`; Data Clumps → `LandingCall`, `TravelPlan`; Feature Envy → SCAN/LOOK ordering on `RequestQueue`; Switch Statements → sealed `ElevatorState`; God Object → deletion of `ElevatorService`; Long Method → replacement of `recomputeState` / `recomputeMovement` with scheduled events; Shotgun Surgery → authority represented once by a validated `Principal`.
+- The original API exposes command-like paths such as `/calls`, `/car-calls`, `/open-doors`, `/close-doors`, `/obstruct-doors`, `/clear-obstruction`, `/weight`, and `/maintenance`; the refactored API submits named commands through the elevator resource and lets clients discover them through hypermedia.
+- Domain-Driven Security is used here as a conceptual bridge: technically valid input and authenticated requests can still express semantically invalid or dangerous domain operations. The manuscript deliberately extends the familiar “make invalid values harder to represent” idea from domain primitives to valid combinations and state transitions.
+- Attribution note: Dan Bergh Johnsson and John Wilander coined “Domain-Driven Security”; Dan Bergh Johnsson, Daniel Deogun, and Daniel Sawano later developed the broader Secure by Design material. In the spoken talk, reference Dan Bergh Johnsson and Daniel Deogun's Domain-Driven Security work without implying that the term itself was coined by those two alone.
 
 ------------------------------------------------------------------------
 
