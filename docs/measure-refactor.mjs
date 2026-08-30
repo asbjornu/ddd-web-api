@@ -1296,9 +1296,27 @@ function renderMarkdown(m) {
     p(`### Measured, not estimated`);
     p();
     p(
-      `The actual \`./gradlew test\` wall-clock time for each worktree's`,
+      `The actual \`./gradlew test\` wall-clock time for each`,
     );
-    p(`full suite, on this machine:`);
+    p(
+      `worktree's **elevator-api** suite, on this machine. This does`,
+    );
+    p(
+      `not run elevator-ui's Playwright e2e suite (\`npm run test:e2e\`),`,
+    );
+    p(
+      `which needs a running stack (built containers/dev servers plus a`,
+    );
+    p(
+      `browser) rather than a single JVM process, and so is out of`,
+    );
+    p(
+      `scope for a quick, repeatable script like this one. Its case`,
+    );
+    p(
+      `count is unchanged either side (previous table), so there is no`,
+    );
+    p(`reason to expect its execution time changed either:`);
     p();
     p(`| | before | after |`);
     p(`|---|---|---|`);
