@@ -9671,3 +9671,23 @@ These notes are source material, not intended to be spoken verbatim.
     rather than relying on an agent to remember instructions. Source:
     Nick Tune, *Claude Code workflows as DSL-driven domain models*, 1
     March 2026.
+
+
+## Image sourcing policy
+
+All presentation imagery must be sourced from real, reusable online material. Do not use AI-generated or newly fabricated pseudo-historical illustrations. Historical claims should use genuine photographs of surviving sites/objects, archival photographs, patent drawings, or clearly identified later artworks. When no authentic depiction of the claimed object survives, the slide must say so rather than presenting a reconstruction as evidence. Image creator, license, and source URL belong in the speaker notes.
+
+### Sourced visual references
+
+- **Archimedes:** *Portret van Archimedes, RP-P-1909-1141*, Rijksmuseum; engraving dated 1615–1647; Wikimedia Commons; CC0. This is a later portrait of Archimedes, **not** a depiction of his elevator. https://commons.wikimedia.org/wiki/File:Portret_van_Archimedes,_RP-P-1909-1141.jpg
+- **Colosseum hypogeum:** Hyun-seon, *Vue sur l'hypogée du Colisée*, 2015; Wikimedia Commons; CC0. This is a modern photograph of the surviving hypogeum where the lift machinery operated. https://commons.wikimedia.org/wiki/File:Vue_sur_l%27hypog%C3%A9e_du_Colis%C3%A9e.jpg
+- **Elevator operator:** U.S. National Archives, *Elevator operator in New York City wearing mask*, 1918; Wikimedia Commons; public domain. https://commons.wikimedia.org/wiki/File:Medical_Department_-_Influenza_Epidemic_1918_-_MASKS_FOR_PROTECTION_AGAINST_INFLUENZA._Elevator_operator_in_New_York_City,_N.Y.,_wearing_mask_-_NARA_-_45499395.jpg
+- **Old elevator button:** Dejan Krsmanovic, *Old Elevator Button*, 2019; Wikimedia Commons/Flickr; CC BY 2.0. https://commons.wikimedia.org/wiki/File:Old_Elevator_Button_(40125399803).jpg
+- **Otis patent:** U.S. National Archives, *Elisha Otis's Elevator Patent Drawing*, 1861; Wikimedia Commons; public domain. https://commons.wikimedia.org/wiki/File:Elisha_Otis%27s_Elevator_Patent_Drawing_-_NARA_-_305889.jpg
+- **Event Storming:** Carsten Engel, *Event Storming Stickies*, 2018; Wikimedia Commons; CC BY-SA 4.0. https://commons.wikimedia.org/wiki/File:Event_Storming_Stickies.png
+- **Code smells / corrosion:** W.carter, *Very rusty chain*, 2017; Wikimedia Commons; CC0. https://commons.wikimedia.org/wiki/File:Very_rusty_chain.jpg
+- **Domain/security constraints:** Metropolitan Museum of Art, *Padlock and key*, Wikimedia Commons; CC0. https://commons.wikimedia.org/wiki/File:Padlock_and_key_MET_DP-13615-067.jpg
+- **Navigation/context metaphor:** Lorenzo Cafaro, Pexels, *Adventure City Country Destination*. https://www.pexels.com/photo/adventure-city-country-destination-240834/
+- **Affordance/direction metaphor:** Pixabay via Pexels, *Art Background Brick Brick Texture*. https://www.pexels.com/photo/art-background-brick-brick-texture-272254/
+- **State/constraint metaphor:** PhotoMIX Ltd., Pexels, *Traffic Lights with Red Light On*. https://www.pexels.com/photo/traffic-lights-with-red-light-on-190448/
+- **Guardrail metaphor:** Frans Van Heerden, Pexels, *Yellow and Black Road Concrete Barrier*. https://www.pexels.com/photo/yellow-and-black-road-concrete-barrier-638487/
