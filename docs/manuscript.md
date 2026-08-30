@@ -7610,35 +7610,389 @@ If the domain already knows an action is impossible...
 
 # `</agents>`
 
+# `<ai-guardrails>`
+
+------------------------------------------------------------------------
+
+## 811 --- Don't ask the agent to remember the architecture
+
+There is another consequence of concentrating knowledge.
+
+It changes the kind of code we ask AI to write.
+
+Nick Tune has been writing extensively about guardrails for coding
+agents.
+
+One of his recent arguments is that architectural rules should not
+merely live in Markdown files, ADRs, prompts, or skills.
+
+Because the agent can ignore those.
+
+Instead:
+
+**make the architecture enforce them.**
+
+If code in one subdomain reaches directly into another subdomain's
+domain model...
+
+fail the build.
+
+If infrastructure leaks into the domain model...
+
+fail the build.
+
+Don't just describe the architecture to the agent.
+
+Make violating it difficult.
+
+------------------------------------------------------------------------
+
+## 812 --- Code guides. Agents follow.
+
+Nick has taken the same idea into agent workflows.
+
+Instead of telling an agent:
+
+```text
+first plan
+then develop
+then review
+then commit
+```
+
+and hoping it remembers...
+
+he models the workflow as an explicit state machine.
+
+The current state determines which transitions and operations are legal.
+
+The workflow can reject an illegal transition.
+
+That should sound familiar.
+
+It is basically our elevator.
+
+------------------------------------------------------------------------
+
+## 813 --- The agent is another client
+
+This is the connection I find interesting.
+
+A coding agent is another client of our architecture.
+
+And we can make the same mistake with it that we made with our frontend.
+
+We can give it a giant instruction document...
+
+and expect it to reconstruct all the rules.
+
+Or we can move more of those rules into the system it operates.
+
+The question becomes:
+
+**How much knowledge does the agent have to carry in its context
+window?**
+
+That is surprisingly close to:
+
+**How much knowledge does the frontend have to carry in its code?**
+
+------------------------------------------------------------------------
+
+## 814 --- What if the architecture is the guardrail?
+
+Take one elevator rule.
+
+**The doors cannot open while the elevator is moving.**
+
+In the CRUD application, an AI changing that behavior has to discover
+where that rule has leaked.
+
+```text
+Vue component
+    ↓
+Pinia store
+    ↓
+BFF route
+    ↓
+controller
+    ↓
+service
+    ↓
+tests
+```
+
+Maybe it finds five copies.
+
+Maybe there are six.
+
+No prompt can make distributed knowledge stop being distributed.
+
+------------------------------------------------------------------------
+
+## 815 --- One owner
+
+After the refactoring:
+
+```text
+OpenDoors
+    ↓
+Elevator
+    ↓
+is this transition legal?
+```
+
+There is one owner of the invariant.
+
+The aggregate is the final authority.
+
+So if an AI needs to change the rule...
+
+there are fewer places in which it can plausibly put that knowledge.
+
+DDD becomes a guardrail.
+
+Not because DDD was invented for AI.
+
+Because concentrated knowledge gives both humans and machines fewer
+opportunities to contradict themselves.
+
+------------------------------------------------------------------------
+
+## 816 --- Hypermedia is a guardrail too
+
+Then hypermedia adds another kind of constraint.
+
+If opening the doors is not currently legal...
+
+we don't have to send the client an `open-doors` affordance.
+
+```diff
+- <form rel="open-doors" method="post">
+-   ...
+- </form>
+```
+
+The aggregate still validates the command if somebody manufactures one.
+
+Security and validation do not disappear.
+
+But the ordinary client doesn't need to independently know the rule just
+to construct its interface.
+
+**DDD constrains what the system may do.**
+
+**Hypermedia communicates what the client may do now.**
+
+And enforced architecture constrains **where the implementation may put
+the knowledge.**
+
+------------------------------------------------------------------------
+
+## 817 --- Reduce the degrees of freedom
+
+Put those together.
+
+```text
+Architecture
+    ↓
+Where may this knowledge live?
+
+Domain model
+    ↓
+What behavior is legal?
+
+Hypermedia
+    ↓
+What behavior is available now?
+```
+
+The AI can still generate a lot of code.
+
+But it has fewer degrees of freedom.
+
+And I think reducing degrees of freedom is one of the most useful things
+architecture can do for generative AI.
+
+------------------------------------------------------------------------
+
+## 818 --- Boring code may be a feature
+
+This also changes how I think about duplication.
+
+Our refactored backend contains more structurally repetitive code than
+before.
+
+Commands look like commands.
+
+Handlers look like handlers.
+
+Affordance contributors look like affordance contributors.
+
+A clone detector can look at that and say:
+
+**duplication increased.**
+
+Nick makes a related trade-off explicit in his work on enforced
+architecture:
+
+consistent, boring code can be easier to constrain mechanically than
+clever code with many equivalent shapes.
+
+That sounds less attractive if humans have to type all of it.
+
+But AI changes the economics.
+
+------------------------------------------------------------------------
+
+## 819 --- Let AI write the boring parts
+
+If AI makes boilerplate cheap...
+
+then eliminating every repeated protocol shape becomes less important.
+
+What remains expensive is duplicated **knowledge**.
+
+So I would rather have AI write the same dumb protocol adapter fifty
+times...
+
+than have it understand one business rule implemented five different
+ways.
+
+That is a very different optimization target.
+
+Don't optimize primarily for:
+
+**How little code can we write?**
+
+Optimize for:
+
+**How few places can disagree about what the business means?**
+
+------------------------------------------------------------------------
+
+## 820 --- Guardrails need fast feedback
+
+And a guardrail is much more useful when we can test it cheaply.
+
+Nick's workflow work is deliberately designed so workflow transitions
+and invariants can be exercised with ordinary unit tests.
+
+Our elevator refactoring produced the same effect for business behavior.
+
+Before:
+
+```text
+business rule
+    ↓
+Pinia store
+    ↓
+mocked HTTP endpoints
+    ↓
+frontend unit test
+```
+
+After:
+
+```text
+business rule
+    ↓
+RequestQueue
+    ↓
+plain unit test
+```
+
+We changed where the knowledge lives.
+
+Then the tests followed the knowledge.
+
+------------------------------------------------------------------------
+
+## 821 --- The feedback loop
+
+That gives an AI a much tighter loop.
+
+```text
+change domain behavior
+        ↓
+run focused domain tests
+        ↓
+observe failure
+        ↓
+correct behavior
+```
+
+Our isolated shared domain suite runs 70 tests without a Spring
+application context.
+
+The point isn't merely that unit tests are faster.
+
+The point is that the feedback is **closer to the knowledge being
+changed**.
+
+That matters for humans.
+
+It matters even more when code can be generated faster than we can
+review it.
+
+------------------------------------------------------------------------
+
+## 822 --- AI makes architecture more important
+
+So I don't think AI reduces the need for architecture.
+
+I think it increases the value of architecture that is explicit,
+constrained, and cheap to verify.
+
+Nick Tune's work calls one version of this:
+
+**enforced application architecture.**
+
+I think DDD and hypermedia give us complementary forms of the same idea.
+
+**DDD gives the AI fewer places to put domain knowledge.**
+
+**Hypermedia gives the client fewer things it needs to know.**
+
+**Fast tests tell us when we got the knowledge wrong.**
+
+The goal isn't to make AI understand our whole application.
+
+The goal is to design an application where it doesn't have to.
+
+------------------------------------------------------------------------
+
+# `</ai-guardrails>`
+
 # `<limits>`
 
 ------------------------------------------------------------------------
 
-## 811
+## 823
 
 Should every application work like this?
 
 ------------------------------------------------------------------------
 
-## 812
+## 824
 
 No.
 
 ------------------------------------------------------------------------
 
-## 813
+## 825
 
 Offline-first applications have different constraints.
 
 ------------------------------------------------------------------------
 
-## 814
+## 826
 
 High-frequency interactive applications have different constraints.
 
 ------------------------------------------------------------------------
 
-## 815
+## 827
 
 If you need client-side decisions at 60 frames per second...
 
@@ -7646,13 +8000,13 @@ don't round-trip every thought through a server.
 
 ------------------------------------------------------------------------
 
-## 816
+## 828
 
 Generic data APIs may genuinely be about data.
 
 ------------------------------------------------------------------------
 
-## 817
+## 829
 
 If client and server always deploy atomically...
 
@@ -7660,13 +8014,13 @@ some forms of coupling are less costly.
 
 ------------------------------------------------------------------------
 
-## 818
+## 830
 
 And this architecture has machinery.
 
 ------------------------------------------------------------------------
 
-## 819
+## 831
 
 Commands.
 
@@ -7682,44 +8036,44 @@ Schedulers.
 
 ------------------------------------------------------------------------
 
-## 820
+## 832
 
 That cost is real.
 
 ------------------------------------------------------------------------
 
-## 821
+## 833
 
 This is also a nine-floor elevator demo.
 
 ------------------------------------------------------------------------
 
-## 822
+## 834
 
 It demonstrates architectural properties.
 
 ------------------------------------------------------------------------
 
-## 823
+## 835
 
 It does not economically prove that you should rebuild your bank like
 this.
 
 ------------------------------------------------------------------------
 
-## 824
+## 836
 
 And our bespoke state JSON format?
 
 ------------------------------------------------------------------------
 
-## 825
+## 837
 
 Useful for teaching.
 
 ------------------------------------------------------------------------
 
-## 826
+## 838
 
 Not necessarily something I would standardize the world on.
 
@@ -7731,13 +8085,13 @@ Not necessarily something I would standardize the world on.
 
 ------------------------------------------------------------------------
 
-## 827
+## 839
 
 Let's put the two systems next to each other.
 
 ------------------------------------------------------------------------
 
-## 828 --- Before
+## 840 --- Before
 
 ```text
 GET state
@@ -7759,7 +8113,7 @@ interpret again
 
 ------------------------------------------------------------------------
 
-## 829 --- After
+## 841 --- After
 
 ```text
 GET representation
@@ -7781,7 +8135,7 @@ new possibilities
 
 ------------------------------------------------------------------------
 
-## 830
+## 842
 
 For a machine:
 
@@ -7789,7 +8143,7 @@ hypermedia.
 
 ------------------------------------------------------------------------
 
-## 831
+## 843
 
 For a person:
 
@@ -7797,32 +8151,32 @@ HTML.
 
 ------------------------------------------------------------------------
 
-## 832
+## 844
 
 Same model.
 
 ------------------------------------------------------------------------
 
-## 833
+## 845
 
 Same possibilities.
 
 ------------------------------------------------------------------------
 
-## 834
+## 846
 
 Different representation.
 
 ------------------------------------------------------------------------
 
-## 835 --- The real before/after
+## 847 --- The real before/after
 
 But the architectural diagram isn't actually the most interesting before
 and after.
 
 ------------------------------------------------------------------------
 
-## 836
+## 848
 
 Before:
 
@@ -7830,7 +8184,7 @@ Before:
 
 ------------------------------------------------------------------------
 
-## 837
+## 849
 
 After:
 
@@ -7838,7 +8192,7 @@ After:
 
 ------------------------------------------------------------------------
 
-## 838
+## 850
 
 Before:
 
@@ -7846,7 +8200,7 @@ Before:
 
 ------------------------------------------------------------------------
 
-## 839
+## 851
 
 After:
 
@@ -7854,7 +8208,7 @@ After:
 
 ------------------------------------------------------------------------
 
-## 840
+## 852
 
 Before:
 
@@ -7862,7 +8216,7 @@ Before:
 
 ------------------------------------------------------------------------
 
-## 841
+## 853
 
 After:
 
@@ -7870,7 +8224,7 @@ After:
 
 ------------------------------------------------------------------------
 
-## 842
+## 854
 
 Before:
 
@@ -7878,7 +8232,7 @@ Before:
 
 ------------------------------------------------------------------------
 
-## 843
+## 855
 
 After:
 
@@ -7892,25 +8246,25 @@ After:
 
 ------------------------------------------------------------------------
 
-## 844
+## 856
 
 I said at the beginning that this talk was really about knowledge.
 
 ------------------------------------------------------------------------
 
-## 845
+## 857
 
 So let's measure coupling differently.
 
 ------------------------------------------------------------------------
 
-## 846
+## 858
 
 Who knows how many floors the building has?
 
 ------------------------------------------------------------------------
 
-## 847
+## 859
 
 Before:
 
@@ -7924,7 +8278,7 @@ components.
 
 ------------------------------------------------------------------------
 
-## 848
+## 860
 
 After:
 
@@ -7932,13 +8286,13 @@ the domain.
 
 ------------------------------------------------------------------------
 
-## 849
+## 861
 
 Who knows when doors may close?
 
 ------------------------------------------------------------------------
 
-## 850
+## 862
 
 Before:
 
@@ -7950,7 +8304,7 @@ probably a button somewhere.
 
 ------------------------------------------------------------------------
 
-## 851
+## 863
 
 After:
 
@@ -7958,13 +8312,13 @@ the domain.
 
 ------------------------------------------------------------------------
 
-## 852
+## 864
 
 Who knows how overload affects floor selection?
 
 ------------------------------------------------------------------------
 
-## 853
+## 865
 
 Before:
 
@@ -7972,7 +8326,7 @@ server and client.
 
 ------------------------------------------------------------------------
 
-## 854
+## 866
 
 After:
 
@@ -7980,13 +8334,13 @@ the domain.
 
 ------------------------------------------------------------------------
 
-## 855
+## 867
 
 Who knows the elevator URL?
 
 ------------------------------------------------------------------------
 
-## 856
+## 868
 
 Before:
 
@@ -7994,7 +8348,7 @@ the client.
 
 ------------------------------------------------------------------------
 
-## 857
+## 869
 
 After:
 
@@ -8002,13 +8356,13 @@ the representation.
 
 ------------------------------------------------------------------------
 
-## 858
+## 870
 
 Who knows whether this user may enter maintenance?
 
 ------------------------------------------------------------------------
 
-## 859
+## 871
 
 Before:
 
@@ -8020,7 +8374,7 @@ backend code.
 
 ------------------------------------------------------------------------
 
-## 860
+## 872
 
 After:
 
@@ -8030,13 +8384,13 @@ The affordance exposes the consequence.
 
 ------------------------------------------------------------------------
 
-## 861
+## 873
 
 Who knows which button to show?
 
 ------------------------------------------------------------------------
 
-## 862
+## 874
 
 Before:
 
@@ -8044,7 +8398,7 @@ the frontend interprets the domain.
 
 ------------------------------------------------------------------------
 
-## 863
+## 875
 
 After:
 
@@ -8052,25 +8406,25 @@ the API renders the affordance.
 
 ------------------------------------------------------------------------
 
-## 864
+## 876
 
 That's the architectural change I care about.
 
 ------------------------------------------------------------------------
 
-## 865
+## 877
 
 Not fewer classes.
 
 ------------------------------------------------------------------------
 
-## 866
+## 878
 
 Not more patterns.
 
 ------------------------------------------------------------------------
 
-## 867
+## 879
 
 **Fewer copies of knowledge.**
 
@@ -8082,91 +8436,91 @@ Not more patterns.
 
 ------------------------------------------------------------------------
 
-## 868
+## 880
 
 And tests now become part of that knowledge system.
 
 ------------------------------------------------------------------------
 
-## 869
+## 881
 
 Every interesting product question can become an executable example.
 
 ------------------------------------------------------------------------
 
-## 870
+## 882
 
 What happens when recall starts during movement?
 
 ------------------------------------------------------------------------
 
-## 871
+## 883
 
 Test it.
 
 ------------------------------------------------------------------------
 
-## 872
+## 884
 
 What happens when doors are obstructed?
 
 ------------------------------------------------------------------------
 
-## 873
+## 885
 
 Test it.
 
 ------------------------------------------------------------------------
 
-## 874
+## 886
 
 What can a rider do when overloaded?
 
 ------------------------------------------------------------------------
 
-## 875
+## 887
 
 Affordance test.
 
 ------------------------------------------------------------------------
 
-## 876
+## 888
 
 What can a technician do?
 
 ------------------------------------------------------------------------
 
-## 877
+## 889
 
 Affordance test.
 
 ------------------------------------------------------------------------
 
-## 878
+## 890
 
 What should the view show after FloorReached?
 
 ------------------------------------------------------------------------
 
-## 879
+## 891
 
 Projection test.
 
 ------------------------------------------------------------------------
 
-## 880
+## 892
 
 The suite accumulates understanding.
 
 ------------------------------------------------------------------------
 
-## 881
+## 893
 
 The old tests protected our implementation.
 
 ------------------------------------------------------------------------
 
-## 882
+## 894
 
 The new tests protect our understanding of the product.
 
@@ -8178,7 +8532,7 @@ The new tests protect our understanding of the product.
 
 ------------------------------------------------------------------------
 
-## 883
+## 895
 
 So this talk is not:
 
@@ -8186,7 +8540,7 @@ CRUD bad.
 
 ------------------------------------------------------------------------
 
-## 884
+## 896
 
 It's not:
 
@@ -8194,7 +8548,7 @@ JSON bad.
 
 ------------------------------------------------------------------------
 
-## 885
+## 897
 
 It's not:
 
@@ -8202,7 +8556,7 @@ Everyone should use Siren.
 
 ------------------------------------------------------------------------
 
-## 886
+## 898
 
 It's not:
 
@@ -8210,19 +8564,19 @@ Server-side HTML solves software.
 
 ------------------------------------------------------------------------
 
-## 887
+## 899
 
 It's about essential and accidental complexity.
 
 ------------------------------------------------------------------------
 
-## 888
+## 900
 
 The elevator has real complexity.
 
 ------------------------------------------------------------------------
 
-## 889
+## 901
 
 Movement.
 
@@ -8242,133 +8596,133 @@ Time.
 
 ------------------------------------------------------------------------
 
-## 890
+## 902
 
 We can't delete that complexity.
 
 ------------------------------------------------------------------------
 
-## 891
+## 903
 
 But we can decide where it lives.
 
 ------------------------------------------------------------------------
 
-## 892
+## 904
 
 And we can stop copying it.
 
 ------------------------------------------------------------------------
 
-## 893
+## 905
 
 DDD gives us one place to understand the domain.
 
 ------------------------------------------------------------------------
 
-## 894
+## 906
 
 Hypermedia gives us a way to communicate what the domain permits.
 
 ------------------------------------------------------------------------
 
-## 895
+## 907
 
 HTML lets us communicate it directly to a person.
 
 ------------------------------------------------------------------------
 
-## 896
+## 908
 
 Tests give us a way to remember why.
 
 ------------------------------------------------------------------------
 
-## 897
+## 909
 
 And the metrics give us evidence that something structural changed.
 
 ------------------------------------------------------------------------
 
-## 898
+## 910
 
 But the metrics are not the whole value.
 
 ------------------------------------------------------------------------
 
-## 899
+## 911
 
 The thing I care most about is difficult to count.
 
 ------------------------------------------------------------------------
 
-## 900
+## 912
 
 We understand the product better than we did before.
 
 ------------------------------------------------------------------------
 
-## 901
+## 913
 
 And the code now contains more of that understanding.
 
 ------------------------------------------------------------------------
 
-## 902
+## 914
 
 I just can't prove it with `scc`.
 
 ------------------------------------------------------------------------
 
-## 903
+## 915
 
 Which is unfortunate.
 
 ------------------------------------------------------------------------
 
-## 904
+## 916
 
 But I think it's a pretty good trade.
 
 ------------------------------------------------------------------------
 
-## 905
+## 917
 
 The application wins.
 
 ------------------------------------------------------------------------
 
-## 906
+## 918
 
 The users win.
 
 ------------------------------------------------------------------------
 
-## 907
+## 919
 
 We win.
 
 ------------------------------------------------------------------------
 
-## 908
+## 920
 
 And perhaps this matters even more as code becomes cheaper.
 
 ------------------------------------------------------------------------
 
-## 909
+## 921
 
 Because if AI can produce another controller in seconds...
 
 ------------------------------------------------------------------------
 
-## 910
+## 922
 
 ...then producing controllers is not our scarce skill.
 
 ------------------------------------------------------------------------
 
-## 911
+## 923
 
 Knowing whether the controller should exist...
 
@@ -8376,7 +8730,7 @@ might be.
 
 ------------------------------------------------------------------------
 
-## 912
+## 924
 
 Knowing what behavior it represents...
 
@@ -8384,7 +8738,7 @@ might be.
 
 ------------------------------------------------------------------------
 
-## 913
+## 925
 
 Knowing what the business means...
 
@@ -8392,7 +8746,7 @@ definitely is.
 
 ------------------------------------------------------------------------
 
-## 914
+## 926
 
 So when you go back to your own APIs...
 
@@ -8400,109 +8754,109 @@ ask one question.
 
 ------------------------------------------------------------------------
 
-## 915
+## 927
 
 **What does the client know that the server could know instead?**
 
 ------------------------------------------------------------------------
 
-## 916
+## 928
 
 Maybe it knows a URL.
 
 ------------------------------------------------------------------------
 
-## 917
+## 929
 
 Maybe it knows a business rule.
 
 ------------------------------------------------------------------------
 
-## 918
+## 930
 
 Maybe it knows which transition is legal.
 
 ------------------------------------------------------------------------
 
-## 919
+## 931
 
 Maybe it knows which values are permitted.
 
 ------------------------------------------------------------------------
 
-## 920
+## 932
 
 Maybe it knows which button should exist.
 
 ------------------------------------------------------------------------
 
-## 921
+## 933
 
 And when you find that knowledge...
 
 ------------------------------------------------------------------------
 
-## 922
+## 934
 
 don't immediately ask:
 
 ------------------------------------------------------------------------
 
-## 923
+## 935
 
 **How do I move this `if` statement to the backend?**
 
 ------------------------------------------------------------------------
 
-## 924
+## 936
 
 Ask:
 
 ------------------------------------------------------------------------
 
-## 925
+## 937
 
 **What does this knowledge tell me about my domain?**
 
 ------------------------------------------------------------------------
 
-## 926
+## 938
 
 Because that may be the more valuable discovery.
 
 ------------------------------------------------------------------------
 
-## 927
+## 939
 
 And if the domain knows what happens next...
 
 ------------------------------------------------------------------------
 
-## 928
+## 940
 
 let the domain decide.
 
 ------------------------------------------------------------------------
 
-## 929
+## 941
 
 Let the API tell the client.
 
 ------------------------------------------------------------------------
 
-## 930
+## 942
 
 Let the client follow.
 
 ------------------------------------------------------------------------
 
-## 931
+## 943
 
 And let the team...
 
 ------------------------------------------------------------------------
 
-## 932
+## 944
 
 understand why.
 
@@ -8510,7 +8864,7 @@ understand why.
 
 # `</closing>`
 
-## 933 --- Final slide
+## 945 --- Final slide
 
 ```http
 HTTP/1.1 200 OK
@@ -8540,6 +8894,7 @@ These notes are source material, not intended to be spoken verbatim.
     simple enough that a child could operate the car safely. Source: Lee
     Gray, *The History of Operatorless Elevators: John D. Ihlder*,
     Elevator World, 2023.
+
 -   **Early self-service protocol:** Early passenger-operated elevators
     could require the passenger to summon the car, manually open and
     close doors, select the destination, and again open and close doors
@@ -8547,15 +8902,34 @@ These notes are source material, not intended to be spoken verbatim.
     responsibilities and improved traffic handling. Source: Lee Gray,
     *The History of Operatorless Elevators: Traffic Control Systems
     (Part Two)*, Elevator World, 2023.
+
 -   **1948 Elevoice:** Otis offered a prerecorded voice while elevators
     still had attendants, two years before attendant-free Autotronic
     systems. It could tell passengers holding the door to let it close
     because they were delaying service. Source: Otis history timeline.
+
 -   **1948 elevator music:** Otis says Chicago's Palmolive Building was
     the first building where it piped music into elevators;
     psychologists theorized that soft music might distract passengers
     from building sway. Source: Otis history timeline.
+
 -   **1950 operatorless high-speed elevator:** Otis says the Atlantic
     Refining Building in Dallas was the world's first building with its
     high-speed no-operator Autotronic elevators. Source: Otis history
     timeline.
+
+-   **AI guardrails / enforced architecture:** Nick Tune argues that
+    architectural constraints should be mechanically enforced rather
+    than merely documented in Markdown, ADRs, or agent skills; his
+    examples include package classification, layer rules,
+    domain-boundary rules, and build failures for violations. Source:
+    Nick Tune, *Enforced application architecture for agents and
+    humans*, 13 August 2026.
+
+-   **Agent workflows as domain models:** Tune models coding-agent
+    workflows as explicit state machines/aggregates with allowed
+    operations, transition guards, type safety, and unit tests. He
+    summarizes the principle as "code guides, agents follow": use code
+    rather than relying on an agent to remember instructions. Source:
+    Nick Tune, *Claude Code workflows as DSL-driven domain models*, 1
+    March 2026.
