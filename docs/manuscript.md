@@ -2359,6 +2359,191 @@ Knowledge accumulated.
 
 ---
 
+
+## 245a — The test moved to the owner
+
+There is another architectural payoff here.
+
+A business rule used to be tested in the front-end because the front-end contained a copy of the rule.
+
+```diff
+-// elevator-ui/test/unit/elevatorStore.test.ts
+-registerEndpoint('/api/key', { method: 'GET', handler: () => ... })
+-registerEndpoint('/api/key', { method: 'POST', handler: ... })
+-registerEndpoint('/api/elevators/1/status', { ... })
+-// ...three more mocked endpoints
+-it('filters served calls out of pendingCalls', () => { ... })
++
++// elevator-api RequestQueueTest.java
++void twoRidersPressingTheSameLandingButtonIsOneCall() {
++  RequestQueue queue = RequestQueue.empty();
++  queue.addLanding(new LandingCall(new Floor(3), Direction.UP));
++  boolean addedAgain =
++      queue.addLanding(new LandingCall(new Floor(3), Direction.UP));
++  assertThat(addedAgain).isFalse();
++}
+```
+
+The important change is not TypeScript to Java.
+
+It is **distance from the rule**.
+
+The old test needed a Pinia store, mocked HTTP endpoints and client-side reconstruction before it could assert a business rule.
+
+The new test instantiates the type that owns the rule.
+
+---
+
+## 245b — Wrong tier → right tier
+
+Before, `elevator-ui/test/unit/elevatorStore.test.ts` was 182 lines.
+
+Its test names included:
+
+- `filters served calls out of pendingCalls`
+- `collects pending floors from both call types`
+
+Those are domain questions.
+
+But they were being asked in the client tier because the client had learned enough of the domain to need its own unit tests.
+
+After the refactoring, that client-side unit suite is gone:
+
+```diff
+-elevator-ui/test/unit/elevatorStore.test.ts
+-9 client-side unit test cases
+-5 mocked HTTP endpoints
+-Pinia store setup
+```
+
+The behavior did not become untested.
+
+The tests moved closer to the model that owns the behavior.
+
+---
+
+## 245c — Integration pressure becomes unit-test precision
+
+Before:
+
+**0 backend unit-test methods.**
+
+**47 Spring-context test methods.**
+
+Every elevator-api test file needed Spring.
+
+After:
+
+**143 backend unit-test methods.**
+
+**68 Spring-context test methods.**
+
+Only **39.1%** of elevator-api test files need a Spring context.
+
+This is not “unit tests good, integration tests bad.”
+
+We still have integration tests.
+
+We still have end-to-end tests.
+
+But a domain rule no longer needs an application context merely to exist.
+
+---
+
+## 245d — More tests, almost the same wall clock
+
+Measured on the same machine:
+
+```text
+                 before       after
+tests executed      47          211
+wall clock        27.9s        28.4s
+avg / test         593ms       134.6ms
+```
+
+We run **4.5× as many tests** in essentially the same total wall-clock time.
+
+Average time per test is **4.4× lower**.
+
+The total time is noisy because JVM and Gradle startup dominate both runs.
+
+The per-test number exposes the architectural difference more clearly.
+
+---
+
+## 245e — The domain feedback loop
+
+Isolate `shared/domain`.
+
+**70 tests.**
+
+No `@SpringBootTest`.
+
+No application context.
+
+No embedded H2 database.
+
+**2.7 seconds total.**
+
+**38 ms per test**, including JVM startup for that isolated run.
+
+That changes the feedback loop.
+
+A product question can become an executable example without first booting the application.
+
+---
+
+## 245f — The end-to-end suite did not magically get faster
+
+The Playwright suite is effectively unchanged:
+
+```text
+crud: 8.3–9.6s
+main: 7.4–9.2s
+```
+
+That difference is normal run-to-run noise.
+
+Both suites are dominated by Nuxt dev-server cold start and Chromium launch.
+
+And both deliberately avoid calling `elevator-api`.
+
+So the front-end timing does **not** strengthen the speed argument.
+
+The gain is elsewhere:
+
+**rules that used to require client plumbing can now be tested as backend domain units.**
+
+---
+
+## 245g — Test pyramid as a consequence, not a target
+
+We did not begin by saying:
+
+“we need more unit tests.”
+
+We changed where knowledge lives.
+
+Then the tests followed the knowledge.
+
+```text
+Before
+  browser / store / mocked HTTP
+             ↓
+       business assertion
+
+After
+       domain object
+             ↓
+       business assertion
+```
+
+The test pyramid improved because the architecture made the lower layer meaningful.
+
+That is a much stronger reason than chasing a ratio.
+
+---
+
 # `</tests>`
 
 # `<cqrs>`
@@ -6206,6 +6391,83 @@ But it does show where framework coupling now lives.
 ## 696
 
 Outside the domain.
+
+---
+
+
+## 696a — Test proximity
+
+Framework coupling is not only an upgrade concern.
+
+It changes the cost of asking a question.
+
+Before, elevator-api had:
+
+**0 unit-test files / 0 unit-test methods**
+
+and:
+
+**8 Spring-context files / 47 methods.**
+
+After:
+
+**28 unit-test files / 143 methods**
+
+and:
+
+**18 Spring-context files / 68 methods.**
+
+The integration suite grew too.
+
+But it stopped being the only place where behavior could be verified.
+
+---
+
+## 696b — Test throughput
+
+The complete elevator-api suite went from:
+
+**47 tests in 27.9 seconds**
+
+to:
+
+**211 tests in 28.4 seconds.**
+
+That is:
+
+**4.5× more tests**
+
+at essentially the same wall-clock time.
+
+Average per test:
+
+**593 ms → 134.6 ms**
+
+or about **4.4× lower**.
+
+---
+
+## 696c — What disappeared from the front-end
+
+The front-end end-to-end suite remains:
+
+**1 spec / 2 cases**
+
+before and after.
+
+The client-side unit suite does not.
+
+```diff
+-1 client-side unit test file
+-9 client-side unit test cases
+-182 lines testing store/domain reconstruction
+```
+
+That is not a reduction in confidence.
+
+It is a reduction in duplicated responsibility.
+
+The rules are now tested where they live.
 
 ---
 
