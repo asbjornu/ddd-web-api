@@ -581,14 +581,17 @@ function main() {
       [".ts"],
     );
     const testCaseRegex = /\b(?:it|test)\(/g;
+    const assertionRegex = /\bexpect\(/g;
     const uiTests = {
       beforeE2e: {
         files: beforeE2eFiles.length,
         cases: countMatches(beforeE2eFiles, testCaseRegex),
+        assertions: countMatches(beforeE2eFiles, assertionRegex),
       },
       afterE2e: {
         files: afterE2eFiles.length,
         cases: countMatches(afterE2eFiles, testCaseRegex),
+        assertions: countMatches(afterE2eFiles, assertionRegex),
       },
       beforeClientUnit: {
         files: beforeClientUnitFiles.length,
@@ -1237,6 +1240,9 @@ function renderMarkdown(m) {
     `| elevator-ui: e2e spec files / cases | ${ui.beforeE2e.files} / ${ui.beforeE2e.cases} | ${ui.afterE2e.files} / ${ui.afterE2e.cases} |`,
   );
   p(
+    `| ... their assertions (\`expect(\`) | ${ui.beforeE2e.assertions} | ${ui.afterE2e.assertions} |`,
+  );
+  p(
     `| elevator-ui: client-side unit test files / cases | ${ui.beforeClientUnit.files} / ${ui.beforeClientUnit.cases} | ${ui.afterClientUnit.files} / ${ui.afterClientUnit.cases} |`,
   );
   p();
@@ -1247,10 +1253,25 @@ function renderMarkdown(m) {
     `files need a full Spring context. After: ${round1((ac.contextFiles / (ac.unitFiles + ac.contextFiles)) * 100)}%. The e2e suite`,
   );
   p(
-    `is essentially unchanged in size (it still covers the same shell/`,
+    `is essentially unchanged in case count (it still covers the same`,
   );
   p(
-    `interaction chrome) -- what disappeared is the`,
+    `shell/interaction chrome), though its assertion count dropped`,
+  );
+  p(
+    `(${ui.beforeE2e.assertions} -> ${ui.afterE2e.assertions}): the after spec's own comment says why --`,
+  );
+  p(
+    `more of the page is now legitimately rendered by elevator-api`,
+  );
+  p(
+    `itself and morphed in by Datastar, so there is less static Nuxt`,
+  );
+  p(
+    `markup left for a shell-only smoke test to assert on. What`,
+  );
+  p(
+    `disappeared entirely is the`,
   );
   p(
     `${ui.beforeClientUnit.lines}-line client-side unit test suite, which existed`,
@@ -1299,24 +1320,8 @@ function renderMarkdown(m) {
       `The actual \`./gradlew test\` wall-clock time for each`,
     );
     p(
-      `worktree's **elevator-api** suite, on this machine. This does`,
+      `worktree's **elevator-api** suite, on this machine:`,
     );
-    p(
-      `not run elevator-ui's Playwright e2e suite (\`npm run test:e2e\`),`,
-    );
-    p(
-      `which needs a running stack (built containers/dev servers plus a`,
-    );
-    p(
-      `browser) rather than a single JVM process, and so is out of`,
-    );
-    p(
-      `scope for a quick, repeatable script like this one. Its case`,
-    );
-    p(
-      `count is unchanged either side (previous table), so there is no`,
-    );
-    p(`reason to expect its execution time changed either:`);
     p();
     p(`| | before | after |`);
     p(`|---|---|---|`);
@@ -1377,6 +1382,52 @@ function renderMarkdown(m) {
       `this codebase's test config) often a fresh context per class`,
     );
     p(`rather than a shared, cached one).`);
+    p();
+    p(`### Does running the front-end tests change any of this?`);
+    p();
+    p(
+      `Checked by hand (not automated here -- \`npm run test:e2e\` needs`,
+    );
+    p(
+      `a Nuxt dev server and a browser, plus a fresh \`npm install\` per`,
+    );
+    p(
+      `worktree, none of which this script wires up): \`elevator-ui\`'s`,
+    );
+    p(
+      `Playwright suite ran in **8.3-9.6s on \`crud\`** and`,
+    );
+    p(
+      `**7.4-9.2s on \`main\`**, across two runs each -- indistinguishable`,
+    );
+    p(
+      `within normal run-to-run noise, dominated by fixed Nuxt`,
+    );
+    p(
+      `dev-server cold start and Chromium launch. This is expected, not`,
+    );
+    p(
+      `a gap in the measurement: both spec files say in their own`,
+    );
+    p(
+      `comments that they deliberately never call elevator-api --`,
+    );
+    p(
+      `\`"renders ... regardless of whether elevator-api is reachable"\`.`,
+    );
+    p(
+      `Running the front-end tests does not strengthen the speed`,
+    );
+    p(
+      `argument, because they are not built to exercise the thing that`,
+    );
+    p(
+      `changed (the backend, and whether a BFF sits in front of it) --`,
+    );
+    p(
+      `and reporting a null result honestly is worth more here than`,
+    );
+    p(`a number dressed up to look like it supports the story.`);
     p();
   } else {
     p(`### Measured, not estimated`);
