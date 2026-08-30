@@ -139,6 +139,112 @@ we should probably be quite careful about where we put it.
 
 ------------------------------------------------------------------------
 
+## 008 --- The elevator is older than the passenger elevator
+
+Before operators.
+
+Before push buttons.
+
+Before electricity.
+
+Before steel cables.
+
+People were already building machines to move things vertically.
+
+The elevator is not really a nineteenth-century invention.
+
+The nineteenth century is when it became a **safe, scalable interface for people**.
+
+That distinction matters for the rest of this talk.
+
+Because the interesting history is not only what the machine could do.
+
+It is how much knowledge the person using it needed to have.
+
+------------------------------------------------------------------------
+
+## 009 --- Third century BC: Archimedes
+
+The earliest commonly cited ancestor of the elevator goes back to ancient Greece.
+
+Archimedes is generally credited with an elevator-like lifting device in the third century BC.
+
+Think rope.
+
+Pulley.
+
+Winch.
+
+Human or animal power.
+
+The essential capability was already there:
+
+**move a load vertically without carrying it up the stairs.**
+
+But notice what was not there.
+
+No passenger interface.
+
+No automatic control.
+
+No safety interlock.
+
+No machine deciding what should happen next.
+
+The mechanism amplified force.
+
+The operator still supplied the protocol.
+
+------------------------------------------------------------------------
+
+## 010 --- 80 AD: the Colosseum had an elevator system
+
+And then the Romans scaled the idea.
+
+Under the Colosseum was the hypogeum: corridors, cages, scenery, people, animals... and lifting machinery.
+
+The archaeological park documents 28 windlass-operated freight elevators in the Flavian period.
+
+To operate all 28 at once required **224 people**.
+
+Later configurations used as many as 60 smaller lifts.
+
+This is not one clever hoist.
+
+This is an elevator **system**.
+
+Hidden machinery below the arena.
+
+Platforms and cages as resources.
+
+Trap doors as the interface to the arena.
+
+And a large human workforce coordinating the protocol.
+
+Two thousand years ago, the server room was under the Colosseum.
+
+And it had 224 threads.
+
+------------------------------------------------------------------------
+
+## 010a --- The capability came first. The interface came much later.
+
+So by the time we reach the nineteenth century, lifting things vertically is not the new idea.
+
+Humans have been doing that for more than two millennia.
+
+The hard problem for the passenger elevator is different:
+
+**How do we let an ordinary person safely express intent without understanding the machinery?**
+
+That is where the history becomes surprisingly relevant to API design.
+
+Because from here on, elevator innovation repeatedly moves knowledge out of the user...
+
+and into the system.
+
+------------------------------------------------------------------------
+
 ## 011 --- Elevators used to have an API specialist
 
 Before we look at my elevator, I want to look at a real one.
@@ -9504,6 +9610,17 @@ These notes are source material, not intended to be spoken verbatim.
 ------------------------------------------------------------------------
 
 # Research notes for `<elevator>`
+
+### Early elevator history additions
+
+- **Archimedes:** Otis describes Archimedes as generally credited with creating the first elevator-like device in the third century BC. This is best presented as a commonly credited origin, not as a surviving machine whose exact construction is known. Source: Otis, *High-Rise Safety Systems*, https://www.otis.com/en/us/tools-resources/high-rise-safety-systems/
+
+- **Colosseum hypogeum:** The official Parco archeologico del Colosseo documents 28 windlasses and freight elevators in the Flavian period, requiring 224 people to operate simultaneously, plus 20 mobile scenery platforms. In the Severan period the system was replaced by 60 smaller lifts for people and animals. Source: Parco archeologico del Colosseo, *Elevators and platforms, or the machinery behind the show*, https://colosseo.it/en/opere/elevators-and-platforms-or-the-machinery-behind-the-show/
+
+- **Visual reference:** Hyun-seon, *View on the Hypogeum in the Colosseum*, Wikimedia Commons, CC0 1.0, https://commons.wikimedia.org/wiki/File:Vue_sur_l%27hypog%C3%A9e_du_Colis%C3%A9e.jpg
+
+- **Archimedes visual reference:** Nicolò Barabino, *Archimedes*, public-domain painting/reproduction, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Archimedes.jpg
+
 
 These notes are source material, not intended to be spoken verbatim.
 
