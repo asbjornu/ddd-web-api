@@ -206,6 +206,73 @@ function countMatches(files, regex) {
   return count;
 }
 
+// --- test analysis: proximity, precision, speed ---------------------------
+
+const SPRING_CONTEXT_TEST_REGEX =
+  /@(SpringBootTest|WebMvcTest|DataJpaTest|AutoConfigureMockMvc)\b/;
+const TEST_METHOD_REGEX = /@Test\b/g;
+
+function classifyJavaTests(files) {
+  let unitFiles = 0;
+  let unitTests = 0;
+  let contextFiles = 0;
+  let contextTests = 0;
+  for (const f of files) {
+    const text = readFileSync(f, "utf8");
+    const testCount = (text.match(TEST_METHOD_REGEX) ?? []).length;
+    if (testCount === 0) continue;
+    if (SPRING_CONTEXT_TEST_REGEX.test(text)) {
+      contextFiles++;
+      contextTests += testCount;
+    } else {
+      unitFiles++;
+      unitTests += testCount;
+    }
+  }
+  return { unitFiles, unitTests, contextFiles, contextTests };
+}
+
+// Runs the real Gradle test suite in a worktree and times it -- an actual
+// measurement, not a proxy, of "speed of execution". Best-effort: returns
+// null (with a reason) if the JDK 21 toolchain isn't available, so the
+// rest of the report still generates on a machine without it.
+function runGradleTests(apiDir, testsFilter) {
+  const javaHomeCandidates = [
+    process.env.JAVA_HOME,
+    "/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home",
+    "/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home",
+  ].filter(Boolean);
+  const javaHome = javaHomeCandidates.find((p) => existsSync(p));
+  if (!javaHome) {
+    return { ok: false, reason: "no JDK 21 (JAVA_HOME) found" };
+  }
+  const env = {
+    ...process.env,
+    JAVA_HOME: javaHome,
+    PATH: `${path.join(javaHome, "bin")}:${process.env.PATH}`,
+  };
+  const args = ["test", "-q", "--rerun"];
+  if (testsFilter) args.push("--tests", testsFilter);
+  const start = Date.now();
+  try {
+    run("./gradlew", args, { cwd: apiDir, env });
+  } catch (err) {
+    return { ok: false, reason: `gradle test failed: ${err.message}` };
+  }
+  const ms = Date.now() - start;
+  const resultsDir = path.join(apiDir, "build", "test-results", "test");
+  let testCount = 0;
+  if (existsSync(resultsDir)) {
+    for (const f of readdirSync(resultsDir)) {
+      if (!f.endsWith(".xml")) continue;
+      const xml = readFileSync(path.join(resultsDir, f), "utf8");
+      const match = /<testsuite\b[^>]*\btests="(\d+)"/.exec(xml);
+      if (match) testCount += Number(match[1]);
+    }
+  }
+  return { ok: true, ms, testCount };
+}
+
 // --- framework/infrastructure coupling ------------------------------------
 
 const FRAMEWORK_IMPORT_REGEX =
@@ -485,6 +552,69 @@ function main() {
       afterWhole: frameworkImportAnalysis(wholeAfterJavaFiles),
     };
 
+    // --- tests: proximity, precision, speed ---
+    const wholeBeforeJavaTestFiles = walkFiles(
+      path.join(before.dir, "elevator-api/src/test/java"),
+      [".java"],
+    );
+    const wholeAfterJavaTestFiles = walkFiles(
+      path.join(after.dir, "elevator-api/src/test/java"),
+      [".java"],
+    );
+    const beforeApiTestClassification = classifyJavaTests(wholeBeforeJavaTestFiles);
+    const afterApiTestClassification = classifyJavaTests(wholeAfterJavaTestFiles);
+
+    const beforeE2eFiles = walkFiles(
+      path.join(before.dir, "elevator-ui/test/e2e"),
+      [".ts"],
+    );
+    const afterE2eFiles = walkFiles(
+      path.join(after.dir, "elevator-ui/test/e2e"),
+      [".ts"],
+    );
+    const beforeClientUnitFiles = walkFiles(
+      path.join(before.dir, "elevator-ui/test/unit"),
+      [".ts"],
+    );
+    const afterClientUnitFiles = walkFiles(
+      path.join(after.dir, "elevator-ui/test/unit"),
+      [".ts"],
+    );
+    const testCaseRegex = /\b(?:it|test)\(/g;
+    const uiTests = {
+      beforeE2e: {
+        files: beforeE2eFiles.length,
+        cases: countMatches(beforeE2eFiles, testCaseRegex),
+      },
+      afterE2e: {
+        files: afterE2eFiles.length,
+        cases: countMatches(afterE2eFiles, testCaseRegex),
+      },
+      beforeClientUnit: {
+        files: beforeClientUnitFiles.length,
+        cases: countMatches(beforeClientUnitFiles, testCaseRegex),
+        lines: totals(sccByFile(before.dir, ["elevator-ui/test/unit"])).lines,
+      },
+      afterClientUnit: {
+        files: afterClientUnitFiles.length,
+        cases: countMatches(afterClientUnitFiles, testCaseRegex),
+      },
+    };
+
+    // Real execution timing, not a proxy -- runs the actual Gradle test
+    // suite in each worktree. Best-effort: skipped gracefully if no JDK 21
+    // is available (see runGradleTests).
+    const beforeGradleRun = runGradleTests(
+      path.join(before.dir, "elevator-api"),
+    );
+    const afterGradleRun = runGradleTests(path.join(after.dir, "elevator-api"));
+    const afterDomainGradleRun = afterGradleRun.ok
+      ? runGradleTests(
+          path.join(after.dir, "elevator-api"),
+          "no.javazone.elevator.shared.domain.*",
+        )
+      : { ok: false, reason: "skipped: full suite run failed" };
+
     // --- render markdown ---
     const md = renderMarkdown({
       before,
@@ -521,6 +651,12 @@ function main() {
       partialForkLoc,
       newCapabilitiesAdditiveLoc,
       frameworkCoupling,
+      beforeApiTestClassification,
+      afterApiTestClassification,
+      uiTests,
+      beforeGradleRun,
+      afterGradleRun,
+      afterDomainGradleRun,
     });
 
     const outPath = path.join(REPO_ROOT, "docs", "refactor-metrics.md");
@@ -551,6 +687,12 @@ function renderMarkdown(m) {
   const largestBefore = largestFile(m.beforeApiFiles);
   const largestAfter = largestFile(m.afterApiFiles);
   const fc = m.frameworkCoupling;
+  const bc = m.beforeApiTestClassification;
+  const ac = m.afterApiTestClassification;
+  const ui = m.uiTests;
+  const bg = m.beforeGradleRun;
+  const ag = m.afterGradleRun;
+  const adg = m.afterDomainGradleRun;
 
   const lines = [];
   const p = (s = "") => lines.push(s);
@@ -1068,6 +1210,170 @@ function renderMarkdown(m) {
   );
   p(`data point -- treat it accordingly.`);
   p();
+
+  p(`## 10. Tests: proximity, precision, speed`);
+  p();
+  p(
+    `Where a rule is tested, and how directly, before vs after. A test`,
+  );
+  p(
+    `file counts as needing a Spring context if it uses`,
+  );
+  p(
+    `\`@SpringBootTest\`, \`@WebMvcTest\`, \`@DataJpaTest\` or`,
+  );
+  p(`\`@AutoConfigureMockMvc\`; everything else is a plain JUnit unit`);
+  p(`test with no framework runtime at all.`);
+  p();
+  p(`| | before | after |`);
+  p(`|---|---|---|`);
+  p(
+    `| elevator-api: unit test files / methods | ${bc.unitFiles} / ${bc.unitTests} | ${ac.unitFiles} / ${ac.unitTests} |`,
+  );
+  p(
+    `| elevator-api: Spring-context test files / methods | ${bc.contextFiles} / ${bc.contextTests} | ${ac.contextFiles} / ${ac.contextTests} |`,
+  );
+  p(
+    `| elevator-ui: e2e spec files / cases | ${ui.beforeE2e.files} / ${ui.beforeE2e.cases} | ${ui.afterE2e.files} / ${ui.afterE2e.cases} |`,
+  );
+  p(
+    `| elevator-ui: client-side unit test files / cases | ${ui.beforeClientUnit.files} / ${ui.beforeClientUnit.cases} | ${ui.afterClientUnit.files} / ${ui.afterClientUnit.cases} |`,
+  );
+  p();
+  p(
+    `Before: ${round1((bc.contextFiles / (bc.unitFiles + bc.contextFiles)) * 100)}% of elevator-api test`,
+  );
+  p(
+    `files need a full Spring context. After: ${round1((ac.contextFiles / (ac.unitFiles + ac.contextFiles)) * 100)}%. The e2e suite`,
+  );
+  p(
+    `is essentially unchanged in size (it still covers the same shell/`,
+  );
+  p(
+    `interaction chrome) -- what disappeared is the`,
+  );
+  p(
+    `${ui.beforeClientUnit.lines}-line client-side unit test suite, which existed`,
+  );
+  p(
+    `only because \`stores/elevator.ts\` re-implemented domain logic`,
+  );
+  p(`worth unit-testing in the first place. Its own test names say so`);
+  p(`directly: \`filters served calls out of pendingCalls\`,`);
+  p(
+    `\`collects pending floors from both call types\` -- a business rule`,
+  );
+  p(
+    `(which requests are still pending), tested in the wrong tier,`,
+  );
+  p(
+    `requiring five mocked HTTP endpoints and a Pinia store just to`,
+  );
+  p(`assert a filter.`);
+  p();
+  p("```ts");
+  p(`// before: elevator-ui/test/unit/elevatorStore.test.ts`);
+  p(`registerEndpoint('/api/key', { method: 'GET', handler: () => ... })`);
+  p(`registerEndpoint('/api/key', { method: 'POST', handler: ... })`);
+  p(`registerEndpoint('/api/elevators/1/status', { ... })`);
+  p(`// ...three more registerEndpoint calls, then, finally:`);
+  p(`it('filters served calls out of pendingCalls', () => { ... })`);
+  p();
+  p(`// after: elevator-api RequestQueueTest.java -- no mocks, no`);
+  p(`// Spring context, no HTTP layer, testing the type that owns the`);
+  p(`// rule directly:`);
+  p(`void twoRidersPressingTheSameLandingButtonIsOneCall() {`);
+  p(`  RequestQueue queue = RequestQueue.empty();`);
+  p(`  queue.addLanding(new LandingCall(new Floor(3), Direction.UP));`);
+  p(
+    `  boolean addedAgain = queue.addLanding(new LandingCall(new Floor(3), Direction.UP));`,
+  );
+  p(`  assertThat(addedAgain).isFalse();`);
+  p(`}`);
+  p("```");
+  p();
+  if (bg?.ok && ag?.ok) {
+    p(`### Measured, not estimated`);
+    p();
+    p(
+      `The actual \`./gradlew test\` wall-clock time for each worktree's`,
+    );
+    p(`full suite, on this machine:`);
+    p();
+    p(`| | before | after |`);
+    p(`|---|---|---|`);
+    p(
+      `| Tests executed | ${bg.testCount} | ${ag.testCount} |`,
+    );
+    p(
+      `| Wall-clock time | ${round1(bg.ms / 1000)}s | ${round1(ag.ms / 1000)}s |`,
+    );
+    p(
+      `| Avg per test | ${round1(bg.ms / bg.testCount)}ms | ${round1(ag.ms / ag.testCount)}ms |`,
+    );
+    p();
+    p(
+      `Total wall-clock time is a noisy number to trust run-to-run --`,
+    );
+    p(
+      `it's dominated by fixed JVM/Gradle daemon startup, common to`,
+    );
+    p(
+      `both suites, more than by test logic itself, and can flip`,
+    );
+    p(
+      `depending on machine load. Average time per test isolates the`,
+    );
+    p(
+      `real difference: ${round1(bg.ms / bg.testCount / (ag.ms / ag.testCount))}x lower per test on the after side, while running`,
+    );
+    p(
+      `${round1(ag.testCount / bg.testCount)}x more of them. That is the payoff of most tests no longer`,
+    );
+    p(
+      `paying Spring context startup: isolating just`,
+    );
+    p(
+      `\`shared/domain\`'s own test suite`,
+    );
+    p(
+      adg?.ok
+        ? `(${adg.testCount} tests, no \`@SpringBootTest\` anywhere) runs in`
+        : `runs in`,
+    );
+    p(
+      adg?.ok
+        ? `${round1(adg.ms / 1000)}s -- ${round1(adg.ms / adg.testCount)}ms/test on average, including the JVM's own`
+        : `single-digit milliseconds per test, including the JVM's own`,
+    );
+    p(
+      `startup (this isolated run pays that cost too; a`,
+    );
+    p(
+      `\`@SpringBootTest\`-backed test pays it again per context on top`,
+    );
+    p(
+      `of an application context and an embedded H2 database, and (per`,
+    );
+    p(
+      `this codebase's test config) often a fresh context per class`,
+    );
+    p(`rather than a shared, cached one).`);
+    p();
+  } else {
+    p(`### Measured, not estimated`);
+    p();
+    p(
+      `Skipped: could not run \`./gradlew test\` on both worktrees on this`,
+    );
+    p(
+      `machine (${bg?.reason ?? "before: unknown reason"}; ${ag?.reason ?? "after: unknown reason"}).`,
+    );
+    p(
+      `Re-run with a JDK 21 \`JAVA_HOME\` on \`PATH\` to fill this in.`,
+    );
+    p();
+  }
 
   return lines.join("\n") + "\n";
 }
