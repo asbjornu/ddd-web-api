@@ -64,6 +64,63 @@ end.
 
 ## `main`
 
+**Step 0 — the hypermedia control this button came from.** This one
+takes two requests to get to, both captured live. First, submitting the
+technician key-switch form (see `docs/architecture.md`'s "Key-switch
+and authorization" section) sets an `HttpOnly` cookie:
+
+```
+$ curl -sD- -X POST http://127.0.0.1:8000/elevators/1/key-switch/session \
+    -H "Content-Type: application/json" -d '{"secret":"dev-secret-key"}' \
+    -c cookies.txt
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.elevator.state+json
+Set-Cookie: technician_token=eyJraWQ...; Path=/elevators; Max-Age=899;
+            HttpOnly; SameSite=Strict
+```
+
+Then the *next* `GET /elevators/1`, cookie attached, renders a form that
+was absent a moment ago:
+
+```
+$ curl -s http://127.0.0.1:8000/elevators/1 \
+    -H "Accept: text/html" -H "Datastar-Request: true" -b cookies.txt
+
+<div id="elevator">
+<div id="elevator-content">
+<dl>
+  <dt>currentFloor</dt><dd>1</dd>
+  <dt>state</dt><dd>idle</dd>
+  ... <!-- direction, doorPosition, obstructed, weightKg, capacityKg,
+           destinationFloor, travelSecondsPerFloor, doorOpenTimeoutSeconds -->
+</dl>
+<!-- ...self/updates links, call-elevator, enter-maintenance,
+     withdraw-key, open-doors, select-floor... -->
+<form action="/elevators/1" method="post" data-rel="trigger-emergency-recall"
+      data-on:submit="@post('/elevators/1', {contentType: 'form'})">
+  <fieldset>
+  <legend>Trigger emergency recall</legend>
+  <label>type
+    <input type="hidden" name="type" value="TriggerEmergencyRecall" required>
+  </label>
+  <button type="submit">Trigger emergency recall</button>
+  </fieldset>
+</form>
+</div>
+<div id="elevator-events" data-init="@get('/elevators/1/events')"></div>
+</div>
+```
+
+`panels.client.ts` never inspects the cookie, checks a scope, or knows
+"technician" is a concept — it only ever asks `formFor('trigger-
+emergency-recall')`, the same DOM lookup `ObstructDoors` used for a
+state gate, now answering an authorization gate instead. The class
+that actually decided this form should exist for *this* cookie's
+holder — `TriggerEmergencyRecallAffordanceContributor`, checking
+`context.principal().hasScope("elevator:recall")` — is quoted in full
+below.
+
 **UI** — `app/plugins/panels.client.ts`
 
 ```ts

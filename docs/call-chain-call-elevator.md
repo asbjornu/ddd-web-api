@@ -99,6 +99,81 @@ elevator is doing now.
 
 ## `main`
 
+**Step 0 — the hypermedia control this button came from.** Nothing in
+`panels.client.ts` hard-codes `/elevators/1`, `"call-elevator"`, or a
+`floor`/`direction` field: the button that ends up calling
+`submitHiddenForm('call-elevator', ...)` only exists because an earlier
+response rendered it. Captured live, this is that earlier response —
+`GET /elevators/1`, the last hop of the discovery chain the entry point
+(`GET /`) started, fetched by Datastar's own `data-init` (the
+`Datastar-Request`/`Datastar-Selector`/`Datastar-Mode` headers are
+Datastar's, not something this project invented — see
+`docs/plan.html` §12):
+
+```
+$ curl -s -D- http://127.0.0.1:8000/elevators/1 \
+    -H "Accept: text/html" -H "Datastar-Request: true"
+
+HTTP/1.1 200 OK
+Content-Type: text/html
+Datastar-Mode: outer
+Datastar-Selector: #elevator
+Link: </elevators/1>; rel="self"
+Link: </elevators/1/events>; rel="updates"; type="text/event-stream"
+
+<div id="elevator">
+<div id="elevator-content">
+<dl>
+  <dt>currentFloor</dt><dd>1</dd>
+  <dt>state</dt><dd>idle</dd>
+  ... <!-- direction, doorPosition, obstructed, weightKg, capacityKg,
+           destinationFloor, travelSecondsPerFloor, doorOpenTimeoutSeconds -->
+</dl>
+<ul>
+  <li><a rel="self" href="/elevators/1">self</a></li>
+  <li><a rel="updates" href="/elevators/1/events">updates</a></li>
+</ul>
+<form action="/elevators/1" method="post" data-rel="call-elevator"
+      data-on:submit="@post('/elevators/1', {contentType: 'form'})">
+  <fieldset>
+  <legend>Call elevator</legend>
+  <label>type
+    <input type="hidden" name="type" value="CallElevator" required>
+  </label>
+  <label>floor
+    <select name="floor">
+      <option value="1">1</option>
+      <!-- ...2 through 8... -->
+      <option value="9">9</option>
+    </select>
+  </label>
+  <label>direction
+    <select name="direction">
+      <option value="up">up</option>
+      <option value="down">down</option>
+    </select>
+  </label>
+  <button type="submit">Call elevator</button>
+  </fieldset>
+</form>
+<!-- ...insert-key, open-doors, select-floor: the other affordances
+     idle offers, each its own <form>, elided here... -->
+</div>
+<div id="elevator-events" data-init="@get('/elevators/1/events')"></div>
+</div>
+```
+
+This is what `panels.client.ts` actually reads when it builds
+`CallPanel` and wires up its buttons: the `href` (`/elevators/1`, from
+the form's own `action`), the field names (`floor`, `direction`), and
+the floor range (`1`–`9`, from the `<option>` values it already
+rendered) all come from here — see
+`no.javazone.elevator.feature.callelevator.CallElevatorAffordanceContributor`,
+the class on the Java side that decided this form exists at all, and
+`no.javazone.elevator.shared.hypermedia.FloorOptions`, which supplied
+the `1`–`9` range from `ElevatorProperties.floors()` rather than a
+constant baked into either side.
+
 **UI (vanilla TypeScript, no framework state)** —
 `app/plugins/panels.client.ts`
 
