@@ -245,6 +245,48 @@ and into the system.
 
 ------------------------------------------------------------------------
 
+## 010b --- 1854: cut the rope
+
+Then Elisha Otis changed the safety model.
+
+At the 1854 Exhibition of the Industry of All Nations in New York's Crystal Palace, Otis stood on a lifting platform high above the crowd.
+
+He ordered the retaining rope to be cut.
+
+The platform dropped a few inches.
+
+And stopped.
+
+His safety brake had engaged.
+
+Otis reportedly reassured the crowd:
+
+> **“All safe, gentlemen. All safe.”**
+
+The important innovation was not that the elevator could lift a person.
+
+Humans had been lifting people and cargo for thousands of years.
+
+The innovation was what happened when the thing everybody depended on **failed**.
+
+The passenger no longer had to trust that the rope would never break.
+
+The mechanism contained a constraint for what should happen when it did.
+
+That is a useful architectural distinction.
+
+**Safety moved from an assumption about the environment into a constraint enforced by the system.**
+
+We are going to do the same thing with domain rules.
+
+Research source: Otis, “History — In the beginning: ‘all safe’,” describing the 1854 Crystal Palace demonstration and the safety brake immediately halting the platform after the retaining rope was cut.
+https://www.otis.com/en/uk/our-company/history
+
+Historical illustration source: “Elisha OTIS 1854.jpg,” Wikimedia Commons, unknown author, public domain; described as an old engraving of Otis demonstrating the free-fall prevention mechanism at the New York Crystal Palace.
+https://commons.wikimedia.org/wiki/File:Elisha_OTIS_1854.jpg
+
+------------------------------------------------------------------------
+
 ## 011 --- Elevators used to have an API specialist
 
 Before we look at my elevator, I want to look at a real one.
