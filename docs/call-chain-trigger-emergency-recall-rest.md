@@ -1,73 +1,15 @@
-# Call chain: `TriggerEmergencyRecall`
+# Call chain: `TriggerEmergencyRecall` — REST + DDD (`main`)
 
-A technician presses the panic button. Traced end to end, in both the
-`crud` and `main` (REST + DDD) variants of this repository — see
-`docs/architecture.md`'s "Key-switch and authorization" section for the
-domain reasoning behind `main`'s side of this.
+A technician presses the panic button, in this repository's current
+(`main`) architecture. See `docs/architecture.md`'s "Key-switch and
+authorization" section for the domain reasoning behind this variant's
+approach to authorization.
 
-## `crud`
+## Step 0 — the hypermedia control this button came from
 
-**UI (Vue + Pinia)** — `app/components/StatusDisplay.vue`
-
-```vue
-<button class="emergency-btn" @click="store.triggerEmergencyRecall()">
-  Emergency recall
-</button>
-```
-
-`app/stores/elevator.ts`
-
-```ts
-async triggerEmergencyRecall() {
-  await $fetch(`/api/elevators/${ELEVATOR_ID}/emergency-recall`, {
-    method: 'POST'
-  })
-  await this.fetchStatus()
-}
-```
-
-**BFF** — `server/api/elevators/[id]/emergency-recall.post.ts`
-
-```ts
-const token = requireToken(event) // pulled from the HttpOnly cookie set when the key was inserted
-return await $fetch(`${config.serviceApiUrl}/elevators/${id}/emergency-recall`, {
-  method: 'POST',
-  headers: { Authorization: `Bearer ${token}` }
-})
-```
-
-**HTTP #1**: `POST /api/elevators/1/emergency-recall` (browser, no
-credential of its own — the cookie rides along). **HTTP #2**:
-`POST http://elevator-api:8080/elevators/1/emergency-recall`,
-`Authorization: Bearer <token>`.
-
-**Java** — the gate is a filter, not the controller:
-
-```java
-// SecurityConfig.java
-.requestMatchers("/elevators/*/emergency-recall")
-    .hasAuthority("SCOPE_elevator:recall")
-```
-
-```java
-// MaintenanceController.java
-@PostMapping("/elevators/{id}/emergency-recall")
-public Elevator emergencyRecall(@PathVariable Long id) {
-    return elevatorService.triggerEmergencyRecall(id); // controller has no idea auth even happened
-}
-```
-
-`ElevatorService.triggerEmergencyRecall` clears pending calls and car
-calls, resets obstruction and weight, and sets state — a roughly
-25-line method mutating the same `Elevator` entity, saved once at the
-end.
-
-## `main`
-
-**Step 0 — the hypermedia control this button came from.** This one
-takes two requests to get to, both captured live. First, submitting the
-technician key-switch form (see `docs/architecture.md`'s "Key-switch
-and authorization" section) sets an `HttpOnly` cookie:
+This one takes two requests to get to, both captured live. First,
+submitting the technician key-switch form (its own `insert-key`
+affordance, always present) sets an `HttpOnly` cookie:
 
 ```
 $ curl -sD- -X POST http://127.0.0.1:8000/elevators/1/key-switch/session \
@@ -115,13 +57,15 @@ $ curl -s http://127.0.0.1:8000/elevators/1 \
 `panels.client.ts` never inspects the cookie, checks a scope, or knows
 "technician" is a concept — it only ever asks `formFor('trigger-
 emergency-recall')`, the same DOM lookup `ObstructDoors` used for a
-state gate, now answering an authorization gate instead. The class
-that actually decided this form should exist for *this* cookie's
-holder — `TriggerEmergencyRecallAffordanceContributor`, checking
+state gate, now answering an authorization gate instead. The class that
+actually decided this form should exist for *this* cookie's holder —
+`TriggerEmergencyRecallAffordanceContributor`, checking
 `context.principal().hasScope("elevator:recall")` — is quoted in full
 below.
 
-**UI** — `app/plugins/panels.client.ts`
+## UI
+
+`app/plugins/panels.client.ts`
 
 ```ts
 emergencyButton.addEventListener('click', () =>
@@ -129,12 +73,16 @@ emergencyButton.addEventListener('click', () =>
 emergencyButton.disabled = !formFor('trigger-emergency-recall')
 ```
 
-**HTTP**: `POST /elevators/1` with `type=TriggerEmergencyRecall` — the
-cookie (set once at key-insert, same mechanism as `crud`) rides along
+## HTTP
+
+`POST /elevators/1` with `type=TriggerEmergencyRecall` — the cookie
+(set once at key-insert, same mechanism as `crud`) rides along
 automatically, same origin.
 
-**Java** — the check lives inside the command endpoint itself, not a
-filter in front of it:
+## Java
+
+The check lives inside the command endpoint itself, not a filter in
+front of it:
 
 ```java
 // TriggerEmergencyRecallController.java
@@ -146,8 +94,7 @@ if (!principal.hasScope("elevator:recall")) {
 handler.handle(new TriggerEmergencyRecallCommand(id));
 ```
 
-And the same rule, restated for what the client is allowed to even
-see:
+And the same rule, restated for what the client is allowed to even see:
 
 ```java
 // TriggerEmergencyRecallAffordanceContributor.java
@@ -160,6 +107,39 @@ if ("emergencyRecall".equals(context.state().orElse(""))) return List.of(); // p
 Floor recallFloor = new Floor(properties.recallFloor(), true);
 List<DomainEvent> events = elevator.triggerEmergencyRecall(recallFloor); // the aggregate itself decides
 ```
+
+## Client-side result
+
+The response (and, once the recall settles into `outOfService`, the
+follow-up SSE push) drives `shaft.client.ts`'s colour toggles, quoted
+in full in the `CallElevator` trace:
+
+```ts
+car.classList.toggle('oos', state === 'outOfService')
+car.classList.toggle('emergency', state === 'emergencyRecall')
+```
+
+and `panels.client.ts`'s technician-section rebuild, which reacts to
+the *disappearance* of `enter-maintenance`/`exit-maintenance` rather
+than to any state name at all:
+
+```ts
+maintenanceButton.disabled = !enterMaintenance && !exitMaintenance
+```
+
+— true only while `emergencyRecall` is active, per the affordance
+contributor's own comment above ("pre-empts everything else"), but
+`panels.client.ts` doesn't need to know *why* both are absent, only
+that they are.
+
+## What this client needed to know about the state machine
+
+Almost nothing, and what little there is, is presentation: which two
+state strings mean "colour the car gold/red." The authorization
+decision that gates the button — the scope check — is never
+duplicated here at all; the client's only signal is whether the form
+was rendered, decided once, server-side, by the same class that will
+also refuse the `POST` if a caller bypasses the button entirely.
 
 ## The difference, reasoned
 
