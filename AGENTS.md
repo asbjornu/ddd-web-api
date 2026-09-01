@@ -91,6 +91,17 @@ structure).
 - Full stack locally: `docker compose up` (from the repo root); starts both
   `elevator-api` (`http://localhost:8080`) and `elevator-ui`
   (`http://localhost:3000`)
+- Before presenting: `docker compose up` alone never rebuilds, so a
+  branch switch runs whatever image was last built under that branch's
+  tag (`docker-compose.yml`'s `image: ...:${IMAGE_TAG:-<branch>}`), not
+  necessarily what's on disk. Pre-build and tag all three demo branches
+  ahead of time so no build happens on stage:
+  `for b in crud json-hypermedia main; do git checkout $b && docker
+  compose build; done` (each branch's compose file defaults `IMAGE_TAG`
+  to its own branch name, so this tags each image correctly without
+  passing `IMAGE_TAG` explicitly). During the talk, `git checkout
+  <branch> && docker compose up` then only ever starts already-built
+  images.
 - Markdown lint: `npm run lint:md` (from the repo root; see `.remarkrc.mjs`
   for the remark-lint config and its documented deviations from the plugin
   defaults)
