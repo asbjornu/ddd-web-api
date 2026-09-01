@@ -124,6 +124,24 @@ export const useElevatorStore = defineStore('elevator', {
       state.status?.operations?.find((op) => op.rel === 'trigger-emergency-recall') ?? null
   },
   actions: {
+    // The SSE stream (connectToEvents, below) only ever pushes
+    // properties, never operations -- so without a fetch of the
+    // resource's own representation somewhere, no rider affordance
+    // (call-elevator, select-floor, ...) would ever appear: this is
+    // that fetch, made once, on mount, before subscribing. Same-origin
+    // via Caddy, same as callElevator/selectFloor's own operation.href
+    // calls -- see those actions' own comments.
+    async fetchInitialStatus() {
+      try {
+        this.status = await $fetch<ElevatorView>(`/elevators/${ELEVATOR_ID}`, {
+          headers: { Accept: 'application/vnd.elevator.state+json' }
+        })
+        this.error = null
+      } catch {
+        // The SSE stream may still connect and report properties; a
+        // rider only loses this load's operations, not the page.
+      }
+    },
     // Replaces the 1.5 s poller: one connection, pushed to rather than
     // asked, per docs/plan.html section 12. A relative URL works because
     // Caddy (docker-compose) puts elevator-api and elevator-ui behind one
@@ -145,7 +163,14 @@ export const useElevatorStore = defineStore('elevator', {
             weightKg: data.weightKg,
             capacityKg: data.capacityKg,
             destinationFloor: data.destinationFloor ?? null,
-            operations: data.operations ?? []
+            // The SSE stream never carries operations (see this
+            // method's own doc comment above), so replacing them with
+            // data.operations here would permanently wipe every
+            // affordance the moment the first event arrives, disabling
+            // every button for the rest of the session. Keep whichever
+            // operations the last full fetch or command response
+            // offered until one of those replaces this.status wholesale.
+            operations: this.status?.operations ?? []
           }
           this.error = null
         } catch {

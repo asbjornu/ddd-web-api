@@ -42,6 +42,7 @@ async function submitKey() {
 // requires (Caddy's shared origin) that a bare `npm run dev` does not
 // provide.
 onMounted(() => {
+  store.fetchInitialStatus()
   store.connectToEvents()
 })
 
