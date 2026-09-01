@@ -47,6 +47,23 @@ of its own — the cookie rides along). **#2**:
 `POST http://elevator-api:8080/elevators/1/emergency-recall`,
 `Authorization: Bearer <token>`.
 
+Still a pure proxy, unchanged: `ElevatorService.triggerEmergencyRecall`
+never refuses (see its own "Java" section below), so there is nothing
+this route could pre-check that the service would ever reject anyway.
+Its sibling, `maintenance.post.ts` — the route this same panel's Enter/
+Exit maintenance buttons call — is not so lucky:
+
+```ts
+// server/api/elevators/[id]/maintenance.post.ts
+const status = await fetchStatusForValidation(config.serviceApiUrl, id)
+if (body.maintenance) {
+  if (status.state === 'OUT_OF_SERVICE') {
+    throw createError({ statusCode: 409, statusMessage: 'Already in maintenance' })
+  }
+  // ...duplicates ElevatorService.enterMaintenance/exitMaintenance's own conflicts
+}
+```
+
 ## Java
 
 The gate is a filter, not the controller:
@@ -122,7 +139,11 @@ No client-side test exercises `store.triggerEmergencyRecall`,
 `inMaintenance`, or `ElevatorShaft.vue`'s colour computeds — the
 technician flow is entirely outside what
 `elevator-ui/test/unit/elevatorStore.test.ts` or the e2e smoke test
-cover.
+cover. Nor is there any test for `maintenance.post.ts`'s own new
+conflict pre-checks (quoted in this file's "HTTP" section above) — the
+BFF's duplicated copy of `enterMaintenance`/`exitMaintenance`'s rules
+is, like every other route this branch's BFF now validates, unverified
+by anything but a request actually reaching it.
 
 ## Client-side result
 

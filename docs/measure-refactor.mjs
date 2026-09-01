@@ -1024,7 +1024,7 @@ function renderMarkdown(m) {
     `| BFF route files (\`server/api/**\`) | ${m.bffRouteTotals.files} | ${m.midBffRouteTotals.files} | 0 |`,
   );
   p(
-    `| ... their avg / median / max lines | ${m.bffRouteTotals.avg} / ${m.bffRouteTotals.median} / ${m.bffRouteTotals.max} | ${m.midBffRouteTotals.avg} / ${m.midBffRouteTotals.median} / ${m.midBffRouteTotals.max} | -- |`,
+    `| ... avg/median/max lines | ${m.bffRouteTotals.avg} / ${m.bffRouteTotals.median} / ${m.bffRouteTotals.max} | ${m.midBffRouteTotals.avg} / ${m.midBffRouteTotals.median} / ${m.midBffRouteTotals.max} | -- |`,
   );
   p(
     `| \`stores/elevator.ts\` lines | ${m.beforeStoreTotals.lines} | ${m.midStoreTotals.lines} | 0 |`,

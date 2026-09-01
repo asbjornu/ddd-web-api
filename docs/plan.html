@@ -450,7 +450,7 @@
 flowchart TD
   B["Browser<br/><small>Vue components decide legality</small>"]
   P["Pinia store<br/><small>13 actions · ELEVATOR_ID=1 · BUILDING_FLOORS=9</small>"]
-  N["Nitro BFF<br/><small>11 pass-through routes</small>"]
+  N["Nitro BFF<br/><small>11 routes, 7 re-derive<br/>service-layer checks</small>"]
   C["7 controllers<br/><small>Call · CarCall · Door · Weight · Maintenance · Status</small>"]
   S["ElevatorService<br/><small>~500 lines · 12 methods · God Object</small>"]
   E["Entities as DTOs<br/><small>ORM + DTO + API representation</small>"]
@@ -527,7 +527,7 @@ flowchart TD
     V["Vue 3 + Pinia<br/><small>$fetch (JSON) &middot; setInterval poll, 1.5s</small>"]
   end
   subgraph UI["elevator-ui &mdash; :3000"]
-    NI["Nuxt 4 + Nitro<br/><small>Nitro *is* the BFF: server/api/*.ts,<br/>11 pass-through routes</small>"]
+    NI["Nuxt 4 + Nitro<br/><small>Nitro *is* the BFF: server/api/*.ts,<br/>11 routes, 7 re-derive service checks</small>"]
   end
   subgraph API["elevator-api &mdash; :8080"]
     MVC["Spring MVC<br/><small>10 verb-shaped controllers</small>"]
@@ -545,7 +545,9 @@ flowchart TD
       </script>
     </div>
     <p class="caption">Three independently-published services. One extra application layer
-      (Nitro/BFF) whose only job is rewriting a hostname.</p>
+      (Nitro/BFF) that not only rewrites a hostname but re-derives some of
+      <code class="inline">ElevatorService</code>'s own rules &mdash; see
+      <code class="inline">server/utils/elevatorValidation.ts</code>.</p>
   </div>
 
   <div id="topoAfter" hidden>
@@ -3195,7 +3197,7 @@ const COMPARISON = [
   { c: "What legality means",
     a: "Client v-if, BFF re-derivation, and service if/switch — three copies of one rule set",
     b: "Server omits the affordance. There is one copy, and it is on the aggregate.",
-    ev: "// StatusDisplay.vue\nv-if=\"store.status?.state !== 'outOfService'\"\n\n// ElevatorService.java\nif (elevator.getState() == ElevatorState.OUT_OF_SERVICE) { … }" },
+    ev: "// StatusDisplay.vue\n<button v-if=\"!inMaintenance\" @click=\"store.enterMaintenance()\">\n\n// server/api/elevators/[id]/maintenance.post.ts \u2014 the BFF's own copy\nif (status.state === 'OUT_OF_SERVICE') {\n  throw createError({ statusCode: 409, statusMessage: 'Already in maintenance' })\n}\n\n// ElevatorService.java\nif (elevator.getState() == ElevatorState.OUT_OF_SERVICE) { … }" },
   { c: "Endpoint shape",
     a: "POST /elevators/1/maintenance {\"maintenance\": true}",
     b: "Two distinct commands, discovered by rel, never both offered at once",

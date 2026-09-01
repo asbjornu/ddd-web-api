@@ -51,16 +51,43 @@ POST /api/elevators/1/calls
 
 ```ts
 export default defineEventHandler(async (event) => {
-  const body = await readBody(event)
-  return await $fetch(
-    `${config.serviceApiUrl}/elevators/${getRouterParam(event, 'id')}/calls`,
-    { method: 'POST', body }
-  )
+  const id = getRouterParam(event, 'id')
+  const config = useRuntimeConfig()
+  const body = await readBody<{ floor?: unknown; direction?: unknown }>(event)
+
+  if (!isValidFloor(body?.floor)) { // duplicates ElevatorService.call's own floor check
+    throw createError({ statusCode: 400, statusMessage: 'Invalid floor' })
+  }
+  if (!isValidDirection(body?.direction)) {
+    throw createError({ statusCode: 400, statusMessage: 'Invalid direction' })
+  }
+
+  const status = await fetchStatusForValidation(config.serviceApiUrl, id)
+  if (isOutOfServiceOrRecall(status)) { // duplicates ElevatorService.call's own conflict check
+    throw createError({ statusCode: 409, statusMessage: 'Elevator is not in service' })
+  }
+
+  return await $fetch(`${config.serviceApiUrl}/elevators/${id}/calls`, {
+    method: 'POST',
+    body
+  })
 })
 ```
 
+This is no longer a dumb reverse proxy: `isValidFloor`/`isValidDirection`/
+`isOutOfServiceOrRecall` live in `server/utils/elevatorValidation.ts`, a
+hand-copied second version of exactly the two checks
+`ElevatorService.call` (quoted below) makes itself — same status
+codes, same messages, no shared code between them. The state check
+costs an *extra* request this BFF route did not used to make (`GET
+/elevators/1/status`, fired before the `POST` below), which
+`ElevatorService.call`'s own check does not need: its check and its
+write happen in the same request, against the same row. This file's
+copy can be stale by the time its own `POST` arrives.
+
 **#2** (`elevator-ui` to `elevator-api:8080`, Docker DNS): identical
-body, different host.
+body, different host — assuming the BFF's own pre-check above did not
+already refuse the request first.
 
 ## Java
 
@@ -136,10 +163,15 @@ Nothing on the client is unit-tested at all: there is no test for
 `store.callElevator` or for `CallPanel.vue`'s `isPending`/`call`
 functions, Pinia-mocked or otherwise —
 `elevator-ui/test/unit/elevatorStore.test.ts` only exercises the
-store's getters and its technician key-switch actions. The one UI test
-that runs, `elevator-ui/test/e2e/rider-page.spec.ts`, is a Playwright
-smoke test that asserts the "Call elevator" heading renders and never
-clicks a floor button:
+store's getters and its technician key-switch actions. Nor is there
+any test at all for `calls.post.ts`'s own new validation and
+state-pre-check logic (`isValidFloor`/`isValidDirection`/
+`isOutOfServiceOrRecall`, in `server/utils/elevatorValidation.ts`) —
+that duplicated copy of `ElevatorService.call`'s rules is exercised,
+for the first time, only by whatever request happens to reach it. The
+one UI test that runs, `elevator-ui/test/e2e/rider-page.spec.ts`, is a
+Playwright smoke test that asserts the "Call elevator" heading renders
+and never clicks a floor button:
 
 ```ts
 test('renders heading and main panels', async ({ page }) => {
@@ -215,3 +247,11 @@ response to *this* request — it is knowledge about the server's
 internals that has to already live in the client before the request is
 even sent, and has no mechanism to notice if the server's own copy of
 it ever changes.
+
+The BFF needs a fourth, separate copy of one piece of this same
+knowledge: `'OUT_OF_SERVICE'`/`'EMERGENCY_RECALL'`, the exact two state
+names `calls.post.ts`'s own `isOutOfServiceOrRecall` check now compares
+against, hand-typed a third time (after `ElevatorService.call`'s own
+check and `ElevatorServiceTest`'s assertions on it) in a file that sits
+between the browser and the service that actually owns the rule.
+

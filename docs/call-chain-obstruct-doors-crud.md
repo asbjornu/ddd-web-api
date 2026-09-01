@@ -39,7 +39,29 @@ async toggleObstruction() {
 
 `POST /api/elevators/1/obstruction` `{"obstructed":true}` to the BFF (no
 auth header needed — a rider action), then
-`POST http://elevator-api:8080/elevators/1/obstruction`, same body.
+`POST http://elevator-api:8080/elevators/1/obstruction`, same body —
+but only once the BFF's own shape check passes:
+
+```ts
+// server/api/elevators/[id]/obstruction.post.ts
+const body = await readBody<{ obstructed?: unknown }>(event)
+
+if (typeof body?.obstructed !== 'boolean') {
+  throw createError({ statusCode: 400, statusMessage: 'Invalid obstructed value' })
+}
+
+return await $fetch(`${config.serviceApiUrl}/elevators/${id}/obstruction`, {
+  method: 'POST',
+  body
+})
+```
+
+`ElevatorService.setObstruction`, quoted below, never validates this
+itself — an unrecognised JSON shape for `obstructed` would already fail
+at Jackson's own deserialization layer before the method is entered.
+This check exists purely to answer that same rejection with this
+file's own message instead of Java's, and duplicates an outcome that
+was already going to happen regardless.
 
 ## Java
 
@@ -109,7 +131,9 @@ Nothing tests `canCloseDoors`'s client-side re-derivation of
 `DOORS_OPEN && !obstructed`, or the checkbox's own always-enabled
 behaviour this section describes — `elevator-ui/test/unit/elevatorStore.test.ts`
 never calls `toggleObstruction`, and the e2e smoke test never checks
-the checkbox at all.
+the checkbox at all. Nor is there any test for `obstruction.post.ts`'s
+own new shape check — the BFF's copy of the rule is, like `CallElevator`'s,
+verified by nothing but whatever request happens to reach it first.
 
 ## Client-side result
 
