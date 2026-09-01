@@ -4,7 +4,8 @@
   "description": "Tooling for the ddd-web-api demo repository (Markdown linting and the CRUD-vs-REST+DDD metrics report; app-level tooling lives in elevator-api/ and elevator-ui/).",
   "scripts": {
     "lint:md": "remark . --frail --quiet",
-    "measure": "node docs/measure-refactor.mjs"
+    "measure": "node docs/measure-refactor.mjs",
+    "build:demo": "bash scripts/build-demo.sh"
   },
   "devDependencies": {
     "jscpd": "^5.0.16",
