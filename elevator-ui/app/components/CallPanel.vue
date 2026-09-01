@@ -1,26 +1,30 @@
 <script setup lang="ts">
 const store = useElevatorStore()
 
-// One floor row per floor, an up-arrow and/or down-arrow button each --
-// restoring the pre-hypermedia button grid crud always had, rather than
-// a plain floor-number-plus-direction form. call-elevator is still one
-// generic operation (never a URL or a per-floor rel this client hard-
-// codes): every button posts through the same store.callElevator,
-// which itself follows callElevatorOperation's own href/method -- see
-// that action's own comment. BUILDING_FLOORS is the one constant this
-// client already hard-codes elsewhere (CarPanel's own select-floor
-// grid does the same) -- a known gap, not something this component
-// introduces on its own.
+// Exactly crud's own button grid (HTML/CSS unchanged): one row per
+// floor, an up-arrow and/or down-arrow button each, no button at all
+// past the top or bottom floor. call-elevator is still one generic
+// operation (never a URL or a per-floor rel this client hard-codes):
+// every button posts through the same store.callElevator, which itself
+// follows callElevatorOperation's own href/method -- see that action's
+// own comment. BUILDING_FLOORS is the one constant this client already
+// hard-codes elsewhere (CarPanel's own select-floor grid does the
+// same) -- a known gap, not something this component introduces on its
+// own. crud's isPending/floorsWithPendingCalls has no equivalent in the
+// new read model (only the single destinationFloor CarPanel already
+// highlights), so "active" never applies here; disabled follows
+// whether call-elevator is offered at all, the same way every other
+// button in this app already does.
 const operation = computed(() => store.callElevatorOperation)
 
 const floors = Array.from({ length: BUILDING_FLOORS }, (_, i) => BUILDING_FLOORS - i)
 
 function canCallUp(floor: number) {
-  return floor < BUILDING_FLOORS && !store.loading && operation.value != null
+  return floor < BUILDING_FLOORS
 }
 
 function canCallDown(floor: number) {
-  return floor > 1 && !store.loading && operation.value != null
+  return floor > 1
 }
 
 function call(floor: number, direction: 'up' | 'down') {
@@ -32,22 +36,23 @@ function call(floor: number, direction: 'up' | 'down') {
   <section class="call-panel">
     <h2>Call elevator</h2>
     <p v-if="store.error" class="error">{{ store.error }}</p>
-    <p v-if="!operation" class="unavailable">Calling the elevator is not available right now.</p>
-    <ul v-else>
+    <ul>
       <li v-for="floor in floors" :key="floor" class="floor-row">
         <span class="floor-label">Floor {{ floor }}</span>
         <button
+          v-if="canCallUp(floor)"
           type="button"
           :class="{ loading: store.loading }"
-          :disabled="!canCallUp(floor)"
+          :disabled="store.loading || !operation"
           @click="call(floor, 'up')"
         >
           ▲
         </button>
         <button
+          v-if="canCallDown(floor)"
           type="button"
           :class="{ loading: store.loading }"
-          :disabled="!canCallDown(floor)"
+          :disabled="store.loading || !operation"
           @click="call(floor, 'down')"
         >
           ▼
@@ -70,30 +75,24 @@ function call(floor: number, direction: 'up' | 'down') {
   font-size: 0.85rem;
   margin: 0 0 0.5rem;
 }
-.unavailable {
-  color: #666;
-  font-size: 0.85rem;
-  margin: 0;
-}
 ul {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
 }
 .floor-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  padding: 0.25rem 0;
 }
 .floor-label {
-  flex: 1;
-  font-size: 0.85rem;
+  width: 5rem;
+  font-weight: bold;
 }
 button {
-  padding: 0.25rem 0.5rem;
+  width: 2.5rem;
+  padding: 0.3rem 0;
   border: 1px solid #999;
   border-radius: 4px;
   background: #f5f5f5;
@@ -109,6 +108,11 @@ button:hover:not(:disabled) {
 button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+button.active {
+  background: #c8e6c9;
+  border-color: #4caf50;
+  box-shadow: 0 0 4px rgba(76, 175, 80, 0.4);
 }
 button.loading {
   opacity: 0.6;
