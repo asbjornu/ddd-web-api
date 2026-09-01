@@ -7005,6 +7005,74 @@ Then delete every other copy.
 
 # `</migration>`
 
+
+
+------------------------------------------------------------------------
+
+# `<three-stages>`
+
+------------------------------------------------------------------------
+
+## Three snapshots, not two
+
+There is an intermediate architecture in this refactor that is useful precisely because it separates two changes we otherwise tend to bundle together.
+
+`crud` is the original REST-ish CRUD application.
+
+`json-hypermedia` has already moved the backend to commands, DDD, CQRS, and hypermedia, but the client is still Vue + Pinia consuming JSON.
+
+`main` keeps that backend model and changes the delivery mechanism again: the API serves HTML directly and Datastar morphs it in place. The BFF disappears.
+
+So we can ask a much better question:
+
+**What did domain modeling and hypermedia buy us before server-rendered HTML entered the picture?**
+
+------------------------------------------------------------------------
+
+## CallElevator: knowledge moves in stages
+
+In `crud`, the client hard-codes the endpoint, posts a row-shaped request, then performs follow-up reads to discover what happened. It also owns state-machine knowledge such as the moving-state names and a hand-copied travel-time constant.
+
+In `json-hypermedia`, the client discovers the command from the representation and posts to the operation's advertised `href`. The backend is already the same command/handler/aggregate architecture as `main`. But one gap remains visible: the JSON operation does not enumerate the floor range, so the Vue client still carries `BUILDING_FLOORS`.
+
+In `main`, the HTML form carries the URI, field names, direction options, and floor options. The client submits the form it was given. The remaining state-name comparisons are presentation decisions, not legality decisions.
+
+------------------------------------------------------------------------
+
+## ObstructDoors: discover by looking
+
+In `crud`, `DOORS_OPEN && !obstructed` is re-derived in the Vue component while the server has its own separate behavior.
+
+In `json-hypermedia`, the client no longer asks whether obstruction is legal. It asks whether the latest representation contains an `obstruct-doors` operation.
+
+In `main`, the same seam becomes a DOM lookup for a form with `data-rel="obstruct-doors"`. The domain rule did not move from JSON to HTML; only its representation did.
+
+------------------------------------------------------------------------
+
+## TriggerEmergencyRecall: the stubborn BFF
+
+This is where the intermediate snapshot is most revealing.
+
+The `json-hypermedia` backend already has the same authorization rule and command architecture as `main`, but the browser still needs the Nuxt BFF to turn the technician key exchange into a credential it can use. The BFF is smaller and more consolidated, but not gone.
+
+`main` changes that last delivery constraint: the key-switch session is same-origin, the authorized representation renders the emergency-recall affordance, and the client never needs to inspect a scope or construct an Authorization header.
+
+The BFF was not removed by DDD alone. It became unnecessary only after the representation and credential flow changed too.
+
+------------------------------------------------------------------------
+
+## The useful decomposition
+
+`crud` → `json-hypermedia` answers: **what happens when the server owns behavior and advertises it?**
+
+`json-hypermedia` → `main` answers: **what happens when the server also owns the semantic UI representation?**
+
+That distinction matters because it stops us crediting every deletion to hypermedia, or every simplification to HTML.
+
+------------------------------------------------------------------------
+
+# `</three-stages>`
+
 # `<metrics>`
 
 ------------------------------------------------------------------------
