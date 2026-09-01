@@ -7,7 +7,6 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import no.javazone.elevator.shared.domain.ElevatorId;
-import no.javazone.elevator.shared.security.Principal;
 import no.javazone.elevator.shared.security.PrincipalResolver;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;

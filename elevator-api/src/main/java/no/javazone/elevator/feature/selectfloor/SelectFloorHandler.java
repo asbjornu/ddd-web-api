@@ -1,7 +1,6 @@
 package no.javazone.elevator.feature.selectfloor;
 
 import java.util.List;
-import no.javazone.elevator.shared.domain.CommandRefused;
 import no.javazone.elevator.shared.domain.DomainEvent;
 import no.javazone.elevator.shared.domain.Elevator;
 import no.javazone.elevator.shared.domain.ElevatorId;

@@ -109,11 +109,6 @@ button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
-button.active {
-  background: #c8e6c9;
-  border-color: #4caf50;
-  box-shadow: 0 0 4px rgba(76, 175, 80, 0.4);
-}
 button.loading {
   opacity: 0.6;
 }

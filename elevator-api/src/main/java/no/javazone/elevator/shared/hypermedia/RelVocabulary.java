@@ -24,8 +24,4 @@ public class RelVocabulary {
                 .filter(rel -> rel.name().equals(name))
                 .findFirst();
     }
-
-    public List<RelDefinition> all() {
-        return rels;
-    }
 }

@@ -80,10 +80,6 @@ public final class Representation {
             return this;
         }
 
-        public Builder link(String rel, String href) {
-            return link(new Link(rel, href));
-        }
-
         public Builder affordance(Affordance affordance) {
             affordances.add(affordance);
             return this;
