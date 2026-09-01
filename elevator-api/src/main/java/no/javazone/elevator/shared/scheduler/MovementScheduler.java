@@ -73,6 +73,6 @@ public class MovementScheduler {
         List<DomainEvent> events = elevator.arrive(destination);
         store.save(elevator);
         effects.apply(elevator, events);
-        updates.publish(id, renderer.render(EventRepresentations.of(elevator)));
+        updates.publish(id, renderer.render(EventRepresentations.of(elevator, properties)));
     }
 }

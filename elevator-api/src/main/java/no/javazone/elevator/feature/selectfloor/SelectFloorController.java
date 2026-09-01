@@ -2,6 +2,7 @@ package no.javazone.elevator.feature.selectfloor;
 
 import tools.jackson.databind.JsonNode;
 import java.util.Optional;
+import no.javazone.elevator.config.ElevatorProperties;
 import no.javazone.elevator.feature.streamevents.ElevatorViewUpdates;
 import no.javazone.elevator.feature.viewstatus.ElevatorView;
 import no.javazone.elevator.feature.viewstatus.ElevatorViewProjection;
@@ -39,6 +40,7 @@ public class SelectFloorController implements CommandEndpoint {
     private final ElevatorStateJsonRenderer eventRenderer;
     private final AffordanceCatalog affordanceCatalog;
     private final RepresentationResponses responses;
+    private final ElevatorProperties properties;
 
     public SelectFloorController(
             SelectFloorHandler handler,
@@ -46,13 +48,15 @@ public class SelectFloorController implements CommandEndpoint {
             ElevatorViewUpdates updates,
             ElevatorStateJsonRenderer eventRenderer,
             AffordanceCatalog affordanceCatalog,
-            RepresentationResponses responses) {
+            RepresentationResponses responses,
+            ElevatorProperties properties) {
         this.handler = handler;
         this.projection = projection;
         this.updates = updates;
         this.eventRenderer = eventRenderer;
         this.affordanceCatalog = affordanceCatalog;
         this.responses = responses;
+        this.properties = properties;
     }
 
     @Override
@@ -84,8 +88,8 @@ public class SelectFloorController implements CommandEndpoint {
         }
 
         ElevatorView view = projection.find(id).orElseThrow();
-        updates.publish(id, eventRenderer.render(ElevatorRepresentations.eventRepresentation(view)));
-        return responses.ok(accept, ElevatorRepresentations.representation(segment, view, affordanceCatalog, principal));
+        updates.publish(id, eventRenderer.render(ElevatorRepresentations.eventRepresentation(view, properties)));
+        return responses.ok(accept, ElevatorRepresentations.representation(segment, view, affordanceCatalog, principal, properties));
     }
 
     private Optional<Floor> parseFloor(JsonNode body) {

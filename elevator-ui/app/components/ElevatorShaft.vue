@@ -12,15 +12,69 @@ const floors = computed(() =>
 
 const currentFloor = computed(() => store.status?.currentFloor ?? 1)
 
-// The car's position is a CSS transition on `bottom`, not a
-// requestAnimationFrame tween keyed to a hard-coded seconds-per-floor
-// constant -- see docs/architecture.md's slice 1 roadmap entry for why
-// that guessed-physics approach was deleted rather than kept. This is
-// a fixed-duration slide (like the door transitions below it), not a
-// claim about how long the real journey takes; the destination marker
-// is what tells the rider where the car is headed, from the read
-// model's own destinationFloor (back as of slice 3).
-const carBottom = computed(() => (currentFloor.value - 1) * FLOOR_HEIGHT)
+// The car's position is a requestAnimationFrame tween, exactly like
+// crud's own -- the one difference is the seconds-per-floor duration
+// comes from the server's own travelSecondsPerFloor (every
+// representation carries it, per elevator-api's own
+// ElevatorRepresentations Javadoc), never a client-side guessed-
+// physics constant. The server reports only the departure floor and
+// the destination once, when a trip starts -- see
+// docs/architecture.md's "Timing" section -- so there is no per-floor
+// telemetry to poll; this is what makes the car's own position
+// between those two reports anything other than a jump at arrival.
+const animatedFloor = ref(store.status?.currentFloor ?? 1)
+let animFrameId: number | null = null
+let animTarget = -1
+
+function startCarAnimation(from: number, to: number, travelSecondsPerFloor: number) {
+  animTarget = to
+  const distance = Math.abs(to - from)
+  if (distance === 0) {
+    animatedFloor.value = from
+    return
+  }
+  const sign = to > from ? 1 : -1
+  const startTime = performance.now()
+  const duration = distance * travelSecondsPerFloor * 1000
+
+  function frame() {
+    const elapsed = performance.now() - startTime
+    const t = Math.min(elapsed / duration, 1)
+    animatedFloor.value = from + sign * distance * t
+    if (t < 1) {
+      animFrameId = requestAnimationFrame(frame)
+    } else {
+      animFrameId = null
+    }
+  }
+  if (animFrameId) cancelAnimationFrame(animFrameId)
+  animFrameId = requestAnimationFrame(frame)
+}
+
+watch(
+  () => store.status,
+  (status) => {
+    if (!status) return
+    const isMoving = status.state === 'movingUp' || status.state === 'movingDown'
+
+    if (isMoving && status.destinationFloor != null) {
+      const from = status.currentFloor
+      const to = status.destinationFloor
+      if (to !== animTarget) {
+        startCarAnimation(from, to, status.travelSecondsPerFloor)
+      }
+    } else if (!isMoving) {
+      if (animFrameId) {
+        cancelAnimationFrame(animFrameId)
+        animFrameId = null
+      }
+      animTarget = -1
+      animatedFloor.value = status.currentFloor
+    }
+  }
+)
+
+const carBottom = computed(() => (animatedFloor.value - 1) * FLOOR_HEIGHT)
 
 const destinationFloor = computed(() => store.status?.destinationFloor ?? null)
 
@@ -208,7 +262,6 @@ const isEmergency = computed(() => store.status?.state === 'emergencyRecall')
   display: flex;
   flex-direction: column;
   z-index: 2;
-  transition: bottom 0.6s ease;
 }
 .car-roof {
   height: 6px;

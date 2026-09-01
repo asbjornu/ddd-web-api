@@ -67,6 +67,11 @@ export interface ElevatorView {
   weightKg: number
   capacityKg: number
   destinationFloor: number | null
+  // Server-declared, never a client-side guessed-physics constant --
+  // see docs/architecture.md's rule against hard-coding travel timing.
+  // ElevatorShaft.vue's own startCarAnimation reads this to know how
+  // long the car's own trip actually takes.
+  travelSecondsPerFloor: number
   operations: Operation[]
 }
 
@@ -163,6 +168,7 @@ export const useElevatorStore = defineStore('elevator', {
             weightKg: data.weightKg,
             capacityKg: data.capacityKg,
             destinationFloor: data.destinationFloor ?? null,
+            travelSecondsPerFloor: data.travelSecondsPerFloor,
             // The SSE stream never carries operations (see this
             // method's own doc comment above), so replacing them with
             // data.operations here would permanently wipe every

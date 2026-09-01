@@ -1,5 +1,6 @@
 package no.javazone.elevator.shared.scheduler;
 
+import no.javazone.elevator.config.ElevatorProperties;
 import no.javazone.elevator.shared.domain.Elevator;
 import no.javazone.elevator.shared.domain.ElevatorStateNames;
 import no.javazone.elevator.shared.hypermedia.Representation;
@@ -15,7 +16,7 @@ final class EventRepresentations {
     private EventRepresentations() {
     }
 
-    static Representation of(Elevator elevator) {
+    static Representation of(Elevator elevator, ElevatorProperties properties) {
         return Representation.builder("Elevator")
                 .property("currentFloor", elevator.currentFloor().level())
                 .property("state", ElevatorStateNames.of(elevator.state()))
@@ -25,6 +26,7 @@ final class EventRepresentations {
                 .property("weightKg", elevator.load().kilograms())
                 .property("capacityKg", elevator.load().capacityKilograms())
                 .property("destinationFloor", ElevatorStateNames.destinationOf(elevator.state()))
+                .property("travelSecondsPerFloor", properties.travelSecondsPerFloor())
                 .build();
     }
 }

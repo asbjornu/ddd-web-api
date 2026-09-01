@@ -1,5 +1,6 @@
 package no.javazone.elevator.shared.web;
 
+import no.javazone.elevator.config.ElevatorProperties;
 import no.javazone.elevator.feature.viewstatus.ElevatorView;
 import no.javazone.elevator.shared.domain.CommandRefused;
 import no.javazone.elevator.shared.hypermedia.AffordanceCatalog;
@@ -22,7 +23,7 @@ public final class ElevatorRepresentations {
 
     public static Representation representation(
             String segment, ElevatorView view, AffordanceCatalog affordanceCatalog,
-            Principal principal) {
+            Principal principal, ElevatorProperties properties) {
         String self = "/elevators/" + segment;
         return Representation.builder("Elevator")
                 .property("currentFloor", view.currentFloor())
@@ -33,6 +34,14 @@ public final class ElevatorRepresentations {
                 .property("weightKg", view.weightKg())
                 .property("capacityKg", view.capacityKg())
                 .property("destinationFloor", view.destinationFloor())
+                // Rides along on every representation, not just while a
+                // trip is in progress, so a client already has this the
+                // instant a command's own response reports movingUp/
+                // movingDown -- never a client-side guessed-physics
+                // constant, per docs/architecture.md's rule against
+                // hard-coding travel timing; see ElevatorShaft.vue's own
+                // startCarAnimation.
+                .property("travelSecondsPerFloor", properties.travelSecondsPerFloor())
                 .link(new Link("self", self))
                 .link(new Link("updates", self + "/events", "text/event-stream"))
                 .affordances(affordanceCatalog.affordances(AffordanceContext.forElevator(
@@ -41,7 +50,7 @@ public final class ElevatorRepresentations {
                 .build();
     }
 
-    public static Representation eventRepresentation(ElevatorView view) {
+    public static Representation eventRepresentation(ElevatorView view, ElevatorProperties properties) {
         return Representation.builder("Elevator")
                 .property("currentFloor", view.currentFloor())
                 .property("state", view.state())
@@ -51,6 +60,7 @@ public final class ElevatorRepresentations {
                 .property("weightKg", view.weightKg())
                 .property("capacityKg", view.capacityKg())
                 .property("destinationFloor", view.destinationFloor())
+                .property("travelSecondsPerFloor", properties.travelSecondsPerFloor())
                 .build();
     }
 

@@ -1,6 +1,7 @@
 package no.javazone.elevator.feature.viewstatus;
 
 import java.util.Optional;
+import no.javazone.elevator.config.ElevatorProperties;
 import no.javazone.elevator.shared.domain.ElevatorId;
 import no.javazone.elevator.shared.hypermedia.AffordanceCatalog;
 import no.javazone.elevator.shared.hypermedia.Representation;
@@ -38,18 +39,21 @@ public class ViewStatusController {
     private final AffordanceCatalog affordanceCatalog;
     private final RepresentationResponses responses;
     private final PrincipalResolver principalResolver;
+    private final ElevatorProperties properties;
 
     public ViewStatusController(
             ElevatorViewProjection projection,
             UriResolver uriResolver,
             AffordanceCatalog affordanceCatalog,
             RepresentationResponses responses,
-            PrincipalResolver principalResolver) {
+            PrincipalResolver principalResolver,
+            ElevatorProperties properties) {
         this.projection = projection;
         this.uriResolver = uriResolver;
         this.affordanceCatalog = affordanceCatalog;
         this.responses = responses;
         this.principalResolver = principalResolver;
+        this.properties = properties;
     }
 
     @GetMapping("/elevators/{segment}")
@@ -63,7 +67,7 @@ public class ViewStatusController {
                     HttpStatus.NOT_FOUND, accept, ElevatorRepresentations.notFound(segment));
         }
         Representation representation = ElevatorRepresentations.representation(
-                segment, view.get(), affordanceCatalog, principalResolver.resolve());
+                segment, view.get(), affordanceCatalog, principalResolver.resolve(), properties);
         return responses.ok(accept, representation);
     }
 

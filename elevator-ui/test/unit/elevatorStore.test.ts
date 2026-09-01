@@ -70,6 +70,7 @@ registerEndpoint('/api/elevators/1/status', {
       obstructed: false,
       weightKg: 0,
       capacityKg: 800,
+      travelSecondsPerFloor: 2,
       destinationFloor: null
     }
     return cookieInserted
@@ -117,6 +118,7 @@ const BASE_VIEW = {
   obstructed: false,
   weightKg: 0,
   capacityKg: 800,
+  travelSecondsPerFloor: 2,
   destinationFloor: null
 }
 
@@ -166,6 +168,7 @@ describe('useElevatorStore getters', () => {
       obstructed: false,
       weightKg: 0,
       capacityKg: 800,
+      travelSecondsPerFloor: 2,
       destinationFloor: null,
       operations: [
         { rel: 'call-elevator', title: 'Call elevator', method: 'POST', href: '/elevators/1/calls' }
@@ -185,6 +188,7 @@ describe('useElevatorStore getters', () => {
       obstructed: false,
       weightKg: 0,
       capacityKg: 800,
+      travelSecondsPerFloor: 2,
       destinationFloor: null,
       operations: []
     }
@@ -202,6 +206,7 @@ describe('useElevatorStore getters', () => {
       obstructed: false,
       weightKg: 0,
       capacityKg: 800,
+      travelSecondsPerFloor: 2,
       destinationFloor: 5,
       operations: [
         {
@@ -226,6 +231,7 @@ describe('useElevatorStore getters', () => {
       obstructed: false,
       weightKg: 0,
       capacityKg: 800,
+      travelSecondsPerFloor: 2,
       destinationFloor: null,
       operations: [
         {
@@ -265,6 +271,7 @@ describe('useElevatorStore callElevator', () => {
       obstructed: false,
       weightKg: 0,
       capacityKg: 800,
+      travelSecondsPerFloor: 2,
       destinationFloor: null,
       operations: []
     }
@@ -285,6 +292,7 @@ describe('useElevatorStore callElevator', () => {
       obstructed: false,
       weightKg: 0,
       capacityKg: 800,
+      travelSecondsPerFloor: 2,
       destinationFloor: null,
       operations: [
         {
@@ -330,6 +338,7 @@ describe('useElevatorStore selectFloor', () => {
       obstructed: false,
       weightKg: 0,
       capacityKg: 800,
+      travelSecondsPerFloor: 2,
       destinationFloor: null,
       operations: []
     }
@@ -350,6 +359,7 @@ describe('useElevatorStore selectFloor', () => {
       obstructed: false,
       weightKg: 0,
       capacityKg: 800,
+      travelSecondsPerFloor: 2,
       destinationFloor: null,
       operations: [
         {
@@ -519,6 +529,7 @@ describe('useElevatorStore triggerEmergencyRecall', () => {
       obstructed: false,
       weightKg: 0,
       capacityKg: 800,
+      travelSecondsPerFloor: 2,
       destinationFloor: null,
       operations: []
     }
@@ -539,6 +550,7 @@ describe('useElevatorStore triggerEmergencyRecall', () => {
       obstructed: false,
       weightKg: 0,
       capacityKg: 800,
+      travelSecondsPerFloor: 2,
       destinationFloor: null,
       operations: [
         {

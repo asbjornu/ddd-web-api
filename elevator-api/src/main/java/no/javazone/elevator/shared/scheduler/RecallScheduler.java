@@ -69,6 +69,6 @@ public class RecallScheduler {
         List<DomainEvent> events = elevator.completeEmergencyRecall();
         store.save(elevator);
         effects.apply(elevator, events);
-        updates.publish(id, renderer.render(EventRepresentations.of(elevator)));
+        updates.publish(id, renderer.render(EventRepresentations.of(elevator, properties)));
     }
 }

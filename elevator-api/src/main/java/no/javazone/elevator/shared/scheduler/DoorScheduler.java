@@ -97,6 +97,6 @@ public class DoorScheduler {
         }
         store.save(elevator);
         effects.apply(elevator, events);
-        updates.publish(elevator.id(), renderer.render(EventRepresentations.of(elevator)));
+        updates.publish(elevator.id(), renderer.render(EventRepresentations.of(elevator, properties)));
     }
 }
