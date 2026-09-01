@@ -70,6 +70,60 @@ calls, resets obstruction and weight, and sets state — a roughly
 25-line method mutating the same `Elevator` entity, saved once at the
 end.
 
+## Tests
+
+`MaintenanceControllerTest.java` covers the scope check
+(`SecurityConfig.java`'s filter, not this method) via three separate
+negative cases, and the recall itself via `MockMvc`:
+
+```java
+@Test
+void emergencyRecallSetsDirectionToRecallFloor() throws Exception {
+    mockMvc.perform(post("/elevators/1/calls")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"floor\": 3, \"direction\": \"UP\"}"));
+
+    Thread.sleep(5000);
+
+    mockMvc.perform(post("/elevators/1/emergency-recall")
+                    .with(recallToken()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.state", is("EMERGENCY_RECALL")))
+            .andExpect(jsonPath("$.direction", is("DOWN")))
+            .andExpect(jsonPath("$.targetFloor", is(1)));
+}
+```
+
+`ElevatorServiceTest.java`'s own recall cases go further, and one of
+them documents a real gap directly in its own body — worth quoting in
+full, since it is exactly the kind of client-observability problem
+this file's "Client-side result" section is about:
+
+```java
+@Test
+@DisplayName("recall at the recall floor skips EMERGENCY_RECALL and leaves the doors shut")
+void emergencyRecallAtTheRecallFloorGoesStraightOutOfService() {
+    // The seeded car sits at floor 1, which is the recall floor.
+    Elevator recalled = service.triggerEmergencyRecall(ELEVATOR_ID);
+
+    assertThat(recalled.getState()).isEqualTo(ElevatorState.OUT_OF_SERVICE);
+    assertThat(recalled.getTargetFloor()).isNull();
+
+    // Recorded rather than endorsed. docs/architecture.md says recall
+    // "opens its doors and then automatically transitions to
+    // outOfService", but on this path the doors are set CLOSED and the
+    // EMERGENCY_RECALL state is never entered at all -- so a client
+    // watching for it would miss the transition entirely. Worth
+    // resolving when recall moves onto the aggregate.
+}
+```
+
+No client-side test exercises `store.triggerEmergencyRecall`,
+`inMaintenance`, or `ElevatorShaft.vue`'s colour computeds — the
+technician flow is entirely outside what
+`elevator-ui/test/unit/elevatorStore.test.ts` or the e2e smoke test
+cover.
+
 ## Client-side result
 
 `fetchStatus()` resolves, and — eventually, once the recall settles —

@@ -150,6 +150,57 @@ already-open `EventSource` also gets pushed the same properties over
 SSE — but never the `operations` array (see the store's own
 `connectToEvents`, quoted in full below).
 
+## Tests
+
+`CallElevatorControllerTest.java` is close kin to `main`'s own (in
+fact identical at this test's granularity — the command endpoint's
+behaviour did not change when the HTML renderer was added later):
+
+```java
+@Test
+void callingTheSeededElevatorSucceeds() throws Exception {
+```
+
+`CallElevatorAffordanceContributorTest.java` is the one test class
+that is *not* identical between this branch and `main`: `main` adds
+`offersEveryFloorAsAnOption`, a case this branch has no equivalent
+of — a direct, checkable record of the exact gap this file's Step 0
+capture points out (`floor`'s field here is `"type": "text"`, no
+`options`).
+
+```java
+@Test
+void presentWhenIdle() {
+```
+
+This branch is the only one of the three with a real client-side unit
+test suite for this command, `elevator-ui/test/unit/elevatorStore.test.ts`:
+
+```ts
+describe('useElevatorStore callElevator', () => {
+  it('does nothing when no call-elevator operation is present', async () => {
+    // ...
+    await store.callElevator(3, 'up')
+    expect(store.error).toBe('Calling the elevator is not available right now.')
+    expect(lastCommandBody).toBeUndefined()
+  })
+
+  it("posts to the operation's own href and method, echoing its hidden type", async () => {
+    // ...
+    await store.callElevator(5, 'up')
+    expect(lastCommandBody).toEqual({ type: 'CallElevator', floor: 5, direction: 'up' })
+    expect(store.error).toBeNull()
+  })
+})
+```
+
+Note what it does *not* cover: `CallPanel.vue`'s hard-coded
+`BUILDING_FLOORS`/`canCallUp` range check, or `ElevatorShaft.vue`'s
+animation — both component-level, and this branch has no component
+tests, only the store. The e2e suite,
+`elevator-ui/test/e2e/rider-page.spec.ts`, is the same smoke test as
+`crud`'s: it never calls the elevator.
+
 ## Client-side result
 
 `ElevatorShaft.vue`'s `watch()` — a close cousin of `main`'s

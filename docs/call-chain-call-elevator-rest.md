@@ -147,6 +147,31 @@ new representation, rendered by content negotiation. **No second
 request**: an already-open `EventSource` (`GET /elevators/1/events`)
 gets pushed the same state via SSE.
 
+## Tests
+
+`CallElevatorControllerTest.java` and `CallElevatorAffordanceContributorTest.java`
+are unchanged in spirit from `json-hypermedia`'s own, but the
+affordance test gained a case the other two branches do not have,
+covering the `FloorOptions` fix this file's Step 0 section describes:
+
+```java
+@Test
+void offersEveryFloorAsAnOption() {
+```
+
+There is, once again, no client-side test at all — not even the store
+unit tests `json-hypermedia` had, because there is no store: `npm run
+test:unit` was removed from this branch's CI entirely (see this
+repository's commit history — the last thing it ever ran was a suite
+covering a client-side state layer that no longer exists). The only
+remaining client-side test is the same Playwright smoke test as the
+other two variants, `elevator-ui/test/e2e/rider-page.spec.ts`, which
+still never clicks a floor button. Concretely: the car animation,
+`travelSecondsPerFloor` being read off the DOM rather than
+hard-coded, and the `car.classList.toggle` calls this file's
+"Client-side result" section quotes are exercised by nothing but a
+human loading the page and watching the shaft.
+
 ## Client-side result
 
 `shaft.client.ts`'s `update()` runs on every mutation of

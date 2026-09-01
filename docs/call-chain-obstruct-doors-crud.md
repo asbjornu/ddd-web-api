@@ -66,6 +66,51 @@ public Elevator setObstruction(Long id, boolean obstructed) {
 Notice: there is no state check here — the checkbox is always
 clickable, in every state; whatever happens, happens.
 
+## Tests
+
+`DoorControllerTest.java` covers the reopening behaviour this endpoint
+triggers, but through `close-doors`'s own conflict responses rather
+than any assertion on `setObstruction` in isolation — there is no unit
+test for `ElevatorService.setObstruction` itself, only its observed
+effects via `MockMvc`:
+
+```java
+@Test
+void obstructionReopensClosingDoors() throws Exception {
+    mockMvc.perform(post("/elevators/1/open-doors"));
+    mockMvc.perform(post("/elevators/1/close-doors"));
+
+    mockMvc.perform(post("/elevators/1/obstruction")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"obstructed\": true}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.obstructed", is(true)));
+
+    // On next read, obstruction should have triggered re-open
+    mockMvc.perform(get("/elevators/1/status"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.doorState", is("OPEN")))
+            .andExpect(jsonPath("$.state", is("DOORS_OPEN")));
+}
+
+@Test
+void closeDoorsWhenObstructedReturnsConflict() throws Exception {
+    mockMvc.perform(post("/elevators/1/obstruction")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"obstructed\": true}"));
+    mockMvc.perform(post("/elevators/1/open-doors"));
+
+    mockMvc.perform(post("/elevators/1/close-doors"))
+            .andExpect(status().isConflict());
+}
+```
+
+Nothing tests `canCloseDoors`'s client-side re-derivation of
+`DOORS_OPEN && !obstructed`, or the checkbox's own always-enabled
+behaviour this section describes — `elevator-ui/test/unit/elevatorStore.test.ts`
+never calls `toggleObstruction`, and the e2e smoke test never checks
+the checkbox at all.
+
 ## Client-side result
 
 `fetchStatus()` resolves, `store.status.obstructed` flips, and two

@@ -89,6 +89,21 @@ public List<DomainEvent> handle(ObstructDoorsCommand command) {
 }
 ```
 
+## Tests
+
+Same Java suite as `json-hypermedia`, unchanged (see that file's own
+"Tests" section for the shared `ObstructDoorsControllerTest`/
+`ObstructDoorsAffordanceContributorTest`/`ElevatorDoorsTest` cases).
+On the client side, this is the one variant with genuinely nothing to
+unit-test: no store, no `formFor`/`submitHiddenForm` test at all —
+`panels.client.ts` is exercised only by the same Playwright smoke test
+every other operation in this series is,
+`elevator-ui/test/e2e/rider-page.spec.ts`, which never opens or closes
+a door. The DOM-presence logic this file's "Client-side result"
+section quotes — `toggle.disabled = obstructed ? !formFor(...) :
+!formFor(...)` — is, like `CallElevator`'s animation code, verified by
+nothing but a human watching the checkbox.
+
 ## Client-side result
 
 `panels.client.ts` never asks "is the door closing"; it only ever asks

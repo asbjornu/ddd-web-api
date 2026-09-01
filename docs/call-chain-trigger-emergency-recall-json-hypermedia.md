@@ -133,6 +133,53 @@ if (!context.principal().hasScope("elevator:recall")) return List.of();
 if ("emergencyRecall".equals(context.state().orElse(""))) return List.of();
 ```
 
+## Tests
+
+`TriggerEmergencyRecallControllerTest.java` and
+`TriggerEmergencyRecallAffordanceContributorTest.java` are identical
+to `main`'s (confirmed by diffing the two branches directly — the
+scope check and its test coverage did not change when the BFF's OAuth
+dance was replaced by `main`'s own `key-switch/session` endpoint):
+
+```java
+@Test
+void triggeringRecallWithoutTheScopeIsForbidden() throws Exception {
+```
+
+```java
+@Test
+void absentWithoutTheScope() {
+```
+
+This branch is the only one of the three whose *client* also has a
+real test for this command, `elevator-ui/test/unit/elevatorStore.test.ts`:
+
+```ts
+describe('useElevatorStore triggerEmergencyRecall', () => {
+  it('does nothing when no trigger-emergency-recall operation is present', async () => {
+    // ...
+    await store.triggerEmergencyRecall()
+    expect(store.error).toBe('Emergency recall is not available right now.')
+    expect(lastTechnicianCommandBody).toBeUndefined()
+  })
+
+  it("posts to the BFF's commands proxy, echoing the operation's hidden type", async () => {
+    // ...
+    await store.triggerEmergencyRecall()
+    expect(lastTechnicianCommandBody).toEqual({ type: 'TriggerEmergencyRecall' })
+  })
+})
+```
+
+What it does not cover is the entire point of this file's "Client-side
+result" section: `refreshAuthenticatedStatus`'s re-read is never
+asserted to actually pick up `hasAnyTechnicianOperation`'s change, and
+neither `technicianKey.ts`'s RFC 9728 discovery step nor its
+`client_credentials` exchange has a test double anywhere in this
+suite — the whole BFF-side flow this file's Step 0 section captures
+live is untested code, run for the first time, for real, against a
+real `elevator-auth`, only when someone does exactly that.
+
 ## Client-side result
 
 The command's own response never reaches `store.status` here — note

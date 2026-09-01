@@ -119,6 +119,61 @@ public List<DomainEvent> handle(ObstructDoorsCommand command) {
 }
 ```
 
+## Tests
+
+`ObstructDoorsControllerTest.java` and `ObstructDoorsAffordanceContributorTest.java`
+are identical to `main`'s (confirmed by diffing the two branches'
+copies directly — this is one of the few operations where the test
+suite did not change at all when the HTML/Datastar layer was added):
+
+```java
+@Test
+void obstructingClosingDoorsReopensThem() throws Exception {
+```
+
+```java
+@Test
+void presentOnlyWhileClosing() {
+```
+
+The domain layer's own `ElevatorDoorsTest.java` is likewise byte-for-
+byte identical between the two branches:
+
+```java
+@Test
+void givenClosing_whenObstructed_thenDoorsReopen() {
+    Elevator elevator = idleElevator();
+    elevator.openDoors();
+    elevator.closeDoors();
+
+    List<DomainEvent> events = elevator.obstructDoors();
+
+    assertThat(elevator.state()).isInstanceOf(ElevatorState.DoorsOpen.class);
+    assertThat(elevator.doors().obstructed()).isTrue();
+    assertThat(events).hasAtLeastOneElementOfType(DoorsObstructed.class);
+    assertThat(events).hasAtLeastOneElementOfType(DoorsOpened.class);
+}
+```
+
+`elevator-ui/test/unit/elevatorStore.test.ts` does cover this
+operation, unlike `crud`'s equivalent — `describe('useElevatorStore
+doors', ...)` exercises `obstructDoors`/`clearObstruction` alongside
+`openDoors`/`closeDoors`/`reportLoad` as one group, each asserted to
+echo its own operation's hidden `type`:
+
+```ts
+it('follows each operation when present, echoing its hidden type', async () => {
+  // ...
+  await store.obstructDoors()
+  expect(lastCommandBody).toEqual({ type: 'ObstructDoors' })
+  // ...
+})
+```
+
+It does not cover `StatusDisplay.vue`'s `obstructionWarning` computed,
+or `canObstruct`/`canClearObstruction` — those are component-level,
+and this branch, like the other two, has no component tests.
+
 ## Client-side result
 
 `StatusDisplay.vue`'s obstruction warning:

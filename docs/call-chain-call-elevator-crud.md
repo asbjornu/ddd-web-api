@@ -102,6 +102,60 @@ response is the persisted `Call` row, as JSON. `fetchStatus()`/
 1–2, `GET` this time) because the `POST` response didn't say what the
 elevator is doing now.
 
+## Tests
+
+`elevator-api/src/test/java/no/javazone/elevator/controller/CallControllerTest.java`
+drives the one `ElevatorService.call` method end to end through
+`MockMvc`, `POST`-ing the exact JSON shown above and asserting on a
+second `GET /elevators/1/status` to see the dispatch's effect —
+there is no separate domain-layer test for `call` in isolation:
+`ElevatorServiceTest.java` (the God Object's own test class, one file
+for every method the service has) covers dispatch logic as one case
+among many, alongside `overloadClearsCarCallsAndPreventsDeparture` and
+the maintenance/recall cases quoted elsewhere in this series.
+
+```java
+@Test
+void callingFromIdleStartsTheElevatorMoving() throws Exception {
+    mockMvc.perform(post("/elevators/1/calls")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"floor\": 3, \"direction\": \"UP\"}"))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.floor", is(3)))
+            .andExpect(jsonPath("$.direction", is("UP")));
+
+    mockMvc.perform(get("/elevators/1/status"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.state", is("MOVING_UP")))
+            .andExpect(jsonPath("$.direction", is("UP")))
+            .andExpect(jsonPath("$.currentFloor", is(1)));
+}
+```
+
+Nothing on the client is unit-tested at all: there is no test for
+`store.callElevator` or for `CallPanel.vue`'s `isPending`/`call`
+functions, Pinia-mocked or otherwise —
+`elevator-ui/test/unit/elevatorStore.test.ts` only exercises the
+store's getters and its technician key-switch actions. The one UI test
+that runs, `elevator-ui/test/e2e/rider-page.spec.ts`, is a Playwright
+smoke test that asserts the "Call elevator" heading renders and never
+clicks a floor button:
+
+```ts
+test('renders heading and main panels', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Elevator', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Call elevator' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Elevator status' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Public status page' })).toBeVisible()
+})
+```
+
+So the car animation, the pending-call highlighting, and the
+`TRAVEL_SECONDS_PER_FLOOR` duplication this file's "Client-side result"
+section describes are, in this variant, entirely untested — the only
+thing standing between them and silent drift is a human noticing.
+
 ## Client-side result
 
 Once `fetchStatus()` resolves, Pinia's `store.status` changes, and

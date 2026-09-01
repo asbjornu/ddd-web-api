@@ -108,6 +108,39 @@ Floor recallFloor = new Floor(properties.recallFloor(), true);
 List<DomainEvent> events = elevator.triggerEmergencyRecall(recallFloor); // the aggregate itself decides
 ```
 
+## Tests
+
+Same Java suite as `json-hypermedia`, byte-for-byte (see that file's
+own "Tests" section — `TriggerEmergencyRecallControllerTest.java`,
+`TriggerEmergencyRecallAffordanceContributorTest.java`, and the shared
+domain-level `ElevatorEmergencyRecallTest.java`, none of which changed
+when the BFF's OAuth exchange was replaced by this branch's
+`KeySwitchSessionController`):
+
+```java
+@Test
+void triggerEmergencyRecallTransitionsToEmergencyRecallWhenElsewhere() {
+    Elevator elevator = Elevator.seed(new ElevatorId(1), new Floor(3), 800);
+
+    List<DomainEvent> events = elevator.triggerEmergencyRecall(new Floor(1, true));
+
+    assertThat(elevator.state())
+            .isEqualTo(new ElevatorState.EmergencyRecall(new Floor(1, true)));
+    assertThat(events).hasAtLeastOneElementOfType(EmergencyRecallTriggered.class);
+    assertThat(events).noneMatch(EmergencyRecallCompleted.class::isInstance);
+}
+```
+
+There is no client-side test for `KeySwitchSessionController`'s own
+replacement of the BFF flow, nor for `panels.client.ts`'s technician
+section at all — this variant, like `crud`, has no unit test layer on
+the client, and the e2e smoke test never inserts a key. The one thing
+this branch *can* claim over `json-hypermedia` is that there is simply
+less untested surface to worry about: no `technicianKey.ts`, no RFC
+9728 discovery step, no `client_credentials` grant — the whole BFF-side
+flow that file's own "Tests" section flags as uncovered does not exist
+here to be uncovered.
+
 ## Client-side result
 
 The response (and, once the recall settles into `outOfService`, the
