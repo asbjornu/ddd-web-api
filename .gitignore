@@ -1,1 +1,7 @@
 node_modules/
+
+# IDE/Gradle-language-server Java compile output (elevator-api/bin/,
+# elevator-auth/bin/) -- Gradle's own build output goes to build/,
+# already excluded by each subproject's own .gitignore; this one is
+# VS Code's Java extension writing outside of that.
+bin/
