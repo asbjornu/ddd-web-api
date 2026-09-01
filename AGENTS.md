@@ -166,6 +166,13 @@ sufficient — that file is outside the repository, so leave it alone.
 Playwright's browsers are already downloaded; `npx playwright install
 chromium` is only needed on a fresh machine.
 
+**Mermaid quoting in `docs/plan.html`.** Mermaid node labels do not
+accept a backslash-escaped quote (`\"..\"`) — use the HTML entity
+`&quot;...&quot;` instead. `npm run lint:md` does not check
+`plan.html` (it only processes `.md` files); verify diagram edits
+there by rendering the page (e.g. headless Playwright) rather than
+trusting lint or a visual glance at the source.
+
 ## Things not to touch / be careful with
 
 - Do not refactor away a code smell in code outside the slice a task is
