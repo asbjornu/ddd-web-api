@@ -47,11 +47,11 @@ public class ElevatorService {
         return elevator;
     }
 
-    public Call call(Long elevatorId, Call request) {
+    public Call call(Long elevatorId, Call call) {
         Elevator elevator = findElevator(elevatorId);
         recomputeState(elevator);
 
-        if (request.getFloor() < 1 || request.getFloor() > properties.floors()) {
+        if (call.getFloor() < 1 || call.getFloor() > properties.floors()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid floor");
         }
         if (elevator.getState() == ElevatorState.OUT_OF_SERVICE
@@ -59,10 +59,7 @@ public class ElevatorService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Elevator is not in service");
         }
 
-        Call call = new Call();
         call.setElevatorId(elevatorId);
-        call.setFloor(request.getFloor());
-        call.setDirection(request.getDirection());
         call.setCreatedAt(Instant.now());
 
         if (elevator.getState() == ElevatorState.IDLE) {
@@ -79,18 +76,18 @@ public class ElevatorService {
         return callRepository.save(call);
     }
 
-    public CarCall carCall(Long elevatorId, CarCall request) {
+    public CarCall carCall(Long elevatorId, CarCall carCall) {
         Elevator elevator = findElevator(elevatorId);
         recomputeState(elevator);
 
-        if (request.getFloor() < 1 || request.getFloor() > properties.floors()) {
+        if (carCall.getFloor() < 1 || carCall.getFloor() > properties.floors()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid floor");
         }
         if (elevator.getState() == ElevatorState.OUT_OF_SERVICE
                 || elevator.getState() == ElevatorState.EMERGENCY_RECALL) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Elevator is not in service");
         }
-        if (request.getFloor() == elevator.getCurrentFloor()
+        if (carCall.getFloor() == elevator.getCurrentFloor()
                 && elevator.getState() == ElevatorState.DOORS_OPEN) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Already at this floor");
         }
@@ -98,9 +95,7 @@ public class ElevatorService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Overload detected");
         }
 
-        CarCall carCall = new CarCall();
         carCall.setElevatorId(elevatorId);
-        carCall.setFloor(request.getFloor());
         carCall.setCreatedAt(Instant.now());
 
         if (elevator.getState() == ElevatorState.IDLE) {

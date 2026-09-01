@@ -26,8 +26,8 @@ public class CallController {
 
     @PostMapping("/elevators/{id}/calls")
     @ResponseStatus(HttpStatus.CREATED)
-    public Call call(@PathVariable Long id, @RequestBody Call request) {
-        return elevatorService.call(id, request);
+    public Call call(@PathVariable Long id, @RequestBody Call call) {
+        return elevatorService.call(id, call);
     }
 
     @GetMapping("/elevators/{id}/calls")

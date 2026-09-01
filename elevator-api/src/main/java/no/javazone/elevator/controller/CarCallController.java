@@ -26,8 +26,8 @@ public class CarCallController {
 
     @PostMapping("/elevators/{id}/car-calls")
     @ResponseStatus(HttpStatus.CREATED)
-    public CarCall carCall(@PathVariable Long id, @RequestBody CarCall request) {
-        return elevatorService.carCall(id, request);
+    public CarCall carCall(@PathVariable Long id, @RequestBody CarCall carCall) {
+        return elevatorService.carCall(id, carCall);
     }
 
     @GetMapping("/elevators/{id}/car-calls")
