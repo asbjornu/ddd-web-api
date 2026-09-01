@@ -891,6 +891,389 @@ API designed.
 
 ------------------------------------------------------------------------
 
+# `<closer-look>`
+
+------------------------------------------------------------------------
+
+## 031a --- Did you notice anything wrong?
+
+Now did you notice anything wrong with the previous code examples or architecture?
+
+It's not obvious.
+
+Because that's just how we do things nowadays.
+
+A Vue component calls a store.
+
+The store calls an API route.
+
+The BFF forwards to the backend.
+
+A controller calls a service.
+
+The service updates some entities.
+
+Then the client fetches the new state and updates the screen.
+
+Every individual piece looks completely reasonable.
+
+But let's take a closer look.
+
+------------------------------------------------------------------------
+
+## 031b --- Start at the button
+
+The rider is standing on floor five and presses **up**.
+
+The UI begins here:
+
+```vue
+<button type="button" :class="{ active: isPending(floor) }"
+        :disabled="store.loading" @click="call(floor, 'UP')">▲</button>
+```
+
+Nothing alarming.
+
+But already the client knows more than how to draw a button.
+
+It knows there is a concept called `UP`.
+
+It knows that a call can be *pending*.
+
+And elsewhere it decides that "pending" means a call row whose `servedAt` is still `null`.
+
+That is not presentation knowledge.
+
+That is an interpretation of the domain.
+
+------------------------------------------------------------------------
+
+## 031c --- The client knows the protocol
+
+Then the store does this:
+
+```ts
+await $fetch(`/api/elevators/${ELEVATOR_ID}/calls`, {
+  method: 'POST',
+  body: { floor, direction }
+})
+```
+
+The client has to know:
+
+- that the elevator is resource `1`;
+- that calling it means `/calls`;
+- that the operation is a `POST`;
+- that the body contains `floor` and `direction`;
+- that direction is encoded as `UP` or `DOWN`.
+
+None of that came from the response it was looking at.
+
+The client arrived with that protocol already memorised.
+
+------------------------------------------------------------------------
+
+## 031d --- Then we duplicate the protocol in the BFF
+
+The request reaches a Nuxt route which does almost exactly this:
+
+```ts
+return await $fetch(
+  `${config.serviceApiUrl}/elevators/${getRouterParam(event, 'id')}/calls`,
+  { method: 'POST', body }
+)
+```
+
+Notice what this layer knows.
+
+The same resource path.
+
+The same `/calls` operation.
+
+The same HTTP verb.
+
+The same body shape.
+
+It is not translating one domain into another.
+
+It is translating one URL into almost the same URL.
+
+The protocol now has two clients inside our own application.
+
+------------------------------------------------------------------------
+
+## 031e --- And then the server translates HTTP back into behavior
+
+```java
+@PostMapping("/elevators/{id}/calls")
+@ResponseStatus(HttpStatus.CREATED)
+public Call call(@PathVariable Long id, @RequestBody Call request) {
+    return elevatorService.call(id, request);
+}
+```
+
+At this point we finally use the word `call`.
+
+But look at the shape of the API.
+
+The rider did not ask to create a database row.
+
+The rider expressed an intention:
+
+**call the elevator to floor five, going up.**
+
+Our HTTP API turned that behavior into creation of a `Call` resource.
+
+And the persisted JPA `Call` is also the wire DTO returned to the client.
+
+The storage model has become the interaction model.
+
+------------------------------------------------------------------------
+
+## 031f --- The service contains the actual meaning
+
+Only down here do we discover what "call the elevator" really means.
+
+```java
+if (request.getFloor() < 1 || request.getFloor() > properties.floors())
+    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid floor");
+
+if (elevator.getState() == ElevatorState.OUT_OF_SERVICE
+        || elevator.getState() == ElevatorState.EMERGENCY_RECALL)
+    throw new ResponseStatusException(HttpStatus.CONFLICT, "Elevator is not in service");
+```
+
+Now we find the rules.
+
+A floor has a valid range.
+
+Some elevator states refuse calls.
+
+Whether the command is legal depends on the current state of the elevator.
+
+But none of those rules were visible at the button.
+
+The client could only know them by duplicating them...
+
+or by trying the request and being refused.
+
+------------------------------------------------------------------------
+
+## 031g --- One click becomes three requests
+
+And after the `POST` succeeds, we are not done.
+
+```ts
+await Promise.all([this.fetchStatus(), this.fetchCalls()])
+```
+
+One user action becomes:
+
+```text
+POST call
+GET  status
+GET  calls
+```
+
+Why?
+
+Because the response to the command is the persisted `Call` row.
+
+It does not answer the question the UI actually has:
+
+**What is the elevator doing now?**
+
+So the client has to ask again.
+
+Twice.
+
+The mutation response and the useful application state are different representations because our API is shaped around persistence rather than interaction.
+
+------------------------------------------------------------------------
+
+## 031h --- Then the client reconstructs the state machine
+
+When status comes back, `ElevatorShaft.vue` does this:
+
+```ts
+const isMoving =
+  status.state === 'MOVING_UP' ||
+  status.state === 'MOVING_DOWN'
+```
+
+The server has an elevator state machine.
+
+But now the client needs to know which exact state names mean "moving" too.
+
+It has to interpret raw state in order to decide what behavior the interface should have.
+
+We didn't deliberately design two state machines.
+
+We got the second one as a consequence of sending state and making the client infer meaning.
+
+------------------------------------------------------------------------
+
+## 031i --- It even knows the server's clock
+
+This line is especially revealing:
+
+```ts
+const TRAVEL_SECONDS_PER_FLOOR = 2
+```
+
+The backend has `travel-seconds-per-floor`.
+
+The frontend has `TRAVEL_SECONDS_PER_FLOOR`.
+
+There is no relationship between them.
+
+No shared representation.
+
+No negotiation.
+
+No compiler error.
+
+No failing request.
+
+Someone just typed the same number twice.
+
+Change the server to three seconds and forget the frontend...
+
+and the system still works.
+
+The UI simply lies.
+
+That is a particularly dangerous kind of duplication because disagreement is silent.
+
+------------------------------------------------------------------------
+
+## 031j --- The problem is not "too many layers"
+
+It would be easy to look at this call chain and say:
+
+**too many layers.**
+
+Vue. Pinia. BFF. Controller. Service. Repository.
+
+But layer count is not the interesting problem.
+
+You could collapse all of this into one file and preserve the same flaw.
+
+The problem is **where the knowledge lives**.
+
+The URL lives in the client.
+
+The operation shape lives in the client and BFF.
+
+The legality rules live in the service.
+
+Fragments of the state machine live in the client.
+
+Timing lives in server configuration and a hand-copied client constant.
+
+"Pending" is reconstructed from persistence fields.
+
+The interaction only works because all of those independent pieces happen to agree.
+
+------------------------------------------------------------------------
+
+## 031k --- The architecture distributes knowledge
+
+So draw the call chain again, but this time don't draw components.
+
+Draw **knowledge**.
+
+```text
+Vue
+  knows state names
+  knows what "pending" means
+  knows timing
+
+Pinia
+  knows elevator id
+  knows URLs
+  knows verbs and payloads
+
+BFF
+  knows URLs
+  knows verbs and payloads
+
+Controller
+  knows URL → operation mapping
+
+ElevatorService
+  knows legality
+  knows workflow
+  knows state transitions
+
+JPA entities
+  become the wire representation
+```
+
+This is the thing I want us to notice.
+
+The architecture is not merely distributed.
+
+**The knowledge is distributed.**
+
+------------------------------------------------------------------------
+
+## 031l --- And every copy becomes a change surface
+
+Imagine changing one apparently simple rule.
+
+Travel now takes three seconds per floor.
+
+Or floor ten is added.
+
+Or calls are no longer accepted during a new inspection state.
+
+Or "pending" gets a richer lifecycle than `servedAt === null`.
+
+How many places do we have to remember?
+
+That is the architectural cost hiding inside code that looked perfectly ordinary.
+
+The code isn't obviously bad.
+
+Most of it is clean.
+
+Most methods are small.
+
+The frameworks are being used exactly as intended.
+
+The problem only becomes visible when we ask:
+
+**Who knows what?**
+
+------------------------------------------------------------------------
+
+## 031m --- A different diagnostic
+
+So instead of asking:
+
+**Is this controller clean?**
+
+**Is this store idiomatic?**
+
+**Is this endpoint REST-ish?**
+
+I want to ask:
+
+**What does the client know that the server could know instead?**
+
+And:
+
+**What domain knowledge exists in more than one place?**
+
+Those questions are going to drive the rest of the refactoring.
+
+------------------------------------------------------------------------
+
+# `</closer-look>`
+
+------------------------------------------------------------------------
+
 ## 032
 
 Except...
