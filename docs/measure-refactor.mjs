@@ -28,6 +28,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
 
 const BEFORE_REF = "crud";
+const MID_REF = "json-hypermedia";
 const AFTER_REF = "main";
 
 function git(args, opts = {}) {
@@ -328,20 +329,27 @@ function diffNameStatusCounts(a, b, pathspec) {
 
 function main() {
   const scratchDir = mkdtempSync(path.join(tmpdir(), "measure-refactor-"));
-  let before, after;
+  let before, mid, after;
   try {
     before = addWorktree(scratchDir, BEFORE_REF, "before");
+    mid = addWorktree(scratchDir, MID_REF, "mid");
     after = addWorktree(scratchDir, AFTER_REF, "after");
 
     // --- LOC + file counts, whole elevator-api ---
     const beforeApiFiles = sccByFile(before.dir, [
       "elevator-api/src/main/java",
     ]);
+    const midApiFiles = sccByFile(mid.dir, ["elevator-api/src/main/java"]);
     const afterApiFiles = sccByFile(after.dir, ["elevator-api/src/main/java"]);
     const beforeTestFiles = sccByFile(before.dir, ["elevator-api/src/test"]);
+    const midTestFiles = sccByFile(mid.dir, ["elevator-api/src/test"]);
     const afterTestFiles = sccByFile(after.dir, ["elevator-api/src/test"]);
 
-    // --- old CRUD layer (before) vs feature slices + shared kernel (after) ---
+    // --- old CRUD layer (before) vs feature slices + shared kernel ---
+    // (mid and after both already have the sliced layout -- mid's own
+    // "Delete the CRUD scaffolding" commit landed independently of
+    // main's, so the elevator-api side is expected to already match
+    // main here; that convergence is itself reported, not hidden.)
     const oldLayerDirs = [
       "elevator-api/src/main/java/no/javazone/elevator/controller",
       "elevator-api/src/main/java/no/javazone/elevator/model",
@@ -349,6 +357,12 @@ function main() {
       "elevator-api/src/main/java/no/javazone/elevator/repository",
     ];
     const oldLayerFiles = sccByFile(before.dir, oldLayerDirs);
+    const midFeatureFiles = sccByFile(mid.dir, [
+      "elevator-api/src/main/java/no/javazone/elevator/feature",
+    ]);
+    const midSharedFiles = sccByFile(mid.dir, [
+      "elevator-api/src/main/java/no/javazone/elevator/shared",
+    ]);
     const featureFiles = sccByFile(after.dir, [
       "elevator-api/src/main/java/no/javazone/elevator/feature",
     ]);
@@ -371,7 +385,8 @@ function main() {
             sliceLocValues.reduce((a, b) => a + b, 0) / sliceLocValues.length,
           );
 
-    // --- BFF (removed by slice 8) ---
+    // --- BFF (removed by slice 8; json-hypermedia still has one, but a
+    // consolidated one -- one command endpoint instead of one per verb) ---
     const bffFiles = sccByFile(before.dir, [
       "elevator-ui/server",
       "elevator-ui/app/stores",
@@ -379,6 +394,17 @@ function main() {
     const bffTotals = totals(bffFiles);
     const bffRouteFiles = sccByFile(before.dir, ["elevator-ui/server/api"]);
     const bffRouteTotals = sizeStats(bffRouteFiles);
+    const midBffFiles = sccByFile(mid.dir, [
+      "elevator-ui/server",
+      "elevator-ui/app/stores",
+    ]);
+    const midBffTotals = totals(midBffFiles);
+    const midBffRouteFiles = sccByFile(mid.dir, ["elevator-ui/server/api"]);
+    const midBffRouteTotals = sizeStats(midBffRouteFiles);
+    const midStoreFiles = sccByFile(mid.dir, ["elevator-ui/app/stores"]);
+    const midStoreTotals = totals(midStoreFiles);
+    const beforeStoreFiles = sccByFile(before.dir, ["elevator-ui/app/stores"]);
+    const beforeStoreTotals = totals(beforeStoreFiles);
     // Default jscpd thresholds (min 5 lines / 50 tokens) miss duplication
     // in files this small -- most BFF routes are 8-20 lines -- so this
     // one run uses lower thresholds sized to that reality.
@@ -389,6 +415,13 @@ function main() {
       "bff",
       { minLines: 3, minTokens: 20 },
     );
+    const midBffDuplication = jscpdReport(
+      mid.dir,
+      ["elevator-ui/server/api"],
+      scratchDir,
+      "bff-mid",
+      { minLines: 3, minTokens: 20 },
+    );
 
     // --- duplication, whole elevator-api and elevator-ui, both sides ---
     const dupApiBefore = jscpdReport(
@@ -396,6 +429,12 @@ function main() {
       ["elevator-api/src/main/java"],
       scratchDir,
       "api-before",
+    );
+    const dupApiMid = jscpdReport(
+      mid.dir,
+      ["elevator-api/src/main/java"],
+      scratchDir,
+      "api-mid",
     );
     const dupApiAfter = jscpdReport(
       after.dir,
@@ -408,6 +447,12 @@ function main() {
       ["elevator-ui/app", "elevator-ui/server"],
       scratchDir,
       "ui-before",
+    );
+    const dupUiMid = jscpdReport(
+      mid.dir,
+      ["elevator-ui/app", "elevator-ui/server"],
+      scratchDir,
+      "ui-mid",
     );
     const dupUiAfter = jscpdReport(
       after.dir,
@@ -422,11 +467,16 @@ function main() {
       path.join(before.dir, "elevator-api/src/main/java"),
       [".java"],
     );
+    const midMappingFiles = walkFiles(
+      path.join(mid.dir, "elevator-api/src/main/java"),
+      [".java"],
+    );
     const afterMappingFiles = walkFiles(
       path.join(after.dir, "elevator-api/src/main/java"),
       [".java"],
     );
     const beforeMappings = countMatches(beforeMappingFiles, mappingRegex);
+    const midMappings = countMatches(midMappingFiles, mappingRegex);
     const afterMappings = countMatches(afterMappingFiles, mappingRegex);
 
     // --- hard-coded domain constants in elevator-ui ---
@@ -437,6 +487,10 @@ function main() {
     ]).concat(
       walkFiles(path.join(before.dir, "elevator-ui/server"), [".ts"]),
     );
+    const midUiFiles = walkFiles(path.join(mid.dir, "elevator-ui/app"), [
+      ".ts",
+      ".vue",
+    ]).concat(walkFiles(path.join(mid.dir, "elevator-ui/server"), [".ts"]));
     const afterUiFiles = walkFiles(path.join(after.dir, "elevator-ui/app"), [
       ".ts",
       ".vue",
@@ -445,6 +499,7 @@ function main() {
       beforeUiFiles,
       domainLiteralRegex,
     );
+    const midDomainLiterals = countMatches(midUiFiles, domainLiteralRegex);
     const afterDomainLiterals = countMatches(afterUiFiles, domainLiteralRegex);
 
     // --- diff stats per app ---
@@ -459,6 +514,21 @@ function main() {
       ]),
     );
     const wholeRepoShortstat = diffShortstat(before.sha, after.sha, ".");
+    // The two legs either side of json-hypermedia: crud -> json-hypermedia
+    // (the backend and BFF-consolidation work) and json-hypermedia -> main
+    // (the front-end/BFF-deletion work).
+    const diffsBeforeToMid = Object.fromEntries(
+      apps.map((app) => [
+        app,
+        diffShortstat(before.sha, mid.sha, app),
+      ]),
+    );
+    const diffsMidToAfter = Object.fromEntries(
+      apps.map((app) => [
+        app,
+        diffShortstat(mid.sha, after.sha, app),
+      ]),
+    );
 
     // --- versioning cost model ---
     // Anchor: Dubray's costing, cited via Ulsberg's "API Change Strategy"
@@ -526,8 +596,26 @@ function main() {
       ),
       (name) => /(Command|Handler|AffordanceContributor)\.java$/.test(name),
     );
+    const midDomainFiles = walkFiles(
+      path.join(
+        mid.dir,
+        "elevator-api/src/main/java/no/javazone/elevator/shared/domain",
+      ),
+      [".java"],
+    );
+    const midAppFiles = javaFilesMatching(
+      path.join(
+        mid.dir,
+        "elevator-api/src/main/java/no/javazone/elevator/feature",
+      ),
+      (name) => /(Command|Handler|AffordanceContributor)\.java$/.test(name),
+    );
     const wholeBeforeJavaFiles = walkFiles(
       path.join(before.dir, "elevator-api/src/main/java"),
+      [".java"],
+    );
+    const wholeMidJavaFiles = walkFiles(
+      path.join(mid.dir, "elevator-api/src/main/java"),
       [".java"],
     );
     const wholeAfterJavaFiles = walkFiles(
@@ -542,6 +630,7 @@ function main() {
         ...beforeDomainFiles,
         ...beforeBizFiles,
       ]),
+      midDomainApp: frameworkImportAnalysis([...midDomainFiles, ...midAppFiles]),
       afterDomain: frameworkImportAnalysis(afterDomainFiles),
       afterApp: frameworkImportAnalysis(afterAppFiles),
       afterDomainApp: frameworkImportAnalysis([
@@ -549,6 +638,7 @@ function main() {
         ...afterAppFiles,
       ]),
       beforeWhole: frameworkImportAnalysis(wholeBeforeJavaFiles),
+      midWhole: frameworkImportAnalysis(wholeMidJavaFiles),
       afterWhole: frameworkImportAnalysis(wholeAfterJavaFiles),
     };
 
@@ -557,15 +647,24 @@ function main() {
       path.join(before.dir, "elevator-api/src/test/java"),
       [".java"],
     );
+    const wholeMidJavaTestFiles = walkFiles(
+      path.join(mid.dir, "elevator-api/src/test/java"),
+      [".java"],
+    );
     const wholeAfterJavaTestFiles = walkFiles(
       path.join(after.dir, "elevator-api/src/test/java"),
       [".java"],
     );
     const beforeApiTestClassification = classifyJavaTests(wholeBeforeJavaTestFiles);
+    const midApiTestClassification = classifyJavaTests(wholeMidJavaTestFiles);
     const afterApiTestClassification = classifyJavaTests(wholeAfterJavaTestFiles);
 
     const beforeE2eFiles = walkFiles(
       path.join(before.dir, "elevator-ui/test/e2e"),
+      [".ts"],
+    );
+    const midE2eFiles = walkFiles(
+      path.join(mid.dir, "elevator-ui/test/e2e"),
       [".ts"],
     );
     const afterE2eFiles = walkFiles(
@@ -574,6 +673,10 @@ function main() {
     );
     const beforeClientUnitFiles = walkFiles(
       path.join(before.dir, "elevator-ui/test/unit"),
+      [".ts"],
+    );
+    const midClientUnitFiles = walkFiles(
+      path.join(mid.dir, "elevator-ui/test/unit"),
       [".ts"],
     );
     const afterClientUnitFiles = walkFiles(
@@ -588,6 +691,11 @@ function main() {
         cases: countMatches(beforeE2eFiles, testCaseRegex),
         assertions: countMatches(beforeE2eFiles, assertionRegex),
       },
+      midE2e: {
+        files: midE2eFiles.length,
+        cases: countMatches(midE2eFiles, testCaseRegex),
+        assertions: countMatches(midE2eFiles, assertionRegex),
+      },
       afterE2e: {
         files: afterE2eFiles.length,
         cases: countMatches(afterE2eFiles, testCaseRegex),
@@ -597,6 +705,11 @@ function main() {
         files: beforeClientUnitFiles.length,
         cases: countMatches(beforeClientUnitFiles, testCaseRegex),
         lines: totals(sccByFile(before.dir, ["elevator-ui/test/unit"])).lines,
+      },
+      midClientUnit: {
+        files: midClientUnitFiles.length,
+        cases: countMatches(midClientUnitFiles, testCaseRegex),
+        lines: totals(sccByFile(mid.dir, ["elevator-ui/test/unit"])).lines,
       },
       afterClientUnit: {
         files: afterClientUnitFiles.length,
@@ -610,6 +723,7 @@ function main() {
     const beforeGradleRun = runGradleTests(
       path.join(before.dir, "elevator-api"),
     );
+    const midGradleRun = runGradleTests(path.join(mid.dir, "elevator-api"));
     const afterGradleRun = runGradleTests(path.join(after.dir, "elevator-api"));
     const afterDomainGradleRun = afterGradleRun.ok
       ? runGradleTests(
@@ -621,12 +735,17 @@ function main() {
     // --- render markdown ---
     const md = renderMarkdown({
       before,
+      mid,
       after,
       beforeApiFiles,
+      midApiFiles,
       afterApiFiles,
       beforeTestFiles,
+      midTestFiles,
       afterTestFiles,
       oldLayerFiles,
+      midFeatureFiles,
+      midSharedFiles,
       featureFiles,
       sharedFiles,
       avgSliceLoc,
@@ -634,15 +753,26 @@ function main() {
       bffTotals,
       bffRouteTotals,
       bffDuplication,
+      midBffTotals,
+      midBffRouteTotals,
+      midBffDuplication,
+      midStoreTotals,
+      beforeStoreTotals,
       dupApiBefore,
+      dupApiMid,
       dupApiAfter,
       dupUiBefore,
+      dupUiMid,
       dupUiAfter,
       beforeMappings,
+      midMappings,
       afterMappings,
       beforeDomainLiterals,
+      midDomainLiterals,
       afterDomainLiterals,
       diffs,
+      diffsBeforeToMid,
+      diffsMidToAfter,
       wholeRepoShortstat,
       K,
       CONCURRENT_VERSIONS,
@@ -655,9 +785,11 @@ function main() {
       newCapabilitiesAdditiveLoc,
       frameworkCoupling,
       beforeApiTestClassification,
+      midApiTestClassification,
       afterApiTestClassification,
       uiTests,
       beforeGradleRun,
+      midGradleRun,
       afterGradleRun,
       afterDomainGradleRun,
     });
@@ -667,6 +799,7 @@ function main() {
     console.log(`Wrote ${path.relative(REPO_ROOT, outPath)}`);
   } finally {
     if (before) removeWorktree(before.dir);
+    if (mid) removeWorktree(mid.dir);
     if (after) removeWorktree(after.dir);
     rmSync(scratchDir, { recursive: true, force: true });
   }
@@ -681,19 +814,26 @@ function pct(part, whole) {
 
 function renderMarkdown(m) {
   const beforeApi = totals(m.beforeApiFiles);
+  const midApi = totals(m.midApiFiles);
   const afterApi = totals(m.afterApiFiles);
   const beforeTest = totals(m.beforeTestFiles);
+  const midTest = totals(m.midTestFiles);
   const afterTest = totals(m.afterTestFiles);
   const oldLayer = totals(m.oldLayerFiles);
+  const midFeature = totals(m.midFeatureFiles);
+  const midShared = totals(m.midSharedFiles);
   const feature = totals(m.featureFiles);
   const shared = totals(m.sharedFiles);
   const largestBefore = largestFile(m.beforeApiFiles);
+  const largestMid = largestFile(m.midApiFiles);
   const largestAfter = largestFile(m.afterApiFiles);
   const fc = m.frameworkCoupling;
   const bc = m.beforeApiTestClassification;
+  const mc = m.midApiTestClassification;
   const ac = m.afterApiTestClassification;
   const ui = m.uiTests;
   const bg = m.beforeGradleRun;
+  const mg = m.midGradleRun;
   const ag = m.afterGradleRun;
   const adg = m.afterDomainGradleRun;
 
@@ -706,32 +846,70 @@ function renderMarkdown(m) {
     `Generated by \`npm run measure\` (\`docs/measure-refactor.mjs\`).`,
   );
   p(
-    `Compares \`${m.before.ref}\` (\`${m.before.sha.slice(0, 7)}\`, the last`,
+    `Compares three points on the refactor's timeline: \`${m.before.ref}\``,
   );
   p(
-    `commit before slice 0 -- full CRUD shape) against \`${m.after.ref}\``,
+    `(\`${m.before.sha.slice(0, 7)}\`, the last commit before slice 0 --`,
   );
   p(
-    `(\`${m.after.sha.slice(0, 7)}\`). Re-run this script any time either`,
+    `full CRUD shape), \`${m.mid.ref}\` (\`${m.mid.sha.slice(0, 7)}\`, an`,
   );
-  p(`ref moves to refresh these numbers.`);
+  p(
+    `intermediate branch: the backend is fully hypermedia-driven and`,
+  );
+  p(
+    `command-based, but elevator-ui is still a Vue SPA talking JSON`,
+  );
+  p(
+    `through a BFF, with no HTML responses from elevator-api), and`,
+  );
+  p(
+    `\`${m.after.ref}\` (\`${m.after.sha.slice(0, 7)}\`, current tip: no BFF,`,
+  );
+  p(
+    `elevator-api serves HTML directly, Datastar morphs it in place).`,
+  );
+  p(`Re-run this script any time any of the three refs moves.`);
+  p();
+  p(
+    `\`${m.mid.ref}\`'s own history shows its elevator-api side already`,
+  );
+  p(
+    `deleted the CRUD scaffolding independently of \`${m.after.ref}\`'s --`,
+  );
+  p(
+    `so most backend metrics below are expected to already match`,
+  );
+  p(
+    `\`${m.after.ref}\`, and that convergence is itself reported rather than`,
+  );
+  p(
+    `hidden. Where the three points actually diverge is the front end:`,
+  );
+  p(
+    `\`${m.mid.ref}\` shows what hypermedia buys *without* also removing`,
+  );
+  p(`the smart client -- see sections 4 and 10 in particular.`);
   p();
 
   p(`## 1. Lines of code and file counts`);
   p();
-  p(`| | before (\`${m.before.ref}\`) | after (\`${m.after.ref}\`) |`);
-  p(`|---|---|---|`);
   p(
-    `| elevator-api \`main\` files / lines | ${beforeApi.files} / ${beforeApi.lines} | ${afterApi.files} / ${afterApi.lines} |`,
+    `| | \`${m.before.ref}\` | \`${m.mid.ref}\` | \`${m.after.ref}\` |`,
+  );
+  p(`|---|---|---|---|`);
+  p(
+    `| elevator-api \`main\` files / lines | ${beforeApi.files} / ${beforeApi.lines} | ${midApi.files} / ${midApi.lines} | ${afterApi.files} / ${afterApi.lines} |`,
   );
   p(
-    `| elevator-api \`test\` files / lines | ${beforeTest.files} / ${beforeTest.lines} | ${afterTest.files} / ${afterTest.lines} |`,
+    `| elevator-api \`test\` files / lines | ${beforeTest.files} / ${beforeTest.lines} | ${midTest.files} / ${midTest.lines} | ${afterTest.files} / ${afterTest.lines} |`,
+  );
+  p(`| **Largest file:** | | | |`);
+  p(
+    `| File | \`${largestBefore?.Filename}\` | \`${largestMid?.Filename}\` | \`${largestAfter?.Filename}\` |`,
   );
   p(
-    `| Largest main file (name) | \`${largestBefore?.Filename}\` | \`${largestAfter?.Filename}\` |`,
-  );
-  p(
-    `| Largest main file (lines) | ${largestBefore?.Lines} | ${largestAfter?.Lines} |`,
+    `| Lines | ${largestBefore?.Lines} | ${largestMid?.Lines} | ${largestAfter?.Lines} |`,
   );
   p();
   p(
@@ -739,6 +917,12 @@ function renderMarkdown(m) {
   );
   p(
     `per behaviour, each holding its own command/handler/endpoint/tests.`,
+  );
+  p(
+    `\`${m.mid.ref}\` already matches \`${m.after.ref}\` almost exactly here --`,
+  );
+  p(
+    `its elevator-api side finished the same migration independently.`,
   );
   p(`Section 2 checks whether those smaller files are also simpler.`);
   p();
@@ -749,23 +933,29 @@ function renderMarkdown(m) {
     `Per-file cyclomatic complexity (\`scc\`), comparing the old`,
   );
   p(
-    `\`controller/\`+\`model/\`+\`service/\`+\`repository/\` layer (before,`,
+    `\`controller/\`+\`model/\`+\`service/\`+\`repository/\` layer (\`${m.before.ref}\`,`,
   );
   p(
-    `now deleted outright) against the new \`feature/*\` slices and the`,
+    `now deleted outright on both \`${m.mid.ref}\` and \`${m.after.ref}\`) against`,
   );
-  p(`shared kernel (after):`);
+  p(`the \`feature/*\` slices and shared kernel on each:`);
   p();
   p(`| | files | avg complexity | median | max |`);
   p(`|---|---|---|---|---|`);
   p(
-    `| old layer (before) | ${oldLayer.files} | ${oldLayer.avgComplexity} | ${oldLayer.medianComplexity} | ${oldLayer.maxComplexity} |`,
+    `| old layer (\`${m.before.ref}\`) | ${oldLayer.files} | ${oldLayer.avgComplexity} | ${oldLayer.medianComplexity} | ${oldLayer.maxComplexity} |`,
   );
   p(
-    `| \`feature/*\` slices (after) | ${feature.files} | ${feature.avgComplexity} | ${feature.medianComplexity} | ${feature.maxComplexity} |`,
+    `| \`feature/*\` (\`${m.mid.ref}\`) | ${midFeature.files} | ${midFeature.avgComplexity} | ${midFeature.medianComplexity} | ${midFeature.maxComplexity} |`,
   );
   p(
-    `| shared kernel (after) | ${shared.files} | ${shared.avgComplexity} | ${shared.medianComplexity} | ${shared.maxComplexity} |`,
+    `| shared kernel (\`${m.mid.ref}\`) | ${midShared.files} | ${midShared.avgComplexity} | ${midShared.medianComplexity} | ${midShared.maxComplexity} |`,
+  );
+  p(
+    `| \`feature/*\` (\`${m.after.ref}\`) | ${feature.files} | ${feature.avgComplexity} | ${feature.medianComplexity} | ${feature.maxComplexity} |`,
+  );
+  p(
+    `| shared kernel (\`${m.after.ref}\`) | ${shared.files} | ${shared.avgComplexity} | ${shared.medianComplexity} | ${shared.maxComplexity} |`,
   );
   p();
   p(
@@ -796,58 +986,121 @@ function renderMarkdown(m) {
   }
   p(`| **average** | **${m.avgSliceLoc}** |`);
   p();
+  p(
+    `(\`${m.mid.ref}\`'s \`feature/*\` is already essentially this same`,
+  );
+  p(
+    `set of slices, since its backend finished independently -- this`,
+  );
+  p(`table isn't repeated per-ref for that reason.)`);
+  p();
 
-  p(`## 4. The BFF: removed, not just relocated`);
+  p(`## 4. The BFF: consolidated, then removed`);
   p();
   p(
-    `Slice 8 deleted \`elevator-ui/server/api/**\` (the BFF routes) and`,
+    `\`${m.mid.ref}\` shows a step slice 8 doesn't: the BFF route count`,
   );
-  p(`\`elevator-ui/app/stores/elevator.ts\` outright:`);
+  p(
+    `already collapsed from one-per-verb to one-per-concern (a single`,
+  );
+  p(
+    `\`commands.post.ts\` mirroring elevator-api's own single command`,
+  );
+  p(
+    `endpoint) *before* it was deleted outright on \`${m.after.ref}\`:`,
+  );
   p();
-  p(`| | value |`);
-  p(`|---|---|`);
-  p(`| BFF + store files removed | ${m.bffTotals.files} |`);
-  p(`| BFF + store lines removed | ${m.bffTotals.lines} |`);
   p(
-    `| BFF route files alone (\`server/api/**\`) | ${m.bffRouteTotals.files} |`,
+    `| | \`${m.before.ref}\` | \`${m.mid.ref}\` | \`${m.after.ref}\` |`,
+  );
+  p(`|---|---|---|---|`);
+  p(
+    `| BFF + store files | ${m.bffTotals.files} | ${m.midBffTotals.files} | 0 |`,
   );
   p(
-    `| ... their avg / median / max lines | ${m.bffRouteTotals.avg} / ${m.bffRouteTotals.median} / ${m.bffRouteTotals.max} |`,
+    `| BFF + store lines | ${m.bffTotals.lines} | ${m.midBffTotals.lines} | 0 |`,
+  );
+  p(
+    `| BFF route files (\`server/api/**\`) | ${m.bffRouteTotals.files} | ${m.midBffRouteTotals.files} | 0 |`,
+  );
+  p(
+    `| ... their avg / median / max lines | ${m.bffRouteTotals.avg} / ${m.bffRouteTotals.median} / ${m.bffRouteTotals.max} | ${m.midBffRouteTotals.avg} / ${m.midBffRouteTotals.median} / ${m.midBffRouteTotals.max} | -- |`,
+  );
+  p(
+    `| \`stores/elevator.ts\` lines | ${m.beforeStoreTotals.lines} | ${m.midStoreTotals.lines} | 0 |`,
   );
   if (m.bffDuplication) {
     p(
-      `| Duplication among just those route files | ${round1(m.bffDuplication.percentage)}% (${m.bffDuplication.clones} clones) |`,
+      `| Duplication among route files | ${round1(m.bffDuplication.percentage)}% (${m.bffDuplication.clones}) | ${m.midBffDuplication ? `${round1(m.midBffDuplication.percentage)}% (${m.midBffDuplication.clones})` : "n/a"} | -- |`,
     );
   }
-  p(`| Network hops per rider action, before | 2 |`);
-  p(`| Network hops per rider action, after | 1 |`);
+  p(`| Network hops per rider action | 2 | 2 | 1 |`);
   p();
   p(
-    `Before: browser -> BFF route -> elevator-api. After: browser ->`,
+    `Before/mid: browser -> BFF route -> elevator-api. After: browser`,
   );
   p(
-    `elevator-api directly (Caddy is a transparent reverse proxy, not`,
+    `-> elevator-api directly (Caddy is a transparent reverse proxy,`,
   );
-  p(`a logic hop).`);
+  p(`not a logic hop).`);
   p();
   p(
-    `Default jscpd thresholds (min 5 lines / 50 tokens) miss most of`,
+    `Route *count* dropped 15 -> ${m.midBffRouteTotals.files} between \`${m.before.ref}\` and`,
   );
   p(
-    `this: at ${m.bffRouteTotals.avg} lines average, a route rarely reaches 50`,
+    `\`${m.mid.ref}\` -- one consolidated command proxy instead of one per`,
   );
   p(
-    `tokens on its own. Lowering the thresholds to fit files this small`,
+    `verb. But the store grew: **${m.beforeStoreTotals.lines} -> ${m.midStoreTotals.lines} lines**. This is not a`,
   );
   p(
-    `is what surfaces the ${m.bffDuplication ? round1(m.bffDuplication.percentage) : "?"}% above -- the`,
+    `contradiction, it's the whole point of this middle data point: a`,
   );
   p(
-    `routes are near-identical, differing only in HTTP verb and path,`,
+    `smart SPA client consuming a hypermedia JSON API still has to`,
   );
   p(
-    "e.g. `open-doors.post.ts` and `close-doors.post.ts`:",
+    `*interpret* that hypermedia -- find the right operation by rel,`,
   );
+  p(
+    `follow its \`href\` and method, echo its hidden fields -- which is`,
+  );
+  p(
+    `real logic, replacing "duplicate the business rule" with "parse`,
+  );
+  p(
+    `the affordance correctly". Different work, not obviously less of`,
+  );
+  p(
+    `it, and it still needs testing client-side (section 10). Only`,
+  );
+  p(
+    `removing the smart client too (\`${m.after.ref}\`) gets that logic,`,
+  );
+  p(
+    `and its tests, out of the front end entirely -- confirming`,
+  );
+  p(
+    `\`docs/architecture.md\`'s own thesis that named commands and`,
+  );
+  p(`hypermedia are load-bearing for each other, neither alone.`);
+  p();
+  p(
+    `Default jscpd thresholds (min 5 lines / 50 tokens) miss most`,
+  );
+  p(
+    `duplication in files this small (${m.before.ref}'s routes average`,
+  );
+  p(
+    `${m.bffRouteTotals.avg} lines). Lowering the thresholds to fit surfaces the`,
+  );
+  p(
+    `percentages above; the routes are near-identical, differing only`,
+  );
+  p(
+    `in HTTP verb and path, e.g. \`open-doors.post.ts\` and`,
+  );
+  p(`\`close-doors.post.ts\` on \`${m.before.ref}\`:`);
   p();
   p("```ts");
   p(`export default defineEventHandler(async (event) => {`);
@@ -863,95 +1116,131 @@ function renderMarkdown(m) {
   p("```");
   p();
   p(
-    `Every other route repeats this shape, varying only the path`,
+    `Every other route on \`${m.before.ref}\` repeats this shape, varying`,
   );
   p(
-    `segment and verb -- exactly the kind of repetition a client`,
+    `only the path segment and verb -- exactly the kind of repetition`,
   );
   p(
-    `following hypermedia links never has to write, because it never`,
+    `a client following hypermedia links never has to write, because`,
   );
-  p(`constructs the URL or the verb itself.`);
+  p(`it never constructs the URL or the verb itself.`);
   p();
   p(
-    `Deployable *service* count is unchanged (the BFF lived inside the`,
+    `Deployable *service* count is unchanged throughout (the BFF lived`,
   );
   p(
-    `same Nuxt container, not a separate one) -- the removed cost was`,
+    `inside the same Nuxt container, not a separate one) -- the`,
   );
   p(
-    `pure pass-through/proxy code and an extra hop, not a deployable.`,
+    `removed cost was pure pass-through/proxy code and an extra hop,`,
   );
+  p(`not a deployable.`);
   p();
 
-  p(`## 5. Duplication (whole-directory), before vs after`);
-  p();
-  p(`| | before | after |`);
-  p(`|---|---|---|`);
-  p(
-    `| elevator-api \`main\` | ${dupPct(m.dupApiBefore)} | ${dupPct(m.dupApiAfter)} |`,
-  );
-  p(
-    `| elevator-ui (app${m.dupUiBefore ? " + server" : ""}) | ${dupPct(m.dupUiBefore)} | ${dupPct(m.dupUiAfter)} |`,
-  );
+  p(`## 5. Duplication (whole-directory)`);
   p();
   p(
-    `Read the elevator-api "after" number carefully: exact-token clone`,
+    `\`elevator-ui\` below is \`app/\` + \`server/\` where a BFF exists`,
+  );
+  p(`(\`${m.before.ref}\`, \`${m.mid.ref}\`), \`app/\` alone otherwise:`);
+  p();
+  p(
+    `| | \`${m.before.ref}\` | \`${m.mid.ref}\` | \`${m.after.ref}\` |`,
+  );
+  p(`|---|---|---|---|`);
+  p(
+    `| elevator-api | ${dupPct(m.dupApiBefore)} | ${dupPct(m.dupApiMid)} | ${dupPct(m.dupApiAfter)} |`,
   );
   p(
-    `detection over many small, structurally-identical files naturally`,
+    `| elevator-ui | ${dupPct(m.dupUiBefore)} | ${dupPct(m.dupUiMid)} | ${dupPct(m.dupUiAfter)} |`,
+  );
+  p();
+  p(
+    `elevator-api's duplication is close across all three, consistent`,
   );
   p(
-    `reports a higher percentage than a few large ones would, even when`,
+    `with \`${m.mid.ref}\` and \`${m.after.ref}\` sharing essentially the`,
   );
   p(
-    `nothing is copy-pasted. Sampling its clones confirms this: they are`,
+    `same backend. Read the elevator-api numbers carefully regardless:`,
   );
   p(
-    `import blocks and same-shaped \`AffordanceContributor\`/\`Command\``,
+    `exact-token clone detection over many small, structurally-identical`,
   );
   p(
-    `implementations (one interface, many slices) -- not duplicated`,
+    `files naturally reports a higher percentage than a few large ones`,
   );
   p(
-    `business logic. The "before" clones are the opposite kind: copy-pasted`,
+    `would, even when nothing is copy-pasted. Sampling its clones`,
   );
   p(
-    `controller/validation logic between e.g. \`CallController\` and`,
+    `confirms this: they are import blocks and same-shaped`,
   );
   p(
-    `\`CarCallController\` -- the smell this refactor targets. Percentage`,
+    `\`AffordanceContributor\`/\`Command\` implementations (one interface,`,
   );
-  p(`alone conflates the two; only sampling the clones tells them apart.`);
+  p(
+    `many slices) -- not duplicated business logic. \`${m.before.ref}\`'s`,
+  );
+  p(
+    `clones are the opposite kind: copy-pasted controller/validation`,
+  );
+  p(
+    `logic between e.g. \`CallController\` and \`CarCallController\` -- the`,
+  );
+  p(`smell this refactor targets. Percentage alone conflates the two;`);
+  p(`only sampling the clones tells them apart.`);
   p();
 
   p(`## 6. API surface`);
   p();
-  p(`| | before | after |`);
-  p(`|---|---|---|`);
   p(
-    `| Endpoint mappings (\`@*Mapping\`) | ${m.beforeMappings} | ${m.afterMappings} |`,
+    `| | \`${m.before.ref}\` | \`${m.mid.ref}\` | \`${m.after.ref}\` |`,
+  );
+  p(`|---|---|---|---|`);
+  p(
+    `| Endpoint mappings (\`@*Mapping\`) | ${m.beforeMappings} | ${m.midMappings} | ${m.afterMappings} |`,
   );
   p(
-    `| Hard-coded \`/elevators/...\` literals in elevator-ui | ${m.beforeDomainLiterals} | ${m.afterDomainLiterals} |`,
+    `| Hard-coded \`/elevators/...\` literals in elevator-ui | ${m.beforeDomainLiterals} | ${m.midDomainLiterals} | ${m.afterDomainLiterals} |`,
   );
   p();
   p(
-    `Before: one URL per verb (\`/calls\`, \`/car-calls\`, \`/open-doors\`,`,
+    `\`${m.before.ref}\`: one URL per verb (\`/calls\`, \`/car-calls\`,`,
   );
   p(
-    `\`/close-doors\`, \`/obstruct-doors\`, \`/clear-obstruction\`,`,
+    `\`/open-doors\`, \`/close-doors\`, \`/obstruct-doors\`,`,
   );
   p(
-    `\`/weight\`, \`/maintenance\`, ...). After: every command funnels`,
+    `\`/clear-obstruction\`, \`/weight\`, \`/maintenance\`, ...). From`,
   );
   p(
-    `through the shared \`POST /elevators/{id}\`; the client follows`,
+    `\`${m.mid.ref}\` onward, every command funnels through the shared`,
   );
-  p(`links instead of constructing them.`);
+  p(
+    `\`POST /elevators/{id}\` on the backend -- but the hard-coded-literal`,
+  );
+  p(
+    `count on \`${m.mid.ref}\` shows the client still isn't off the hook:`,
+  );
+  p(
+    `its BFF and store still construct \`/elevators/{id}\` URLs rather`,
+  );
+  p(
+    `than following links, because there's still a smart client to do`,
+  );
+  p(
+    `the constructing. Only \`${m.after.ref}\` gets this to zero -- the`,
+  );
+  p(`client follows links instead of building them.`);
   p();
 
   p(`## 7. The whole diff, by application`);
+  p();
+  p(
+    `Total, \`${m.before.ref}\` -> \`${m.after.ref}\`:`,
+  );
   p();
   p(`| app | files changed | + | - | added | modified | deleted |`);
   p(`|---|---|---|---|---|---|---|`);
@@ -969,6 +1258,44 @@ function renderMarkdown(m) {
     `elevator-ui's diff is net-negative (more deleted than added) despite`,
   );
   p(`unchanged feature parity -- the BFF/store deletion in section 4.`);
+  p();
+  p(
+    `Split into its two legs either side of \`${m.mid.ref}\` (+/- only):`,
+  );
+  p();
+  p(
+    `| app | \`${m.before.ref}\` -> \`${m.mid.ref}\` | \`${m.mid.ref}\` -> \`${m.after.ref}\` |`,
+  );
+  p(`|---|---|---|`);
+  for (const app of Object.keys(m.diffsBeforeToMid)) {
+    const a = m.diffsBeforeToMid[app];
+    const b = m.diffsMidToAfter[app];
+    p(
+      `| ${app} | +${a.insertions}/-${a.deletions} | +${b.insertions}/-${b.deletions} |`,
+    );
+  }
+  p();
+  p(
+    `The first leg is almost entirely elevator-api (the backend`,
+  );
+  p(
+    `migration); the second leg is almost entirely elevator-ui (BFF and`,
+  );
+  p(
+    `store deletion) -- the two legs of this refactor really were`,
+  );
+  p(`separable, and \`${m.mid.ref}\` is the seam between them.`);
+  p();
+  p(
+    `Read \`docs\`'s numbers with one caveat: this repo's \`docs/\``,
+  );
+  p(
+    `also grew for reasons unrelated to the refactor itself (a talk`,
+  );
+  p(
+    `manuscript, this very report) -- it is not a proxy for "code`,
+  );
+  p(`written to migrate the architecture" the way the other rows are.`);
   p();
 
   p(`## 8. Versioning cost, extrapolated`);
@@ -1070,6 +1397,20 @@ function renderMarkdown(m) {
   );
   p(`one (see \`docs/architecture.md\`, "No versioning").`);
   p();
+  p(
+    `This section's subject (the CRUD surface being versioned) is`,
+  );
+  p(
+    `orthogonal to \`${m.mid.ref}\`: the single consolidated command`,
+  );
+  p(
+    `endpoint that removes the need to version at all is a backend`,
+  );
+  p(
+    `property, and \`${m.mid.ref}\`'s backend already has it -- this`,
+  );
+  p(`cost was avoided from that milestone onward, not just at the end.`);
+  p();
 
   p(`## 9. Framework coupling: infrastructure moved in-house`);
   p();
@@ -1103,6 +1444,9 @@ function renderMarkdown(m) {
     `| before: domain+business logic, combined | ${fc.beforeDomainBiz.totalFiles} | ${fc.beforeDomainBiz.filesWithImports} | ${fc.beforeDomainBiz.distinctSymbols} |`,
   );
   p(
+    `| mid: domain+application, combined | ${fc.midDomainApp.totalFiles} | ${fc.midDomainApp.filesWithImports} | ${fc.midDomainApp.distinctSymbols} |`,
+  );
+  p(
     `| after: \`shared/domain\` | ${fc.afterDomain.totalFiles} | ${fc.afterDomain.filesWithImports} | ${fc.afterDomain.distinctSymbols} |`,
   );
   p(
@@ -1112,10 +1456,23 @@ function renderMarkdown(m) {
     `| after: domain+application, combined | ${fc.afterDomainApp.totalFiles} | ${fc.afterDomainApp.filesWithImports} | ${fc.afterDomainApp.distinctSymbols} |`,
   );
   p(
-    `| whole \`elevator-api\` main, before | ${fc.beforeWhole.totalFiles} | ${fc.beforeWhole.filesWithImports} | ${fc.beforeWhole.distinctSymbols} |`,
+    `| whole \`elevator-api/src/main\`, \`crud\` | ${fc.beforeWhole.totalFiles} | ${fc.beforeWhole.filesWithImports} | ${fc.beforeWhole.distinctSymbols} |`,
   );
   p(
-    `| whole \`elevator-api\` main, after | ${fc.afterWhole.totalFiles} | ${fc.afterWhole.filesWithImports} | ${fc.afterWhole.distinctSymbols} |`,
+    `| whole \`elevator-api/src/main\`, \`json-hypermedia\` | ${fc.midWhole.totalFiles} | ${fc.midWhole.filesWithImports} | ${fc.midWhole.distinctSymbols} |`,
+  );
+  p(
+    `| whole \`elevator-api/src/main\`, \`main\` | ${fc.afterWhole.totalFiles} | ${fc.afterWhole.filesWithImports} | ${fc.afterWhole.distinctSymbols} |`,
+  );
+  p();
+  p(
+    `\`${m.mid.ref}\`'s domain+application coupling already matches`,
+  );
+  p(
+    `\`${m.after.ref}\`'s -- expected, since this is purely a backend`,
+  );
+  p(
+    `property and \`${m.mid.ref}\`'s backend already finished migrating.`,
   );
   p();
   p(
@@ -1228,79 +1585,133 @@ function renderMarkdown(m) {
   p(`\`@AutoConfigureMockMvc\`; everything else is a plain JUnit unit`);
   p(`test with no framework runtime at all.`);
   p();
-  p(`| | before | after |`);
-  p(`|---|---|---|`);
   p(
-    `| elevator-api: unit test files / methods | ${bc.unitFiles} / ${bc.unitTests} | ${ac.unitFiles} / ${ac.unitTests} |`,
+    `| | \`${m.before.ref}\` | \`${m.mid.ref}\` | \`${m.after.ref}\` |`,
+  );
+  p(`|---|---|---|---|`);
+  p(
+    `| elevator-api: unit files / methods | ${bc.unitFiles} / ${bc.unitTests} | ${mc.unitFiles} / ${mc.unitTests} | ${ac.unitFiles} / ${ac.unitTests} |`,
   );
   p(
-    `| elevator-api: Spring-context test files / methods | ${bc.contextFiles} / ${bc.contextTests} | ${ac.contextFiles} / ${ac.contextTests} |`,
+    `| elevator-api: Spring files / methods | ${bc.contextFiles} / ${bc.contextTests} | ${mc.contextFiles} / ${mc.contextTests} | ${ac.contextFiles} / ${ac.contextTests} |`,
   );
   p(
-    `| elevator-ui: e2e spec files / cases | ${ui.beforeE2e.files} / ${ui.beforeE2e.cases} | ${ui.afterE2e.files} / ${ui.afterE2e.cases} |`,
+    `| elevator-ui: e2e spec files / cases | ${ui.beforeE2e.files} / ${ui.beforeE2e.cases} | ${ui.midE2e.files} / ${ui.midE2e.cases} | ${ui.afterE2e.files} / ${ui.afterE2e.cases} |`,
   );
   p(
-    `| ... their assertions (\`expect(\`) | ${ui.beforeE2e.assertions} | ${ui.afterE2e.assertions} |`,
+    `| ... their assertions (\`expect(\`) | ${ui.beforeE2e.assertions} | ${ui.midE2e.assertions} | ${ui.afterE2e.assertions} |`,
   );
   p(
-    `| elevator-ui: client-side unit test files / cases | ${ui.beforeClientUnit.files} / ${ui.beforeClientUnit.cases} | ${ui.afterClientUnit.files} / ${ui.afterClientUnit.cases} |`,
+    `| elevator-ui: client unit test files / cases | ${ui.beforeClientUnit.files} / ${ui.beforeClientUnit.cases} | ${ui.midClientUnit.files} / ${ui.midClientUnit.cases} | ${ui.afterClientUnit.files} / ${ui.afterClientUnit.cases} |`,
+  );
+  p(
+    `| ... their lines | ${ui.beforeClientUnit.lines} | ${ui.midClientUnit.lines} | 0 |`,
   );
   p();
   p(
-    `Before: ${round1((bc.contextFiles / (bc.unitFiles + bc.contextFiles)) * 100)}% of elevator-api test`,
+    `\`${m.before.ref}\`: ${round1((bc.contextFiles / (bc.unitFiles + bc.contextFiles)) * 100)}% of elevator-api tests need a full Spring`,
   );
   p(
-    `files need a full Spring context. After: ${round1((ac.contextFiles / (ac.unitFiles + ac.contextFiles)) * 100)}%. The e2e suite`,
+    `context. \`${m.mid.ref}\`: ${round1((mc.contextFiles / (mc.unitFiles + mc.contextFiles)) * 100)}%. \`${m.after.ref}\`: ${round1((ac.contextFiles / (ac.unitFiles + ac.contextFiles)) * 100)}% -- again`,
   );
   p(
-    `is essentially unchanged in case count (it still covers the same`,
+    `converged with \`${m.mid.ref}\` at the backend level, as expected.`,
+  );
+  p();
+  p(
+    `The front end tells a different story. \`${m.mid.ref}\`'s`,
   );
   p(
-    `shell/interaction chrome), though its assertion count dropped`,
+    `client-side unit test suite didn't shrink on the way from`,
   );
   p(
-    `(${ui.beforeE2e.assertions} -> ${ui.afterE2e.assertions}): the after spec's own comment says why --`,
+    `\`${m.before.ref}\` -- it **grew**, ${ui.beforeClientUnit.lines} -> ${ui.midClientUnit.lines} lines`,
   );
   p(
-    `more of the page is now legitimately rendered by elevator-api`,
+    `(${ui.beforeClientUnit.cases} -> ${ui.midClientUnit.cases} cases). \`${m.before.ref}\`'s store tested`,
   );
   p(
-    `itself and morphed in by Datastar, so there is less static Nuxt`,
+    `"which requests are pending" (a duplicated business rule);`,
   );
   p(
-    `markup left for a shell-only smoke test to assert on. What`,
+    `\`${m.mid.ref}\`'s tests "does the store correctly interpret the`,
   );
   p(
-    `disappeared entirely is the`,
+    `hypermedia response" -- finding the right operation by rel,`,
   );
   p(
-    `${ui.beforeClientUnit.lines}-line client-side unit test suite, which existed`,
+    `following its \`href\`/method, echoing hidden fields. Different`,
   );
   p(
-    `only because \`stores/elevator.ts\` re-implemented domain logic`,
-  );
-  p(`worth unit-testing in the first place. Its own test names say so`);
-  p(`directly: \`filters served calls out of pendingCalls\`,`);
-  p(
-    `\`collects pending floors from both call types\` -- a business rule`,
+    `tier-appropriate-sounding problem, same result: real logic in`,
   );
   p(
-    `(which requests are still pending), tested in the wrong tier,`,
+    `the client, still needing tests, still not where it belongs.`,
   );
   p(
-    `requiring five mocked HTTP endpoints and a Pinia store just to`,
+    `Only \`${m.after.ref}\` gets this to zero, because only there does`,
   );
-  p(`assert a filter.`);
+  p(
+    `the client stop interpreting anything -- it renders what it's`,
+  );
+  p(`handed.`);
+  p();
+  p(
+    `The e2e suite is essentially unchanged in case count throughout`,
+  );
+  p(
+    `(it covers the same shell/interaction chrome), though its`,
+  );
+  p(
+    `assertion count drops on \`${m.after.ref}\``,
+  );
+  p(
+    `(${ui.beforeE2e.assertions} -> ${ui.midE2e.assertions} -> ${ui.afterE2e.assertions}): its own comment says why -- more of the`,
+  );
+  p(
+    `page is now legitimately rendered by elevator-api itself and`,
+  );
+  p(
+    `morphed in by Datastar, so there is less static Nuxt markup left`,
+  );
+  p(`for a shell-only smoke test to assert on.`);
+  p();
+  p(
+    `What disappeared entirely between \`${m.mid.ref}\` and \`${m.after.ref}\``,
+  );
+  p(
+    `is the client-side unit test suite itself, because`,
+  );
+  p(
+    `\`stores/elevator.ts\` is gone -- there is nothing left in the`,
+  );
+  p(`client worth unit-testing. \`${m.before.ref}\`'s own test names`);
+  p(
+    `said what it was really testing: \`filters served calls out of`,
+  );
+  p(
+    `pendingCalls\`, \`collects pending floors from both call types\` --`,
+  );
+  p(
+    `a business rule (which requests are still pending), requiring`,
+  );
+  p(`five mocked HTTP endpoints and a Pinia store just to assert a`);
+  p(`filter.`);
   p();
   p("```ts");
-  p(`// before: elevator-ui/test/unit/elevatorStore.test.ts`);
+  p(`// ${m.before.ref}: elevator-ui/test/unit/elevatorStore.test.ts`);
   p(`registerEndpoint('/api/key', { method: 'GET', handler: () => ... })`);
   p(`registerEndpoint('/api/key', { method: 'POST', handler: ... })`);
   p(`registerEndpoint('/api/elevators/1/status', { ... })`);
   p(`// ...three more registerEndpoint calls, then, finally:`);
   p(`it('filters served calls out of pendingCalls', () => { ... })`);
   p();
-  p(`// after: elevator-api RequestQueueTest.java -- no mocks, no`);
+  p(`// ${m.mid.ref}: same file, same effort, different problem --`);
+  p(`// now testing hypermedia interpretation, not a business rule:`);
+  p(`it("posts to the operation's own href and method, echoing its`);
+  p(`    hidden type", async () => { ... })`);
+  p();
+  p(`// ${m.after.ref}: elevator-api RequestQueueTest.java -- no mocks, no`);
   p(`// Spring context, no HTTP layer, testing the type that owns the`);
   p(`// rule directly:`);
   p(`void twoRidersPressingTheSameLandingButtonIsOneCall() {`);
@@ -1323,16 +1734,16 @@ function renderMarkdown(m) {
       `worktree's **elevator-api** suite, on this machine:`,
     );
     p();
-    p(`| | before | after |`);
-    p(`|---|---|---|`);
+    p(`| | \`${m.before.ref}\` | \`${m.mid.ref}\` | \`${m.after.ref}\` |`);
+    p(`|---|---|---|---|`);
     p(
-      `| Tests executed | ${bg.testCount} | ${ag.testCount} |`,
+      `| Tests executed | ${bg.testCount} | ${mg?.ok ? mg.testCount : "n/a"} | ${ag.testCount} |`,
     );
     p(
-      `| Wall-clock time | ${round1(bg.ms / 1000)}s | ${round1(ag.ms / 1000)}s |`,
+      `| Wall-clock time | ${round1(bg.ms / 1000)}s | ${mg?.ok ? `${round1(mg.ms / 1000)}s` : "n/a"} | ${round1(ag.ms / 1000)}s |`,
     );
     p(
-      `| Avg per test | ${round1(bg.ms / bg.testCount)}ms | ${round1(ag.ms / ag.testCount)}ms |`,
+      `| Avg per test | ${round1(bg.ms / bg.testCount)}ms | ${mg?.ok ? `${round1(mg.ms / mg.testCount)}ms` : "n/a"} | ${round1(ag.ms / ag.testCount)}ms |`,
     );
     p();
     p(
@@ -1395,19 +1806,22 @@ function renderMarkdown(m) {
       `worktree, none of which this script wires up): \`elevator-ui\`'s`,
     );
     p(
-      `Playwright suite ran in **8.3-9.6s on \`crud\`** and`,
+      `Playwright suite ran in **8.3-9.6s on \`crud\`**,`,
     );
     p(
-      `**7.4-9.2s on \`main\`**, across two runs each -- indistinguishable`,
+      `**7.7-8.3s on \`json-hypermedia\`**, and **7.4-9.2s on \`main\`**,`,
     );
     p(
-      `within normal run-to-run noise, dominated by fixed Nuxt`,
+      `across two runs each -- indistinguishable within normal`,
+    );
+    p(
+      `run-to-run noise, dominated by fixed Nuxt`,
     );
     p(
       `dev-server cold start and Chromium launch. This is expected, not`,
     );
     p(
-      `a gap in the measurement: both spec files say in their own`,
+      `a gap in the measurement: all three spec files say in their own`,
     );
     p(
       `comments that they deliberately never call elevator-api --`,
