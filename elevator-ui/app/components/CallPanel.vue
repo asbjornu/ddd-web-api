@@ -1,39 +1,30 @@
 <script setup lang="ts">
 const store = useElevatorStore()
 
-// No hard-coded floor list any more: the form below renders exactly the
-// fields the call-elevator operation declares (whichever those turn out
-// to be), and disappears entirely once the operation is absent -- see
-// docs/architecture.md's "Affordances: hypermedia over the aggregate"
-// section. What used to be a button grid sized from BUILDING_FLOORS is
-// now a plain form, because the representation only ever carries one
-// generic operation, not one per floor -- the rider console is free to
-// shape this differently (docs/plan.html section 18), just not yet.
-const floor = ref('')
-const direction = ref('')
-
+// One floor row per floor, an up-arrow and/or down-arrow button each --
+// restoring the pre-hypermedia button grid crud always had, rather than
+// a plain floor-number-plus-direction form. call-elevator is still one
+// generic operation (never a URL or a per-floor rel this client hard-
+// codes): every button posts through the same store.callElevator,
+// which itself follows callElevatorOperation's own href/method -- see
+// that action's own comment. BUILDING_FLOORS is the one constant this
+// client already hard-codes elsewhere (CarPanel's own select-floor
+// grid does the same) -- a known gap, not something this component
+// introduces on its own.
 const operation = computed(() => store.callElevatorOperation)
 
-const directionField = computed(() =>
-  operation.value?.fields?.find((field) => field.name === 'direction')
-)
+const floors = Array.from({ length: BUILDING_FLOORS }, (_, i) => BUILDING_FLOORS - i)
 
-const directionOptions = computed(() => directionField.value?.options ?? ['up', 'down'])
+function canCallUp(floor: number) {
+  return floor < BUILDING_FLOORS && !store.loading && operation.value != null
+}
 
-watch(
-  directionOptions,
-  (options) => {
-    if (!direction.value && options.length > 0) {
-      direction.value = options[0] as string
-    }
-  },
-  { immediate: true }
-)
+function canCallDown(floor: number) {
+  return floor > 1 && !store.loading && operation.value != null
+}
 
-function submit() {
-  const floorNumber = Number(floor.value)
-  if (!Number.isInteger(floorNumber)) return
-  store.callElevator(floorNumber, direction.value as 'up' | 'down')
+function call(floor: number, direction: 'up' | 'down') {
+  store.callElevator(floor, direction)
 }
 </script>
 
@@ -42,23 +33,27 @@ function submit() {
     <h2>Call elevator</h2>
     <p v-if="store.error" class="error">{{ store.error }}</p>
     <p v-if="!operation" class="unavailable">Calling the elevator is not available right now.</p>
-    <form v-else class="call-form" @submit.prevent="submit">
-      <label>
-        Floor
-        <input v-model="floor" type="text" inputmode="numeric" required />
-      </label>
-      <label>
-        Direction
-        <select v-model="direction">
-          <option v-for="option in directionOptions" :key="option" :value="option">
-            {{ option }}
-          </option>
-        </select>
-      </label>
-      <button type="submit" :disabled="store.loading" :class="{ loading: store.loading }">
-        {{ operation.title }}
-      </button>
-    </form>
+    <ul v-else>
+      <li v-for="floor in floors" :key="floor" class="floor-row">
+        <span class="floor-label">Floor {{ floor }}</span>
+        <button
+          type="button"
+          :class="{ loading: store.loading }"
+          :disabled="!canCallUp(floor)"
+          @click="call(floor, 'up')"
+        >
+          ▲
+        </button>
+        <button
+          type="button"
+          :class="{ loading: store.loading }"
+          :disabled="!canCallDown(floor)"
+          @click="call(floor, 'down')"
+        >
+          ▼
+        </button>
+      </li>
+    </ul>
   </section>
 </template>
 
@@ -80,27 +75,25 @@ function submit() {
   font-size: 0.85rem;
   margin: 0;
 }
-.call-form {
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.35rem;
 }
-.call-form label {
+.floor-row {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+.floor-label {
+  flex: 1;
   font-size: 0.85rem;
-  font-weight: bold;
-}
-.call-form input,
-.call-form select {
-  padding: 0.35rem 0.4rem;
-  font-size: 0.9rem;
-  border: 1px solid #999;
-  border-radius: 4px;
 }
 button {
-  padding: 0.4rem 0.8rem;
+  padding: 0.25rem 0.5rem;
   border: 1px solid #999;
   border-radius: 4px;
   background: #f5f5f5;
