@@ -907,7 +907,7 @@ A Vue component calls a store.
 
 The store calls an API route.
 
-The BFF forwards to the backend.
+The BFF validates the request, checks backend state, then forwards to the backend.
 
 A controller calls a service.
 
@@ -973,32 +973,108 @@ The client arrived with that protocol already memorised.
 
 ------------------------------------------------------------------------
 
-## 031d --- Then we duplicate the protocol in the BFF
+## 031d --- Then we duplicate more than the protocol in the BFF
 
-The request reaches a Nuxt route which does almost exactly this:
+The request reaches a Nuxt route.
+
+And this version of the BFF is no longer a dumb reverse proxy.
+
+Before it forwards the request, it validates it:
 
 ```ts
-return await $fetch(
-  `${config.serviceApiUrl}/elevators/${getRouterParam(event, 'id')}/calls`,
-  { method: 'POST', body }
-)
+if (!isValidFloor(body?.floor)) {
+  throw createError({ statusCode: 400, statusMessage: 'Invalid floor' })
+}
+if (!isValidDirection(body?.direction)) {
+  throw createError({ statusCode: 400, statusMessage: 'Invalid direction' })
+}
 ```
 
-Notice what this layer knows.
+Those are the same input rules the Java service enforces.
 
-The same resource path.
+Same concepts.
 
-The same `/calls` operation.
+Same status code.
 
-The same HTTP verb.
+Same messages.
 
-The same body shape.
+No shared implementation.
 
-It is not translating one domain into another.
+We have copied domain validation across a network boundary.
 
-It is translating one URL into almost the same URL.
+------------------------------------------------------------------------
 
-The protocol now has two clients inside our own application.
+## 031da --- The BFF also duplicates state-dependent legality
+
+Then it gets more interesting.
+
+The BFF asks the Java API for the current status before it sends the command:
+
+```ts
+const status = await fetchStatusForValidation(config.serviceApiUrl, id)
+if (isOutOfServiceOrRecall(status)) {
+  throw createError({
+    statusCode: 409,
+    statusMessage: 'Elevator is not in service'
+  })
+}
+```
+
+The Java service performs the same conflict check again when the `POST` finally arrives.
+
+So the BFF now knows that `OUT_OF_SERVICE` and `EMERGENCY_RECALL` refuse a call.
+
+It doesn't merely know the API protocol.
+
+**It knows part of the elevator state machine.**
+
+------------------------------------------------------------------------
+
+## 031db --- The duplicate check is weaker than the original
+
+And the copy has a property the original does not.
+
+The BFF does:
+
+```text
+GET current status
+check state
+POST call
+```
+
+The Java service does the check and the write in the same request, against the same row.
+
+Between the BFF's `GET` and its `POST`, the elevator can change state.
+
+So we copied the rule...
+
+and made the copy stale-able.
+
+The Java check still has to remain authoritative.
+
+Which means the BFF validation cannot replace it.
+
+It can only duplicate it.
+
+------------------------------------------------------------------------
+
+## 031dc --- And the duplicate is not tested
+
+There is another asymmetry.
+
+The Java behavior is exercised through `MockMvc`.
+
+But there is no test for the BFF's new `isValidFloor`, `isValidDirection`, or `isOutOfServiceOrRecall` path.
+
+So the duplicated rule is not only independently implemented.
+
+It is independently **unverified**.
+
+This is the kind of duplication I care about.
+
+Not repeated syntax.
+
+Repeated **knowledge**.
 
 ------------------------------------------------------------------------
 
@@ -1165,7 +1241,11 @@ The URL lives in the client.
 
 The operation shape lives in the client and BFF.
 
-The legality rules live in the service.
+Input validation lives in the BFF and service.
+
+State-dependent legality lives in the BFF and service.
+
+The authoritative legality rules still live in the service.
 
 Fragments of the state machine live in the client.
 
@@ -1197,6 +1277,9 @@ Pinia
 BFF
   knows URLs
   knows verbs and payloads
+  knows input validation
+  knows state-dependent legality
+  knows Java error semantics
 
 Controller
   knows URL → operation mapping
@@ -1227,6 +1310,8 @@ Travel now takes three seconds per floor.
 Or floor ten is added.
 
 Or calls are no longer accepted during a new inspection state.
+
+Now both the Java service and the BFF pre-check need to agree about that state.
 
 Or "pending" gets a richer lifecycle than `servedAt === null`.
 
@@ -1693,17 +1778,20 @@ So we introduce something in between.
 
 ## 073
 
-But look at what this particular BFF actually does.
+But look at what this particular BFF has become.
+
+For a call, it now does three jobs before proxying:
 
 ```ts
-export default defineEventHandler(async (event) => {
-  const id = getRouterParam(event, 'id')
-  const config = useRuntimeConfig()
+if (!isValidFloor(body?.floor)) { ... }
+if (!isValidDirection(body?.direction)) { ... }
 
-  return await $fetch(
-    `${config.serviceApiUrl}/elevators/${id}/open-doors`,
-    { method: 'POST' }
-  )
+const status = await fetchStatusForValidation(config.serviceApiUrl, id)
+if (isOutOfServiceOrRecall(status)) { ... }
+
+return await $fetch(`${config.serviceApiUrl}/elevators/${id}/calls`, {
+  method: 'POST',
+  body
 })
 ```
 
@@ -1711,55 +1799,81 @@ export default defineEventHandler(async (event) => {
 
 ## 074
 
-That is not business logic.
+That is no longer just URL and verb translation.
 
-It is not orchestration.
+The BFF has started accumulating **domain knowledge**.
 
-It is not adapting one domain to another.
+It validates floors.
 
-It is a URL and verb translation.
+It validates directions.
+
+It knows which elevator states refuse a call.
+
+It reproduces Java's status codes and messages.
+
+Other routes repeat the pattern: obstruction validates its shape; maintenance pre-checks conflicts that Java checks again.
 
 ------------------------------------------------------------------------
 
 ## 075
 
-There are fourteen route files shaped like this.
+There are fourteen BFF route files.
 
 Average size:
 
-**12.4 lines.**
+**21.9 lines.**
 
 Duplication, measured at a threshold suitable for files this small:
 
-**20.2%.**
+**23.8%.**
+
+BFF + store:
+
+**17 files, 699 lines.**
 
 ------------------------------------------------------------------------
 
 ## 076
 
-For every rider action:
+And some actions now contain an extra validation round trip:
 
 ```text
 Browser
    ↓
-BFF route
+BFF
    ↓
-elevator-api
+GET elevator status   ← pre-check
+   ↓
+BFF validates state
+   ↓
+POST command
+   ↓
+elevator-api validates again
 ```
 
-Two logical application hops.
+The architecture still has two logical application hops per rider action.
+
+But one hop has become a second decision-maker.
 
 ------------------------------------------------------------------------
 
 ## 077
 
-The BFF adds another copy of the API's URL space.
+This is worse than duplicated plumbing.
 
-Another place to encode the HTTP verb.
+The BFF now adds another copy of:
 
-Another file to change when the protocol changes.
+URL space,
 
-Another hop.
+HTTP verbs and payloads,
+
+input validation,
+
+state-dependent legality,
+
+and error semantics.
+
+And because its state check happens before the command request, its copy can be stale.
 
 ------------------------------------------------------------------------
 
@@ -1767,7 +1881,7 @@ Another hop.
 
 This is important.
 
-The BFF is not the original problem.
+The BFF is still not the original problem.
 
 ------------------------------------------------------------------------
 
@@ -1775,14 +1889,29 @@ The BFF is not the original problem.
 
 It is **evidence** of the original problem.
 
+But now the evidence is stronger.
+
+The API exposes state and refusal responses, but not enough current interaction semantics for the client side to simply follow.
+
+So knowledge migrates outward.
+
+First into the SPA.
+
+Then into the BFF.
+
 ------------------------------------------------------------------------
 
 ## 080
 
-The API does not tell the client how to proceed.
+We did what teams often do when a client needs more help.
 
-So the client needs a translation layer that knows how to proceed on its
-behalf.
+We made the intermediary smarter.
+
+And in doing so, we created another implementation of rules the domain already owns.
+
+Perhaps the problem isn't that the BFF needs to understand the backend better.
+
+Perhaps the API needs to make the legal next actions explicit.
 
 ------------------------------------------------------------------------
 
