@@ -115,8 +115,8 @@ follow-up SSE push) drives `shaft.client.ts`'s colour toggles, quoted
 in full in the `CallElevator` trace:
 
 ```ts
-car.classList.toggle('oos', state === 'outOfService')
-car.classList.toggle('emergency', state === 'emergencyRecall')
+car.classList.toggle('oos', state === 'outOfService') // knows the exact "outOfService" state name
+car.classList.toggle('emergency', state === 'emergencyRecall') // knows the exact "emergencyRecall" state name
 ```
 
 and `panels.client.ts`'s technician-section rebuild, which reacts to
@@ -146,23 +146,39 @@ also refuse the `POST` if a caller bypasses the button entirely.
 `crud` enforces authority as a URL pattern matched by a Spring Security
 filter chain — a config file, disconnected from the controller and the
 service, that a reviewer has to cross-reference to know this action is
-privileged at all. `main` makes the exact same scope check part of what
-the command *means*: written once in the `AffordanceContributor` (so
-the button never renders for a caller who cannot use it) and checked
-again, identically, in the `CommandEndpoint` (so a direct `POST` from
-someone who guessed the shape still gets refused) — the same string,
-the same rule, two honest places instead of one hidden one.
+privileged at all. `json-hypermedia` moves the scope check into the
+command endpoint itself, same as `main` below, but still needs a Nuxt
+BFF to hold the technician's Bearer token at all (see this series'
+`json-hypermedia` file for that flow) — a browser cannot attach a
+bearer token to a same-origin request on its own, and this branch's
+key-switch endpoint answers only with an RFC 9728 challenge, never a
+cookie of elevator-api's own. `main` removes the BFF from this picture
+entirely: `POST /elevators/{id}/key-switch/session` sets the cookie
+itself, so the same scope check that already existed in
+`json-hypermedia`'s command endpoint is now reachable same-origin, no
+proxy required. Across all three, the exact same rule — written once
+in the `AffordanceContributor` (so the button never renders for a
+caller who cannot use it) and checked again, identically, in the
+command endpoint (so a direct `POST` from someone who guessed the
+shape still gets refused) — the same string, the same rule, two honest
+places instead of one hidden one.
 
 ## Across all three operations in this series
 
 `crud` always needs *N+1* requests for one user action (the mutation,
 plus however many `fetch*()` calls figure out what actually happened),
 because the entity that got saved is not the same shape as "what should
-the UI show now." `main` always needs exactly one, because the response
-*is* the new representation, and anything that happens later (a
-scheduled arrival, an SSE-eligible event) is pushed, not polled. And
-every legality check in `crud` is discovered by trying (`if`/`throw`,
-translated to a status code after the fact); every one in `main` is
-discovered by looking (the affordance is there, or it is not), with the
-aggregate's own refusal as the only thing that can actually stop a
-command that lied about that.
+the UI show now." `json-hypermedia` already needs only one for the
+command itself (the response *is* the new representation), but still
+needs a second, BFF-proxied re-read after a technician's key-switch
+action, because its unauthenticated SSE stream never carries
+`operations` and the store has no other way to learn what a
+*technician* may now do. `main` needs exactly one, full stop: no BFF
+re-read, because there is no BFF — the same-origin `key-switch/session`
+response is itself the moment the client would need to notice
+anything, and everything after that is pushed. And every legality
+check in `crud` is discovered by trying (`if`/`throw`, translated to a
+status code after the fact); every one in `json-hypermedia` and `main`
+is discovered by looking (the operation/affordance is there, or it is
+not), with the aggregate's own refusal as the only thing that can
+actually stop a command that lied about that.

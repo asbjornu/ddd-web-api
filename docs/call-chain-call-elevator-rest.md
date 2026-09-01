@@ -157,21 +157,21 @@ moving on screen:
 ```ts
 const state = fieldValue('state')
 const destinationFloor = /* parsed from the "destinationFloor" dt/dd, or null */
-const isMoving = state === 'movingUp' || state === 'movingDown'
+const isMoving = state === 'movingUp' || state === 'movingDown' // knows the exact two "moving" state names
 
 if (isMoving && destinationFloor !== null) {
   if (destinationFloor !== animTarget && !Number.isNaN(travelSeconds)) {
-    startCarAnimation(currentFloor, destinationFloor, travelSeconds) // travelSeconds read from the DOM
+    startCarAnimation(currentFloor, destinationFloor, travelSeconds)
   }
-} else if (animFrameId !== null || animTarget !== -1) {
+} else if (animFrameId !== null || animTarget !== -1) { // knows "not moving" means snap to currentFloor, no interpolation
   cancelAnimationFrame(animFrameId ?? 0)
   animTarget = -1
   animatedFloor = currentFloor
 }
 positionCar()
 
-car.classList.toggle('emergency', state === 'emergencyRecall')
-car.classList.toggle('doors-open', state === 'doorsOpen' || state === 'doorsClosing')
+car.classList.toggle('emergency', state === 'emergencyRecall') // knows the exact "emergencyRecall" state name
+car.classList.toggle('doors-open', state === 'doorsOpen' || state === 'doorsClosing') // knows which two door states count as "car looks open"
 ```
 
 `startCarAnimation` runs the identical `requestAnimationFrame`

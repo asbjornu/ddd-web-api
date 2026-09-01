@@ -17,7 +17,7 @@ function call(floor: number, dir: 'UP' | 'DOWN') {
   store.callElevator(floor, dir)
 }
 function isPending(floor: number) {
-  return store.floorsWithPendingCalls.has(floor)
+  return store.floorsWithPendingCalls.has(floor) // knows "pending" means the call row's servedAt is still null
 }
 ```
 
@@ -110,19 +110,19 @@ actually starts moving on screen, and it is the densest piece of
 state-machine-aware code in the whole client:
 
 ```ts
-const TRAVEL_SECONDS_PER_FLOOR = 2 // duplicates application.yml; nothing keeps them in sync
+const TRAVEL_SECONDS_PER_FLOOR = 2 // knows the server's own timing, guessed and hand-copied, never read
 
 watch(
   () => store.status,
   (status) => {
     if (!status) return
-    const isMoving = status.state === 'MOVING_UP' || status.state === 'MOVING_DOWN'
+    const isMoving = status.state === 'MOVING_UP' || status.state === 'MOVING_DOWN' // knows the exact two "moving" state names
 
     if (isMoving && status.targetFloor != null) {
       const from = status.currentFloor
       const to = status.targetFloor
       if (to !== animTarget) startCarAnimation(from, to)
-    } else if (!isMoving) {
+    } else if (!isMoving) { // knows "not moving" means snap to currentFloor, no interpolation
       if (animFrameId) cancelAnimationFrame(animFrameId)
       animTarget = -1
       animatedFloor.value = status.currentFloor

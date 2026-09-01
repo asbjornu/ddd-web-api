@@ -15,7 +15,7 @@ A rider simulates blocking the doors while they are closing, in the
 
 ```ts
 const canCloseDoors = computed(() => {
-  return store.status?.state === 'DOORS_OPEN' && !store.status?.obstructed
+  return store.status?.state === 'DOORS_OPEN' && !store.status?.obstructed // knows the exact "DOORS_OPEN" state name and that obstruction blocks closing
 })
 const obstructionWarning = computed(() => {
   return store.status?.obstructed ? 'Doors blocked — cannot close' : ''

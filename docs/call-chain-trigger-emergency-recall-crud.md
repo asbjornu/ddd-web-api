@@ -16,7 +16,7 @@ repository.
 ```
 
 ```ts
-const inMaintenance = computed(() => store.status?.state === 'OUT_OF_SERVICE')
+const inMaintenance = computed(() => store.status?.state === 'OUT_OF_SERVICE') // knows the exact "OUT_OF_SERVICE" state name
 ```
 
 `app/stores/elevator.ts`
