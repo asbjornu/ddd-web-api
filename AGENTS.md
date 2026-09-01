@@ -218,5 +218,21 @@ trusting lint or a visual glance at the source.
 - Keep `readme.md` up to date with setup instructions and stack overview as
   things change. Keep this file (`AGENTS.md`) up to date with the "How to
   run things" section as soon as real scripts/commands exist.
+- **Never `git worktree add <path> <branch>` with an existing branch
+  name directly** — that checks the branch out in the new worktree,
+  and Git refuses to have the same branch checked out in two places at
+  once (including the primary working directory, if anything there
+  later runs a plain `git checkout <branch>`); this has actually
+  happened and left the primary working directory unexpectedly
+  switched onto a different branch mid-task. Instead, create the
+  worktree detached at that branch's current commit
+  (`git worktree add --detach <path> <branch>`), do the work and
+  commit there, then move the real branch pointer to match once
+  finished — fast-forward it (`git fetch <path> HEAD:<branch>` from
+  the primary worktree, or `git merge --ff-only`) if the branch didn't
+  move elsewhere meanwhile, or `git branch -f <branch> <sha>` (a hard
+  reset of the branch pointer) if a plain overwrite is intended and
+  safe. Remove the detached worktree afterward
+  (`git worktree remove <path>`) either way.
 
 [1]: https://brew.sh
