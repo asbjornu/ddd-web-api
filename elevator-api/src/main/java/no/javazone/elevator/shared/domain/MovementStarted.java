@@ -8,9 +8,10 @@ import java.time.Instant;
  * what {@link Elevator#call} or {@link Elevator#selectFloor} produce
  * <em>in addition to</em> their own event when the car was idle and had
  * somewhere to go. {@code shared.scheduler} listens for this to compute
- * when {@link FloorReached} should fire -- see
+ * when each intermediate {@link FloorPassed} (and the trip's own
+ * {@link FloorReached}) should fire -- see
  * {@code docs/architecture.md}'s "CQRS and domain events" section on
- * why state is derived forward from a scheduled instant rather than
+ * why state is derived forward from scheduled instants rather than
  * backward from elapsed time.
  */
 public record MovementStarted(

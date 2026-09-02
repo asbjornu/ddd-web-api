@@ -17,11 +17,12 @@ import java.util.Optional;
  * events are its only other output -- see {@code
  * docs/architecture.md}'s "CQRS and domain events" section.
  *
- * <p>{@link #dispatch()} and {@link #arrive} are not rider-facing: the
+ * <p>{@link #dispatch()} and {@link #passFloor} are not rider-facing: the
  * first is called by {@link #call} and {@link #selectFloor} themselves
  * when the car was idle and now has somewhere to go; the second is
- * called only by {@code shared.scheduler}, once, at the instant it
- * computed when dispatching -- see {@link MovementStarted}'s Javadoc.
+ * called only by {@code shared.scheduler}, once per floor along the
+ * route, at each instant it computed when dispatching -- see
+ * {@link MovementStarted}'s Javadoc.
  */
 public final class Elevator {
 
@@ -140,18 +141,41 @@ public final class Elevator {
     }
 
     /**
-     * The car has arrived at {@code floor}, per the scheduler's own
-     * clock -- not a rider's command. Opens the doors (which starts the
-     * auto-close timer via {@link DoorsOpened}, same as an explicit
-     * {@code OpenDoors} would) and clears whatever calls were waiting at
-     * this floor.
+     * The car passes {@code floor} while travelling -- per the
+     * scheduler's own clock, one call per floor along the route, never
+     * a rider's command. Updates position every time; only when {@code
+     * floor} is the car's own destination does this also fire {@link
+     * FloorReached}, open the doors (which starts the auto-close timer
+     * via {@link DoorsOpened}, same as an explicit {@code OpenDoors}
+     * would), and clear whatever calls were waiting there. A no-op
+     * (returns empty) if the car left its moving state some other way
+     * in the meantime -- an emergency recall pre-empting a trip
+     * already under way, most plausibly -- so a stale scheduled
+     * callback from a trip that no longer exists cannot resurrect it.
      */
-    public List<DomainEvent> arrive(Floor floor) {
+    public List<DomainEvent> passFloor(Floor floor) {
+        if (!(state instanceof ElevatorState.MovingUp) && !(state instanceof ElevatorState.MovingDown)) {
+            return List.of();
+        }
         this.currentFloor = floor;
-        queue.clearAt(floor);
-        List<DomainEvent> events = new ArrayList<>(openTheDoors());
-        events.addFirst(new FloorReached(id, floor, Instant.now()));
+        List<DomainEvent> events = new ArrayList<>();
+        events.add(new FloorPassed(id, floor, Instant.now()));
+        if (isDestination(floor)) {
+            queue.clearAt(floor);
+            events.add(new FloorReached(id, floor, Instant.now()));
+            events.addAll(openTheDoors());
+        }
         return events;
+    }
+
+    private boolean isDestination(Floor floor) {
+        if (state instanceof ElevatorState.MovingUp up) {
+            return up.destination().equals(floor);
+        }
+        if (state instanceof ElevatorState.MovingDown down) {
+            return down.destination().equals(floor);
+        }
+        return false;
     }
 
     /**
@@ -374,7 +398,7 @@ public final class Elevator {
      * Called only by {@code shared.scheduler}'s recall scheduler, once,
      * at the instant it computed when the recall was triggered: settles
      * an in-transit recall into {@code outOfService}, mirroring {@link
-     * #arrive}. A no-op if the car left {@code emergencyRecall} some
+     * #passFloor}. A no-op if the car left {@code emergencyRecall} some
      * other way in the meantime (it cannot today, since nothing else
      * transitions out of it, but this guard costs nothing and matches
      * every other scheduler-only method's own defensiveness).

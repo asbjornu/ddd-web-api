@@ -70,4 +70,35 @@ class MovementSchedulerIntegrationTest {
         assertThat(store.find(new ElevatorId(1)).orElseThrow().queue().pendingCarCalls())
                 .isEmpty();
     }
+
+    @Test
+    void positionAdvancesFloorByFloorRatherThanJumpingToTheDestination() throws Exception {
+        // Floor 4 is three floors away -- long enough a trip to observe
+        // an intermediate floor's own scheduled callback fire on its
+        // own, before the final one that actually arrives.
+        mockMvc.perform(post("/elevators/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"type\": \"SelectFloor\", \"floor\": 4}"));
+
+        // One floor (2 s) in: still travelling, but already past floor 1.
+        Thread.sleep(2600);
+        mockMvc.perform(get("/elevators/1").header(HttpHeaders.ACCEPT, "application/vnd.siren+json"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("\"currentFloor\" : 2")))
+                .andExpect(content().string(containsString("\"state\" : \"movingUp\"")));
+
+        // Two floors (4 s) in: further along still, still travelling.
+        Thread.sleep(2000);
+        mockMvc.perform(get("/elevators/1").header(HttpHeaders.ACCEPT, "application/vnd.siren+json"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("\"currentFloor\" : 3")))
+                .andExpect(content().string(containsString("\"state\" : \"movingUp\"")));
+
+        // Three floors (6 s) in: arrived, doors open.
+        Thread.sleep(2600);
+        mockMvc.perform(get("/elevators/1").header(HttpHeaders.ACCEPT, "application/vnd.siren+json"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("\"currentFloor\" : 4")))
+                .andExpect(content().string(containsString("\"state\" : \"doorsOpen\"")));
+    }
 }
