@@ -10,9 +10,18 @@ package no.javazone.elevator.feature.viewstatus;
  * current read model -- {@code feature.streamevents} for the SSE
  * payload, {@code feature.callelevator} for the representation a
  * command returns.
+ *
+ * <p>Deliberately carries no identifier of its own. {@link
+ * ElevatorViewProjection#find} is already keyed by {@code ElevatorId},
+ * and every renderer builds its representation from an explicit,
+ * hand-picked property list (see {@code ElevatorRepresentations}) that
+ * was never going to include a surrogate key -- but a field named
+ * {@code id} sitting unused on a record every renderer receives was a
+ * loaded gun for whichever renderer gets added next and forgets to
+ * leave it out. See {@code docs/plan.html} &sect;8's "Identifiers and
+ * URIs": the surrogate key belongs to the persistence layer alone.
  */
 public record ElevatorView(
-        long id,
         int currentFloor,
         String state,
         String direction,
@@ -24,7 +33,6 @@ public record ElevatorView(
 
     static ElevatorView from(ElevatorViewEntity entity) {
         return new ElevatorView(
-                entity.getId(),
                 entity.getCurrentFloor(),
                 entity.getState(),
                 entity.getDirection(),
