@@ -3,14 +3,16 @@ package no.javazone.elevator.shared.scheduler;
 import java.time.Instant;
 import java.util.List;
 import no.javazone.elevator.config.ElevatorProperties;
+import no.javazone.elevator.feature.autoclosedoors.AutoCloseDoorsCommand;
+import no.javazone.elevator.feature.autoclosedoors.AutoCloseDoorsHandler;
+import no.javazone.elevator.feature.finishclosingdoors.FinishClosingDoorsCommand;
+import no.javazone.elevator.feature.finishclosingdoors.FinishClosingDoorsHandler;
 import no.javazone.elevator.feature.streamevents.ElevatorViewUpdates;
 import no.javazone.elevator.feature.viewstatus.ElevatorViewProjection;
 import no.javazone.elevator.shared.domain.DomainEvent;
 import no.javazone.elevator.shared.domain.DoorsClosingStarted;
 import no.javazone.elevator.shared.domain.DoorsOpened;
-import no.javazone.elevator.shared.domain.Elevator;
 import no.javazone.elevator.shared.domain.ElevatorId;
-import no.javazone.elevator.shared.persistence.ElevatorAggregateStore;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
@@ -26,6 +28,13 @@ import org.springframework.stereotype.Component;
  * this need not (and does not) depend on {@link MovementScheduler}, even
  * though finishing a close can dispatch the next pending call.
  *
+ * <p>This class is the sensor {@link AutoCloseDoorsCommand} and
+ * {@link FinishClosingDoorsCommand} stand in for: it decides *when*
+ * each timer has elapsed (from the schedule), constructs the command,
+ * and hands it to the matching handler exactly as a controller would a
+ * rider's -- the difference is that nothing hands this scheduler its
+ * own commands from outside; it originates them itself, on the clock.
+ *
  * <p>{@code CLOSE_DURATION_SECONDS} is the one timing constant kept
  * hard-coded, matching the old service's own -- it is short and purely
  * cosmetic (how long the doors take to physically close once
@@ -38,25 +47,25 @@ public class DoorScheduler {
     private static final long CLOSE_DURATION_SECONDS = 2;
 
     private final TaskScheduler taskScheduler;
-    private final ElevatorAggregateStore store;
+    private final AutoCloseDoorsHandler autoCloseHandler;
+    private final FinishClosingDoorsHandler finishClosingHandler;
     private final ElevatorViewUpdates updates;
     private final ElevatorViewProjection projection;
     private final ElevatorProperties properties;
-    private final CommandEffects effects;
 
     public DoorScheduler(
             TaskScheduler movementTaskScheduler,
-            ElevatorAggregateStore store,
+            AutoCloseDoorsHandler autoCloseHandler,
+            FinishClosingDoorsHandler finishClosingHandler,
             ElevatorViewUpdates updates,
             ElevatorViewProjection projection,
-            ElevatorProperties properties,
-            CommandEffects effects) {
+            ElevatorProperties properties) {
         this.taskScheduler = movementTaskScheduler;
-        this.store = store;
+        this.autoCloseHandler = autoCloseHandler;
+        this.finishClosingHandler = finishClosingHandler;
         this.updates = updates;
         this.projection = projection;
         this.properties = properties;
-        this.effects = effects;
     }
 
     @EventListener
@@ -72,31 +81,21 @@ public class DoorScheduler {
     }
 
     private void autoClose(ElevatorId id) {
-        Elevator elevator = elevatorOrThrow(id);
-        List<DomainEvent> events = elevator.autoCloseIfStillOpen();
-        applyAndPublish(elevator, events);
+        List<DomainEvent> events = autoCloseHandler.handle(new AutoCloseDoorsCommand(id));
+        publishIfChanged(id, events);
     }
 
     private void finishClosing(ElevatorId id) {
-        Elevator elevator = elevatorOrThrow(id);
-        List<DomainEvent> events = elevator.finishClosingIfStillClosing();
-        applyAndPublish(elevator, events);
+        List<DomainEvent> events = finishClosingHandler.handle(new FinishClosingDoorsCommand(id));
+        publishIfChanged(id, events);
     }
 
-    private Elevator elevatorOrThrow(ElevatorId id) {
-        return store.find(id)
-                .orElseThrow(() -> new IllegalStateException(
-                        "Elevator " + id.value() + " disappeared before its door timer fired"));
-    }
-
-    private void applyAndPublish(Elevator elevator, List<DomainEvent> events) {
+    private void publishIfChanged(ElevatorId id, List<DomainEvent> events) {
         if (events.isEmpty()) {
             // Nothing to do: the doors were already closed by an
             // explicit command, or an obstruction re-opened them first.
             return;
         }
-        store.save(elevator);
-        effects.apply(elevator, events);
-        updates.publish(elevator.id(), projection.find(elevator.id()).orElseThrow());
+        updates.publish(id, projection.find(id).orElseThrow());
     }
 }
