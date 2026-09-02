@@ -54,7 +54,7 @@ quoted below, which is the one place that decides so.
 
 ## UI
 
-`app/plugins/panels.client.ts`
+`elevator-ui/src/panels.ts`
 
 ```ts
 toggleInput.addEventListener('change', () => {
@@ -62,6 +62,12 @@ toggleInput.addEventListener('change', () => {
   else submitHiddenForm('clear-obstruction', {})
 })
 ```
+
+Same `submitHiddenForm`/`form.requestSubmit()` hand-off to Datastar's
+`data-on:submit` as `CallElevator` — see that operation's own file for
+the mechanism in full, including the real SSE `datastar-patch-elements`
+wire format that is how this form's own disappearance (once
+`doorsClosing` ends) actually reaches an already-open page.
 
 ## HTTP
 
@@ -96,7 +102,7 @@ Same Java suite as `json-hypermedia`, unchanged (see that file's own
 `ObstructDoorsAffordanceContributorTest`/`ElevatorDoorsTest` cases).
 On the client side, this is the one variant with genuinely nothing to
 unit-test: no store, no `formFor`/`submitHiddenForm` test at all —
-`panels.client.ts` is exercised only by the same Playwright smoke test
+`panels.ts` is exercised only by the same Playwright smoke test
 every other operation in this series is,
 `elevator-ui/test/e2e/rider-page.spec.ts`, which never opens or closes
 a door. The DOM-presence logic this file's "Client-side result"
@@ -106,7 +112,7 @@ nothing but a human watching the checkbox.
 
 ## Client-side result
 
-`panels.client.ts` never asks "is the door closing"; it only ever asks
+`panels.ts` never asks "is the door closing"; it only ever asks
 "does a form with `data-rel="obstruct-doors"` currently exist" — the
 same question restated as a DOM lookup instead of a state comparison:
 

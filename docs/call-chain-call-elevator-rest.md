@@ -3,9 +3,96 @@
 A rider calls the car to floor 5, going up, in this repository's
 current (`main`) architecture.
 
-## Step 0 — the hypermedia control this button came from
+## Step 0 — how the page gets here at all
 
-Nothing in `panels.client.ts` hard-codes `/elevators/1`,
+`elevator-ui` ships two static files and nothing that talks to
+`elevator-api` on its own — `public/index.html` in full:
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Elevator</title>
+    <link rel="stylesheet" href="/main.css" />
+    <script type="module"
+      src="https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.2/bundles/datastar.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>Elevator</h1>
+      <div class="layout">
+        <div id="entry-point" data-init="@get('/')"></div>
+        <div id="shaft"></div>
+      </div>
+      <nav><a href="/status">Public status page</a></nav>
+    </main>
+    <script type="module" src="/shaft.js"></script>
+    <script type="module" src="/panels.js"></script>
+    <script type="module" src="/busy-indicator.js"></script>
+  </body>
+</html>
+```
+
+`data-init="@get('/')"` is the entire bootstrap: Datastar's runtime
+(loaded from a CDN, never bundled into this project's own build) sees
+the attribute on page load and issues that `GET` itself — nothing in
+`shaft.ts`/`panels.ts` fetches anything. That request's own `Accept`
+header is what lets one Caddy origin serve both this static file *and*
+`elevator-api`'s hypermedia from the same path, captured live:
+
+```
+$ curl -s -D- http://127.0.0.1:8000/ -H "Accept: text/html"
+                                                    # a real browser navigation
+
+HTTP/1.1 200 OK
+Content-Type: text/html; charset=utf-8
+Server: Caddy
+                                                    # the static index.html above, byte for byte
+
+$ curl -s -D- http://127.0.0.1:8000/ \
+    -H "Accept: text/event-stream, text/html, application/json" \
+                                                    # Datastar's own @get('/') -- this is the literal
+                                                    # Accept header its runtime sends, event-stream first
+    -H "Datastar-Request: true"
+
+HTTP/1.1 200 OK
+Content-Type: text/html
+Datastar-Mode: outer
+Datastar-Selector: #entry-point
+Link: </>; rel="self"
+Link: </rels/help>; rel="help"
+Link: </elevators>; rel="elevators"
+
+<div id="entry-point">
+<ul>
+  <li><a rel="self" href="/">self</a></li>
+  <li><a rel="help" href="/rels/help">help</a></li>
+  <li><a rel="elevators" href="/elevators">elevators</a></li>
+</ul>
+<div id="elevators-collection" data-init="@get('/elevators')"></div>
+</div>
+```
+
+The two requests are identical in every way except `Accept`; the
+Caddyfile's own `@entryPoint` matcher (`path /` and `Accept` *not*
+starting with `text/html`) is what routes the second one to
+`elevator-api` instead of re-serving the static file — a genuine
+top-level navigation always sends `text/html` first and gets the page;
+Datastar's own re-fetch never does, and gets the hypermedia entry
+point instead. `Datastar-Mode: outer` and `Datastar-Selector:
+#entry-point` tell the already-loaded runtime exactly what to do with
+the response body it just received: replace `#entry-point`'s own
+outer element with this `<div>` — no JavaScript in this codebase reads
+that response at all. The nested `data-init="@get('/elevators')"` on
+the fragment `elevator-api` just rendered is what continues the
+chain — elevators collection, then the one elevator, each hop's own
+`data-init` naming the next, down to Step 1's `GET /elevators/1`
+below.
+
+## Step 1 — the hypermedia control this button came from
+
+Nothing in `panels.ts` hard-codes `/elevators/1`,
 `"call-elevator"`, or a `floor`/`direction` field: the button that ends
 up calling `submitHiddenForm('call-elevator', ...)` only exists because
 an earlier response rendered it. Captured live, this is that earlier
@@ -68,7 +155,7 @@ Link: </elevators/1/events>; rel="updates"; type="text/event-stream"
 </div>
 ```
 
-This is what `panels.client.ts` actually reads when it builds
+This is what `panels.ts` actually reads when it builds
 `CallPanel` and wires up its buttons: the `href` (`/elevators/1`, from
 the form's own `action`), the field names (`floor`, `direction`), and
 the floor range (`1`–`9`, from the `<option>` values it already
@@ -81,23 +168,31 @@ constant baked into either side.
 
 ## UI (vanilla TypeScript, no framework state)
 
-`app/plugins/panels.client.ts`
+`elevator-ui/src/panels.ts`
 
 ```ts
 up.addEventListener('click', () =>
   submitHiddenForm('call-elevator', { floor: String(floor), direction: 'up' }))
 
 function submitHiddenForm(rel: string, fields: Record<string, string>) {
-  const form = document.querySelector<HTMLFormElement>(
-    `#elevator-content form[data-rel="${rel}"]`
-  )
+  const form = formFor(rel) // document.querySelector against #elevator-content
+  if (!form) return
   for (const [name, value] of Object.entries(fields)) {
     const field = form.elements.namedItem(name)
-    if (field instanceof HTMLSelectElement) field.value = value
+    if (field instanceof HTMLInputElement || field instanceof HTMLSelectElement) {
+      field.value = value
+    }
   }
   form.requestSubmit() // Datastar's data-on:submit picks this up
 }
 ```
+
+`form.requestSubmit()` is the entire hand-off to Datastar: this file
+never calls `fetch` itself. The `<form>`'s own `data-on:submit="@post(
+'/elevators/1', {contentType: 'form'})"` attribute — rendered by
+`CallElevatorAffordanceContributor`, quoted in Step 1 — is what
+Datastar's runtime reads to decide the request actually happens, and
+where to.
 
 ## HTTP (one request, full stop)
 
@@ -142,17 +237,62 @@ public List<DomainEvent> handle(CallElevatorCommand command) {
 `store.save` writes `elevator_aggregate`/`landing_call` (H2);
 `effects.apply` writes `elevator_view` (H2, a separate table) and — if
 the car just dispatched — schedules a future `FloorReached` via
-`MovementScheduler`, independent of this request. The response is the
-new representation, rendered by content negotiation. **No second
-request**: an already-open `EventSource` (`GET /elevators/1/events`)
-gets pushed the same state via SSE.
+`MovementScheduler`, independent of this request. The command's own
+`POST` response is the new representation, rendered by content
+negotiation, with the same `Datastar-Mode: outer`/`Datastar-Selector:
+#elevator-content` headers Step 1's `GET` carried — Datastar morphs
+`#elevator-content` in place, no page reload, no client-side parsing
+of the body.
+
+**No second request** for anyone else already watching, either: an
+already-open `EventSource` (`GET /elevators/1/events`, opened by the
+`data-init` at the very end of Step 1's fragment) gets pushed the same
+state, but over SSE instead of a plain response — captured live,
+mid-move, right after this same command:
+
+```
+$ curl -s http://127.0.0.1:8000/elevators/1/events
+
+event: datastar-patch-elements
+id: 0
+data: selector #elevator-content
+data: elements <div id="elevator-content">
+data: elements <dl>
+data: elements   <dt>currentFloor</dt><dd>1</dd>
+data: elements   <dt>state</dt><dd>movingUp</dd>
+data: elements   <dt>direction</dt><dd>up</dd>
+...
+data: elements </dl>
+...
+
+```
+
+This is `ElevatorViewUpdates.send`
+(`feature/streamevents/ElevatorViewUpdates.java`), using the Datastar
+Java SDK's own `PatchElements` builder rather than Spring's
+`SseEmitter`:
+
+```java
+subscriber.events().send(PatchElements.builder()
+        .selector("#" + ElevatorRepresentations.CONTENT_WRAPPER_ID)
+        .mode(ElementPatchMode.Outer)
+        .data(fragment)
+        .build());
+```
+
+Same selector, same "outer" mode, same fragment-rendering code as the
+command's own HTTP response — one `htmlRenderer.contentFragment(...)`
+call serves both a direct `POST` response and every open SSE
+subscriber, so there is exactly one place that decides what "the
+current state, as HTML" looks like, used identically by both delivery
+mechanisms.
 
 ## Tests
 
 `CallElevatorControllerTest.java` and `CallElevatorAffordanceContributorTest.java`
 are unchanged in spirit from `json-hypermedia`'s own, but the
 affordance test gained a case the other two branches do not have,
-covering the `FloorOptions` fix this file's Step 0 section describes:
+covering the `FloorOptions` fix this file's Step 1 section describes:
 
 ```java
 @Test
@@ -174,7 +314,7 @@ human loading the page and watching the shaft.
 
 ## Client-side result
 
-`shaft.client.ts`'s `update()` runs on every mutation of
+`shaft.ts`'s `update()` runs on every mutation of
 `#elevator-content` — the command's own response, and later the SSE
 push when the car arrives. This is where the car actually starts
 moving on screen:
@@ -220,3 +360,4 @@ the same two state names *plus* an independent, hand-maintained timing
 constant with no path back to the server's own value. This file's
 duration always agrees with the server's, because it was never
 memorised in the first place — it was read.
+

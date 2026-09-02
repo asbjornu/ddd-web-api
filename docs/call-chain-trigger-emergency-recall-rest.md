@@ -54,7 +54,7 @@ $ curl -s http://127.0.0.1:8000/elevators/1 \
 </div>
 ```
 
-`panels.client.ts` never inspects the cookie, checks a scope, or knows
+`panels.ts` never inspects the cookie, checks a scope, or knows
 "technician" is a concept — it only ever asks `formFor('trigger-
 emergency-recall')`, the same DOM lookup `ObstructDoors` used for a
 state gate, now answering an authorization gate instead. The class that
@@ -65,7 +65,7 @@ below.
 
 ## UI
 
-`app/plugins/panels.client.ts`
+`elevator-ui/src/panels.ts`
 
 ```ts
 emergencyButton.addEventListener('click', () =>
@@ -77,7 +77,10 @@ emergencyButton.disabled = !formFor('trigger-emergency-recall')
 
 `POST /elevators/1` with `type=TriggerEmergencyRecall` — the cookie
 (set once at key-insert, same mechanism as `crud`) rides along
-automatically, same origin.
+automatically, same origin. Same `data-on:submit="@post(...)"` /
+`Datastar-Mode: outer` round trip as `CallElevator`'s own file
+describes in full, including the real SSE wire format for anyone else
+already watching when the recall settles into `outOfService`.
 
 ## Java
 
@@ -132,7 +135,7 @@ void triggerEmergencyRecallTransitionsToEmergencyRecallWhenElsewhere() {
 ```
 
 There is no client-side test for `KeySwitchSessionController`'s own
-replacement of the BFF flow, nor for `panels.client.ts`'s technician
+replacement of the BFF flow, nor for `panels.ts`'s technician
 section at all — this variant, like `crud`, has no unit test layer on
 the client, and the e2e smoke test never inserts a key. The one thing
 this branch *can* claim over `json-hypermedia` is that there is simply
@@ -144,7 +147,7 @@ here to be uncovered.
 ## Client-side result
 
 The response (and, once the recall settles into `outOfService`, the
-follow-up SSE push) drives `shaft.client.ts`'s colour toggles, quoted
+follow-up SSE push) drives `shaft.ts`'s colour toggles, quoted
 in full in the `CallElevator` trace:
 
 ```ts
@@ -152,7 +155,7 @@ car.classList.toggle('oos', state === 'outOfService') // knows the exact "outOfS
 car.classList.toggle('emergency', state === 'emergencyRecall') // knows the exact "emergencyRecall" state name
 ```
 
-and `panels.client.ts`'s technician-section rebuild, which reacts to
+and `panels.ts`'s technician-section rebuild, which reacts to
 the *disappearance* of `enter-maintenance`/`exit-maintenance` rather
 than to any state name at all:
 
@@ -162,7 +165,7 @@ maintenanceButton.disabled = !enterMaintenance && !exitMaintenance
 
 — true only while `emergencyRecall` is active, per the affordance
 contributor's own comment above ("pre-empts everything else"), but
-`panels.client.ts` doesn't need to know *why* both are absent, only
+`panels.ts` doesn't need to know *why* both are absent, only
 that they are.
 
 ## What this client needed to know about the state machine
