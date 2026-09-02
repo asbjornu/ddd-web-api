@@ -8,7 +8,7 @@ services:
     # was last built under this branch's tag instead of silently running
     # a stale image built from a different branch, or triggering a
     # rebuild mid-demo. See "Toolchain"/pre-talk build step in AGENTS.md.
-    image: elevator-auth:${IMAGE_TAG:-json-hypermedia}
+    image: elevator-auth:${IMAGE_TAG:-main}
     # No published port: elevator-api and elevator-ui reach this over
     # the compose network by name, and nothing outside it needs to --
     # the caddy service below is the only published port now.
@@ -35,7 +35,7 @@ services:
     build:
       context: ./elevator-api
     # Tagged per branch -- see elevator-auth's image: comment above.
-    image: elevator-api:${IMAGE_TAG:-json-hypermedia}
+    image: elevator-api:${IMAGE_TAG:-main}
     # No published port: caddy is the only path in from the host, and it
     # forwards only /elevators* and /rels* here -- see ../Caddyfile.
     # elevator-api's own "/" stays reachable solely on this internal
@@ -65,7 +65,7 @@ services:
     # regardless of what's in the image, but the image still needs to
     # exist for its node_modules, so it gets the same pre-build/tag
     # treatment as the other two for a consistent pre-talk routine.)
-    image: elevator-ui:${IMAGE_TAG:-json-hypermedia}
+    image: elevator-ui:${IMAGE_TAG:-main}
     # No published port either: caddy forwards everything it does not
     # recognise as belonging to elevator-api here instead. No
     # environment either, now that server/ (the BFF) is gone: this is a
