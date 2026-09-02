@@ -1,11 +1,9 @@
-# Nuxt dev/build outputs
-.output
-.data
-.nuxt
-.nitro
-.cache
-dist
-.nuxtrc
+# Compiled output (tsc writes these directly into public/, alongside
+# the hand-authored static files there)
+public/shaft.js
+public/panels.js
+public/busy-indicator.js
+public/*.js.map
 
 # Node dependencies
 node_modules
@@ -24,8 +22,3 @@ playwright-report
 test-results
 blob-report
 coverage
-
-# Local env files
-.env
-.env.*
-!.env.example

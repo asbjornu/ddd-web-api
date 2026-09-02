@@ -9,9 +9,9 @@ services:
     # a stale image built from a different branch, or triggering a
     # rebuild mid-demo. See "Toolchain"/pre-talk build step in AGENTS.md.
     image: elevator-auth:${IMAGE_TAG:-main}
-    # No published port: elevator-api and elevator-ui reach this over
-    # the compose network by name, and nothing outside it needs to --
-    # the caddy service below is the only published port now.
+    # No published port: elevator-api reaches this over the compose
+    # network by name, and nothing outside it needs to -- the caddy
+    # service below is the only published port now.
     environment:
       # Tokens carry this as their issuer and elevator-api validates against
       # it, so both must use the name that resolves inside this network.
@@ -56,33 +56,18 @@ services:
       retries: 10
       start_period: 20s
 
-  elevator-ui:
-    container_name: elevator-ui
+  caddy:
+    container_name: caddy
     build:
       context: ./elevator-ui
     # Tagged per branch -- see elevator-auth's image: comment above.
-    # (This service runs `npm run dev` off the bind-mounted source below
-    # regardless of what's in the image, but the image still needs to
-    # exist for its node_modules, so it gets the same pre-build/tag
-    # treatment as the other two for a consistent pre-talk routine.)
-    image: elevator-ui:${IMAGE_TAG:-main}
-    # No published port either: caddy forwards everything it does not
-    # recognise as belonging to elevator-api here instead. No
-    # environment either, now that server/ (the BFF) is gone: this is a
-    # front-end shell with no service URL or OAuth client id of its own
-    # to be configured with -- see docs/architecture.md's "elevator-ui:
-    # front-end only, no BFF" section.
-    depends_on:
-      elevator-api:
-        condition: service_healthy
-    volumes:
-      - ./elevator-ui:/app
-      - /app/node_modules
-    command: npm run dev
-
-  caddy:
-    container_name: caddy
-    image: caddy:2-alpine
+    # This image is Caddy plus elevator-ui's own built static output
+    # baked into /srv (see elevator-ui/Dockerfile) -- there is no
+    # elevator-ui container any more, and no server-side logic left in
+    # elevator-ui at all to run one for: reverse-proxying to
+    # elevator-api and serving elevator-ui's static files are both
+    # Caddy's own job now, configured entirely by the Caddyfile below.
+    image: caddy:${IMAGE_TAG:-main}
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
@@ -90,5 +75,3 @@ services:
     depends_on:
       elevator-api:
         condition: service_healthy
-      elevator-ui:
-        condition: service_started

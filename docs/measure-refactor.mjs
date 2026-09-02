@@ -456,7 +456,7 @@ function main() {
     );
     const dupUiAfter = jscpdReport(
       after.dir,
-      ["elevator-ui/app"],
+      ["elevator-ui/src"],
       scratchDir,
       "ui-after",
     );
@@ -491,10 +491,11 @@ function main() {
       ".ts",
       ".vue",
     ]).concat(walkFiles(path.join(mid.dir, "elevator-ui/server"), [".ts"]));
-    const afterUiFiles = walkFiles(path.join(after.dir, "elevator-ui/app"), [
+    const afterUiFiles = walkFiles(path.join(after.dir, "elevator-ui/src"), [
       ".ts",
-      ".vue",
-    ]);
+    ]).concat(
+      walkFiles(path.join(after.dir, "elevator-ui/public"), [".html"]),
+    );
     const beforeDomainLiterals = countMatches(
       beforeUiFiles,
       domainLiteralRegex,
@@ -1800,7 +1801,7 @@ function renderMarkdown(m) {
       `Checked by hand (not automated here -- \`npm run test:e2e\` needs`,
     );
     p(
-      `a Nuxt dev server and a browser, plus a fresh \`npm install\` per`,
+      `a dev server and a browser, plus a fresh \`npm install\` per`,
     );
     p(
       `worktree, none of which this script wires up): \`elevator-ui\`'s`,
@@ -1809,16 +1810,25 @@ function renderMarkdown(m) {
       `Playwright suite ran in **8.3-9.6s on \`crud\`**,`,
     );
     p(
-      `**7.7-8.3s on \`json-hypermedia\`**, and **7.4-9.2s on \`main\`**,`,
+      `**7.7-8.3s on \`json-hypermedia\`**, and **5.0-5.3s on \`main\`**,`,
     );
     p(
-      `across two runs each -- indistinguishable within normal`,
+      `across two runs each -- \`crud\` and \`json-hypermedia\` are`,
     );
     p(
-      `run-to-run noise, dominated by fixed Nuxt`,
+      `indistinguishable within normal run-to-run noise, dominated by`,
     );
     p(
-      `dev-server cold start and Chromium launch. This is expected, not`,
+      `their fixed Nuxt dev-server cold start; \`main\` has none, and`,
+    );
+    p(
+      `its own \`serve.mjs\` plus \`tsc\` compile step measurably shrinks`,
+    );
+    p(
+      `the total, though Chromium launch alone still accounts for most`,
+    );
+    p(
+      `of what remains. This is expected, not`,
     );
     p(
       `a gap in the measurement: all three spec files say in their own`,

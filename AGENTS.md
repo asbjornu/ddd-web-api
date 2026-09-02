@@ -40,15 +40,17 @@ argument, worked examples, media-type samples, and open questions.
 /elevator-api      Java 21 + Spring Boot 4 (Gradle, Kotlin DSL)
 /elevator-auth     Spring Authorization Server; issues the technician's
                    scoped tokens and nothing else
-/elevator-ui       Nuxt.js 4 front-end shell + Datastar, TypeScript
+/elevator-ui       Static HTML/CSS + Datastar, plain TypeScript (tsc,
+                   no framework, no bundler); served by Caddy directly
 /docs              architecture.md and plan.html
 ```
 
-`elevator-ui` is a front-end shell (pages, the shaft/car animation
-chrome, the Playwright suite) with no backend-for-frontend — see
-`docs/architecture.md`'s "elevator-ui: front-end only, no BFF" section.
-Every request, including the technician's, goes straight to
-`elevator-api`; there is no `server/` directory to reintroduce one in.
+`elevator-ui` is a front-end shell (two static pages, the shaft/car
+animation chrome, the Playwright suite) with no backend-for-frontend —
+see `docs/architecture.md`'s "elevator-ui: static files, no framework,
+no BFF" section. Every request, including the technician's, goes
+straight to `elevator-api`; there is no `server/` directory to
+reintroduce one in, and no framework to reintroduce one for.
 
 Within `elevator-api`, the target layout is **one directory per domain
 behaviour** (`callelevator/`, `selectfloor/`, `opendoors/`, ...), each
@@ -75,15 +77,15 @@ moving it piecemeal.
   migrated to a vertical slice; don't be surprised by (and don't
   silently clean up) inconsistent naming elsewhere — that's one of the
   intentional smells still awaiting its slice.
-- **elevator-ui**: Nuxt 4, TypeScript, Vue 3 Composition API. No
-  client-side state management: Datastar drives every interactive part
-  of the page directly from elevator-api's own rendered HTML, so there
-  is no store to keep in sync with it. ESLint + Prettier are configured
-  and enforced in CI — keep code passing lint even where it's
-  intentionally smelly in other ways (naming, structure); lint failures
-  are not part of the demo. Do not add rules that would flag the
-  deliberate smells: lint is here to catch mistakes, not to improve the
-  design.
+- **elevator-ui**: static HTML/CSS + plain TypeScript, no framework, no
+  bundler, compiled with a bare `tsc`. No client-side state management:
+  Datastar drives every interactive part of the page directly from
+  elevator-api's own rendered HTML, so there is no store to keep in
+  sync with it. ESLint + Prettier are configured and enforced in CI —
+  keep code passing lint even where it's intentionally smelly in other
+  ways (naming, structure); lint failures are not part of the demo. Do
+  not add rules that would flag the deliberate smells: lint is here to
+  catch mistakes, not to improve the design.
 
 ## How to run things
 
@@ -93,7 +95,9 @@ moving it piecemeal.
 - elevator-auth: `./gradlew bootRun` (from `elevator-auth/`), serves on
   `http://localhost:9000`; `./gradlew test` for its tests
 - elevator-ui dev server: `npm run dev` (from `elevator-ui/`), serves on
-  `http://localhost:3000`
+  `http://localhost:3000` (`tsc` compiles the three client scripts into
+  `public/`, then a small zero-dependency Node static server, `serve.mjs`,
+  serves that directory)
 - elevator-ui lint: `npm run lint` (ESLint, from `elevator-ui/`);
   `npm run lint:fix` to autofix
 - elevator-ui formatting: `npm run format:check` (Prettier, from
@@ -102,14 +106,16 @@ moving it piecemeal.
   `elevator-ui/`; requires `npx playwright install chromium` once) --
   the only test suite this project has: there is no client-side logic
   of its own left to unit test
-- Full stack locally: `docker compose up` (from the repo root); starts both
-  `elevator-api` (`http://localhost:8080`) and `elevator-ui`
-  (`http://localhost:3000`)
+- Full stack locally: `docker compose up` (from the repo root); starts
+  `elevator-api` (`http://localhost:8080`), `elevator-auth`, and Caddy
+  (`http://localhost:8000`, which also serves `elevator-ui`'s own built
+  static output directly -- there is no separate `elevator-ui`
+  container)
 - Before presenting: `docker compose up` alone never rebuilds, so a branch
   switch runs whatever image was last built under that branch's tag
   (`docker-compose.yml`'s `image: ...:${IMAGE_TAG:-<branch>}`), not
   necessarily what's on disk. Pre-build and tag all three demo branches
-  ahead of time so no build happens on stage: `npm run build:demo-branches`
+  ahead of time so no build happens on stage: `npm run build:demo`
   (from the repo root, on `main`; checks out `crud`, `json-hypermedia`,
   then `main` in turn and runs `docker compose build` on each, returning to
   whatever branch you started on -- see `scripts/build-demo.sh`). This

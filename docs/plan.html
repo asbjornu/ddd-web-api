@@ -2922,6 +2922,24 @@ flowchart LR
       <code class="inline">SameSite=strict</code> is what answers it, and it is already set &mdash; but it
       moves from incidental to load-bearing, and should be treated as such.
     </p>
+
+    <div class="callout ok">
+      <p><strong>What actually happened, later: Nuxt itself went too.</strong> The proxy above only ever
+      promised to put both services behind one origin &mdash; it said nothing about whether
+      <code class="inline">elevator-ui</code> still needed to be its own Node process once there was no
+      BFF and no dynamic HTML left for it to render (see this card's own opening line: after slice 8, it
+      renders a <code class="inline">&lt;div&gt;</code> and a stylesheet, on every request, unconditionally).
+      It didn't. <code class="inline">elevator-ui</code>'s two pages, its CSS, and its three
+      vanilla-TypeScript client scripts are now static files, and Caddy serves them directly &mdash; the
+      same container that was already the one published port, given one more job rather than a fourth
+      service. Vue and Nuxt are gone from <code class="inline">main</code> entirely: no
+      <code class="inline">nuxt.config.ts</code>, no <code class="inline">.vue</code> files, no
+      hydration, nothing to build but a <code class="inline">tsc</code> pass over three small scripts.
+      The before/after diff this card worried about losing survives anyway, because <code class="inline">
+      crud</code> and <code class="inline">json-hypermedia</code> keep their own real Vue/Pinia front
+      ends unchanged &mdash; this only ever touched the one branch that had stopped needing a framework
+      to render nothing.</p>
+    </div>
   </div>
 
   <div class="card" style="margin-bottom:1rem">

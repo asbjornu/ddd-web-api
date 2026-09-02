@@ -88,9 +88,10 @@ This is a monorepo with three applications, described in full in
 
 - `elevator-api/`: Java 21 + Spring Boot 4 (Gradle Kotlin DSL) -- the
   hypermedia API
-- `elevator-ui/`: Nuxt.js 4 -- a front-end shell only (pages, layouts,
-  CSS, the shaft animation); no backend-for-frontend (BFF). Every
-  request, including the technician's, goes straight to `elevator-api`
+- `elevator-ui/`: static HTML/CSS + plain TypeScript, no framework, no
+  bundler -- two pages, a stylesheet, the shaft animation, served
+  directly by Caddy; no backend-for-frontend (BFF). Every request,
+  including the technician's, goes straight to `elevator-api`
 - `elevator-auth/`: Spring Authorization Server; issues the
   technician's scoped tokens and nothing else
 
@@ -106,9 +107,10 @@ repository root:
 docker compose up
 ```
 
-This starts `elevator-api`, `elevator-ui` and `elevator-auth` behind a
-shared Caddy reverse proxy on `http://localhost:8000` -- the individual
-services no longer publish their own ports (see
+This starts `elevator-api`, `elevator-auth`, and a Caddy reverse proxy
+(which also serves `elevator-ui`'s own static output directly -- there
+is no separate `elevator-ui` container) on `http://localhost:8000` --
+the individual services no longer publish their own ports (see
 [`docs/architecture.md`][1]'s "Roadmap" -- slice 0). Visit
 `http://localhost:8000` for the rider console; `elevator-api`'s own
 endpoints are reachable at the same origin under `/elevators` and

@@ -1,7 +1,5 @@
-.nuxt
-.output
-dist
 node_modules
 coverage
 test-results
 playwright-report
+public/*.js

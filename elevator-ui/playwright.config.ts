@@ -1,9 +1,11 @@
 import { defineConfig, devices } from '@playwright/test'
 
-// End-to-end smoke tests against the Nuxt UI shell. These don't require
-// elevator-api to be running -- they only assert on static page
-// structure, since API connectivity is covered by elevator-api's own
-// tests and by manual `docker compose up` verification.
+// End-to-end smoke tests against the static page shell (serve.mjs, the
+// same static files Caddy serves in production -- see this project's
+// own Dockerfile). These don't require elevator-api to be running --
+// they only assert on static page structure, since API connectivity is
+// covered by elevator-api's own tests and by manual `docker compose up`
+// verification.
 export default defineConfig({
   testDir: './test/e2e',
   fullyParallel: true,

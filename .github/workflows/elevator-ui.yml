@@ -26,13 +26,11 @@ jobs:
 
       - run: npm ci
 
-      # Nuxt generates .nuxt/eslint.config.mjs, which the flat config layers
-      # on top of. Without it, lint cannot resolve its own base config.
-      - run: npm run postinstall
-
       - run: npm run lint
 
       - run: npm run format:check
+
+      - run: npm run build
 
       - run: npx playwright install --with-deps chromium
 

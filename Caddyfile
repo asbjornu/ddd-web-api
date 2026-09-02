@@ -1,10 +1,10 @@
 # Slice 0's shared origin: browser and machine clients alike see one
 # port. Two allowlisted path prefixes go to elevator-api (the hypermedia
 # API); everything else -- the rider console, the shaft animation, the
-# Playwright suite's target -- goes to elevator-ui. See
-# docs/plan.html section 19's "Keeping Nuxt" decision for why this
-# exists and docs/architecture.md's "elevator-ui: front-end only, no
-# BFF" section for what it replaces.
+# Playwright suite's target -- is served directly out of elevator-ui's
+# own built static output (no elevator-ui container: see
+# docs/architecture.md's "elevator-ui: front-end only, no BFF" section
+# and this Dockerfile's own build stage for how /srv is populated).
 #
 # "/" is content-negotiated, not split by path: a browser navigating
 # here (Accept starting with text/html, as every browser's own
@@ -34,6 +34,12 @@
 	}
 
 	handle {
-		reverse_proxy elevator-ui:3000
+		root * /srv
+		# Mirrors elevator-ui's own pages/ file-based routing (e.g.
+		# /status -> status.html) now that nothing renders that
+		# mapping dynamically any more -- see elevator-ui/serve.mjs,
+		# the same rule replicated for local dev without Caddy.
+		try_files {path} {path}.html {path}/index.html
+		file_server
 	}
 }

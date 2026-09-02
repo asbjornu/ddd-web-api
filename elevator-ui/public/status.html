@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Elevator status</title>
+    <link rel="stylesheet" href="/main.css" />
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.2/bundles/datastar.js"
+    ></script>
+  </head>
+  <body>
+    <main>
+      <h1>Elevator status</h1>
+      <!--
+      Public and read-only in spirit, but there is no separate
+      "read-only" resource to point at any more than there is a
+      hard-coded one to visit instead: this renders the exact same
+      representation index.html does, forms included -- an anonymous
+      caller's own operations are whatever elevator-api decided they
+      are, the same seam every other caller goes through.
+    -->
+      <div class="layout">
+        <div id="entry-point" data-init="@get('/')"></div>
+        <div id="shaft"></div>
+      </div>
+      <nav>
+        <a href="/">Back to the rider console</a>
+      </nav>
+    </main>
+    <script type="module" src="/shaft.js"></script>
+    <script type="module" src="/panels.js"></script>
+    <script type="module" src="/busy-indicator.js"></script>
+  </body>
+</html>

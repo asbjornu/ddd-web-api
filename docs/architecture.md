@@ -362,34 +362,40 @@ with a server-supplied default (a form field carrying `value`), which a
 pure JSON API cannot do without breaking every unmodified client that
 constructs its own request body.
 
-## elevator-ui: front-end only, no BFF
+## elevator-ui: static files, no framework, no BFF
 
 `elevator-api` serves HTML directly (a hand-built `HtmlRenderer`, not a
 templating engine) alongside the JSON/JSON-LD formats, from one origin —
 fronted by a Caddy reverse proxy in `docker-compose` (added in slice 0),
 so the browser never crosses origins and the technician cookie needs no
-CORS/`SameSite` negotiation.
+CORS/`SameSite` negotiation. That same Caddy instance now also serves
+`elevator-ui`'s own static output directly (`root * /srv` plus
+`file_server`, populated by `elevator-ui/Dockerfile`'s own build stage)
+— there is no `elevator-ui` container, and no Node process running in
+production at all.
 
-`elevator-ui`'s only remaining job is the page shell (nav chrome, CSS)
-and the Playwright suite, plus one purely decorative exception: a CSS
-transition standing in for a car/shaft animation, positioned and timed
-entirely from the DOM `elevator-api` already rendered (the status
-fields' own `currentFloor`/`travelSecondsPerFloor`, and the floor count
-already present in any rendered `select[name=floor]`) rather than a
-constant of its own — see the "Timing" section above and `docs/plan.html`
-§12's own account of exposing that timing on the representation.
-Datastar handles every server-driven DOM update over SSE, including the
-affordances/forms themselves; Vue never owns the Datastar-morphed
-subtree, and the shaft's own reading of it is one-way (DOM → CSS custom
-property), never state of its own to keep in sync. `server/api/`,
-`app/stores/elevator.ts`, every Vue component that rendered elevator
-state, every typed API model, and every hard-coded domain constant are
-deleted, not migrated. Discovery is a self-triggering chain of three
-`GET`s (entry point → elevators collection → the one elevator → its SSE
-stream), not a single request, because the entry point cannot itself
-know which elevator resource to auto-fetch next — each hop's response
-carries the next hop's link, and each renders its own auto-fetching
-`data-init` div rather than the client constructing the next URL.
+`elevator-ui` is two static HTML pages (`public/index.html`,
+`public/status.html`), a stylesheet, and three small vanilla
+TypeScript files compiled by a bare `tsc` — no bundler, no framework.
+Vue and Nuxt are gone entirely: no `nuxt.config.ts`, no `.vue` files,
+no hydration, no client-side router (the two pages are genuinely
+separate documents; navigating between them is an ordinary full page
+load). Datastar handles every server-driven DOM update over SSE,
+including the affordances/forms themselves; the shaft's own reading of
+that DOM is one-way (DOM → CSS custom property), never state of its
+own to keep in sync — see the "Timing" section above and
+`docs/plan.html` §12's own account of exposing that timing on the
+representation. `server/api/`, `app/stores/elevator.ts`, every Vue
+component that rendered elevator state, every typed API model, and
+every hard-coded domain constant were deleted in slice 8, not
+migrated; Vue and Nuxt themselves followed later, once nothing was
+left for a framework to do. Discovery is a self-triggering chain of
+three `GET`s (entry point → elevators collection → the one elevator →
+its SSE stream), not a single request, because the entry point cannot
+itself know which elevator resource to auto-fetch next — each hop's
+response carries the next hop's link, and each renders its own
+auto-fetching `data-init` div rather than the client constructing the
+next URL.
 
 ## Repository and file structure
 
@@ -399,7 +405,8 @@ Monorepo, three applications:
 /elevator-api      Java 21 + Spring Boot 4 (Gradle, Kotlin DSL)
 /elevator-auth     Spring Authorization Server; issues the technician's
                    scoped tokens and nothing else
-/elevator-ui       Nuxt.js 4 front-end shell + Datastar, TypeScript
+/elevator-ui       Static HTML/CSS + Datastar, plain TypeScript (tsc,
+                   no framework, no bundler); served by Caddy directly
 /docs              architecture.md and plan.html
 ```
 
