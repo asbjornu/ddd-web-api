@@ -181,7 +181,7 @@ class ElevatorDoorsTest {
         Elevator elevator = idleElevator();
         elevator.call(new Floor(5), Direction.UP);
 
-        List<DomainEvent> events = elevator.arrive(new Floor(5));
+        List<DomainEvent> events = elevator.passFloor(new Floor(5));
 
         assertThat(elevator.state()).isInstanceOf(ElevatorState.DoorsOpen.class);
         assertThat(events).hasAtLeastOneElementOfType(FloorReached.class);

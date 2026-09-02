@@ -129,7 +129,7 @@ class ElevatorTest {
         Elevator elevator = idleElevator();
         elevator.call(new Floor(5), Direction.UP);
 
-        List<DomainEvent> events = elevator.arrive(new Floor(5));
+        List<DomainEvent> events = elevator.passFloor(new Floor(5));
 
         assertThat(elevator.currentFloor()).isEqualTo(new Floor(5));
         assertThat(elevator.state()).isInstanceOf(ElevatorState.DoorsOpen.class);
@@ -142,9 +142,41 @@ class ElevatorTest {
         Elevator elevator = idleElevator();
         elevator.call(new Floor(5), Direction.UP);
 
-        elevator.arrive(new Floor(5));
+        elevator.passFloor(new Floor(5));
 
         assertThat(elevator.queue().pendingLandingCalls()).isEmpty();
+    }
+
+    @Test
+    void givenMoving_whenAnIntermediateFloorIsPassed_thenOnlyPositionAdvances() {
+        Elevator elevator = idleElevator();
+        elevator.call(new Floor(5), Direction.UP);
+
+        List<DomainEvent> events = elevator.passFloor(new Floor(3));
+
+        assertThat(elevator.currentFloor()).isEqualTo(new Floor(3));
+        assertThat(elevator.state()).isInstanceOfSatisfying(
+                ElevatorState.MovingUp.class,
+                moving -> assertThat(moving.destination()).isEqualTo(new Floor(5)));
+        assertThat(events).hasAtLeastOneElementOfType(FloorPassed.class);
+        assertThat(events).noneMatch(FloorReached.class::isInstance);
+        assertThat(events).noneMatch(DoorsOpened.class::isInstance);
+    }
+
+    @Test
+    void givenNoLongerMoving_whenAStaleFloorCallbackFires_thenNothingHappens() {
+        Elevator elevator = idleElevator();
+        elevator.call(new Floor(5), Direction.UP);
+        elevator.passFloor(new Floor(3));
+        // Something else (an emergency recall, most plausibly) took the
+        // car out of its moving state before its own scheduled callback
+        // for floor 4 could fire.
+        elevator.enterMaintenance();
+
+        List<DomainEvent> events = elevator.passFloor(new Floor(4));
+
+        assertThat(events).isEmpty();
+        assertThat(elevator.currentFloor()).isEqualTo(new Floor(3));
     }
 
     @Test

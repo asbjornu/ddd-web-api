@@ -16,12 +16,16 @@ import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
 
 /**
- * Schedules {@link Elevator#arrive} at the instant a
- * {@link MovementStarted} event says the car will get there -- the
- * "timing change that unlocks everything" from
- * {@code docs/architecture.md}'s "Domain model" section: state is
- * derived forward, from a scheduled instant computed once at dispatch,
- * rather than backward from elapsed wall-clock time on every read.
+ * Schedules {@link Elevator#passFloor} once per floor along the route a
+ * {@link MovementStarted} event describes -- the "timing change that
+ * unlocks everything" from {@code docs/architecture.md}'s "Domain
+ * model" section: state is derived forward, from scheduled instants
+ * computed once at dispatch, rather than backward from elapsed
+ * wall-clock time on every read. One scheduled callback per floor,
+ * not one for the whole trip, is what lets {@code currentFloor} (and
+ * the {@link no.javazone.elevator.shared.domain.FloorPassed} event
+ * pushed for it) advance while the car is still travelling, instead of
+ * jumping straight to the destination the instant the trip finishes.
  *
  * <p>Shared across every command that can dispatch the car (today,
  * {@code call-elevator} and {@code select-floor}), per {@code
@@ -60,17 +64,29 @@ public class MovementScheduler {
     @EventListener
     public void onMovementStarted(MovementStarted event) {
         int distance = Math.abs(event.to().level() - event.from().level());
-        Instant arrivalInstant = event.departedAt()
-                .plusSeconds((long) distance * properties.travelSecondsPerFloor());
-        taskScheduler.schedule(
-                () -> handleArrival(event.elevatorId(), event.to()), arrivalInstant);
+        int sign = event.to().level() > event.from().level() ? 1 : -1;
+        for (int floorsTravelled = 1; floorsTravelled <= distance; floorsTravelled++) {
+            Floor floor = new Floor(event.from().level() + sign * floorsTravelled);
+            Instant at = event.departedAt()
+                    .plusSeconds((long) floorsTravelled * properties.travelSecondsPerFloor());
+            taskScheduler.schedule(() -> handlePassFloor(event.elevatorId(), floor), at);
+        }
     }
 
-    private void handleArrival(ElevatorId id, Floor destination) {
+    private void handlePassFloor(ElevatorId id, Floor floor) {
         Elevator elevator = store.find(id)
                 .orElseThrow(() -> new IllegalStateException(
-                        "Elevator " + id.value() + " disappeared before it arrived"));
-        List<DomainEvent> events = elevator.arrive(destination);
+                        "Elevator " + id.value() + " disappeared before it reached floor "
+                                + floor.level()));
+        List<DomainEvent> events = elevator.passFloor(floor);
+        if (events.isEmpty()) {
+            // The car left its moving state some other way before this
+            // scheduled floor was reached (an emergency recall, most
+            // plausibly) -- see Elevator#passFloor's own Javadoc. Every
+            // other already-scheduled callback for this same trip will
+            // find the same thing true and no-op the same way.
+            return;
+        }
         store.save(elevator);
         effects.apply(elevator, events);
         updates.publish(id, renderer.render(EventRepresentations.of(elevator, properties)));
