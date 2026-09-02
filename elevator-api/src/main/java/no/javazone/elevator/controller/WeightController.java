@@ -3,7 +3,7 @@ package no.javazone.elevator.controller;
 import no.javazone.elevator.model.Elevator;
 import no.javazone.elevator.service.ElevatorService;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -22,7 +22,7 @@ public class WeightController {
         this.elevatorService = elevatorService;
     }
 
-    @PostMapping("/elevators/{id}/weight")
+    @PutMapping("/elevators/{id}/weight")
     public Elevator setWeight(@PathVariable Long id, @RequestBody WeightRequest body) {
         return elevatorService.setWeight(id, body.weightKg());
     }

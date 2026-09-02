@@ -1,4 +1,4 @@
-// Obstruction sensor toggle: proxies the service API's POST
+// Obstruction sensor toggle: proxies the service API's PUT
 // /elevators/{id}/obstruction -- but validates the payload's shape
 // first. ElevatorService.setObstruction never validates this itself
 // either (Boolean.getOrDefault-style coercion happens at Jackson's own
@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
   }
 
   return await $fetch(`${config.serviceApiUrl}/elevators/${id}/obstruction`, {
-    method: 'POST',
+    method: 'PUT',
     body
   })
 })

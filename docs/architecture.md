@@ -355,7 +355,7 @@ the BFF alone would be silently unenforced.
 effects.** Only `maintenance` and `emergency-recall` require a scope.
 Landing calls, car calls, door operations and both simulated sensors are
 open, which follows from the Rider persona having no login. The sensors
-are the sharp edge: `POST /elevators/{id}/obstruction` has no
+are the sharp edge: `PUT /elevators/{id}/obstruction` has no
 precondition and sets a flag that persists until explicitly cleared, so
 one unauthenticated request stops the doors closing and therefore stops
 the lift, indefinitely. That is acceptable here because obstruction is a

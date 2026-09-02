@@ -138,7 +138,7 @@ export const useElevatorStore = defineStore('elevator', {
       const obstructed = !this.status?.obstructed
       try {
         await $fetch(`/api/elevators/${ELEVATOR_ID}/obstruction`, {
-          method: 'POST',
+          method: 'PUT',
           body: { obstructed }
         })
         await this.fetchStatus()
@@ -150,7 +150,7 @@ export const useElevatorStore = defineStore('elevator', {
     async setWeight(weightKg: number) {
       try {
         await $fetch(`/api/elevators/${ELEVATOR_ID}/weight`, {
-          method: 'POST',
+          method: 'PUT',
           body: { weightKg }
         })
         await this.fetchStatus()

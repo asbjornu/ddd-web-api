@@ -40,7 +40,7 @@ services:
     ports:
       # Bound to loopback rather than 0.0.0.0. Eight of this API's ten
       # endpoints are unauthenticated and several have side effects --
-      # POST /elevators/{id}/obstruction needs no credential and sets a flag
+      # PUT /elevators/{id}/obstruction needs no credential and sets a flag
       # that persists until cleared, which stops the lift until someone
       # clears it. Publishing on all interfaces puts that on whatever
       # network the host is attached to, which for a conference demo is a

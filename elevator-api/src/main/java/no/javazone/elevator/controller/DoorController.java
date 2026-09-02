@@ -4,6 +4,7 @@ import no.javazone.elevator.model.Elevator;
 import no.javazone.elevator.service.ElevatorService;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -30,7 +31,7 @@ public class DoorController {
         return elevatorService.closeDoors(id);
     }
 
-    @PostMapping("/elevators/{id}/obstruction")
+    @PutMapping("/elevators/{id}/obstruction")
     public Elevator setObstruction(@PathVariable Long id, @RequestBody ObstructionRequest body) {
         return elevatorService.setObstruction(id, body.obstructed());
     }

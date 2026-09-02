@@ -1,4 +1,4 @@
-// Simulated weight sensor: proxies the service API's POST
+// Simulated weight sensor: proxies the service API's PUT
 // /elevators/{id}/weight -- but validates the payload and pre-checks
 // the same door-state conflict ElevatorService.setWeight itself
 // enforces, before doing so. See
@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
   }
 
   return await $fetch(`${config.serviceApiUrl}/elevators/${id}/weight`, {
-    method: 'POST',
+    method: 'PUT',
     body
   })
 })

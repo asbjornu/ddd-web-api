@@ -3,6 +3,7 @@ package no.javazone.elevator.controller;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -64,7 +65,7 @@ class DoorControllerTest {
         mockMvc.perform(post("/elevators/1/open-doors"));
         mockMvc.perform(post("/elevators/1/close-doors"));
 
-        mockMvc.perform(post("/elevators/1/obstruction")
+        mockMvc.perform(put("/elevators/1/obstruction")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"obstructed\": true}"))
                 .andExpect(status().isOk())
@@ -79,7 +80,7 @@ class DoorControllerTest {
 
     @Test
     void closeDoorsWhenObstructedReturnsConflict() throws Exception {
-        mockMvc.perform(post("/elevators/1/obstruction")
+        mockMvc.perform(put("/elevators/1/obstruction")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"obstructed\": true}"));
         mockMvc.perform(post("/elevators/1/open-doors"));

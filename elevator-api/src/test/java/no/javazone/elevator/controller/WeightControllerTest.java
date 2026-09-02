@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -30,7 +31,7 @@ class WeightControllerTest {
     void setWeightBelowCapacityIsAccepted() throws Exception {
         mockMvc.perform(post("/elevators/1/open-doors"));
 
-        mockMvc.perform(post("/elevators/1/weight")
+        mockMvc.perform(put("/elevators/1/weight")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"weightKg\": 500}"))
                 .andExpect(status().isOk())
@@ -39,7 +40,7 @@ class WeightControllerTest {
 
     @Test
     void setWeightWhenDoorsClosedReturnsConflict() throws Exception {
-        mockMvc.perform(post("/elevators/1/weight")
+        mockMvc.perform(put("/elevators/1/weight")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"weightKg\": 500}"))
                 .andExpect(status().isConflict());
@@ -53,7 +54,7 @@ class WeightControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"floor\": 5}"));
 
-        mockMvc.perform(post("/elevators/1/weight")
+        mockMvc.perform(put("/elevators/1/weight")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"weightKg\": 900}"))
                 .andExpect(status().isOk())
@@ -73,7 +74,7 @@ class WeightControllerTest {
     @Test
     void closeDoorsWhenOverloadedReturnsConflict() throws Exception {
         mockMvc.perform(post("/elevators/1/open-doors"));
-        mockMvc.perform(post("/elevators/1/weight")
+        mockMvc.perform(put("/elevators/1/weight")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"weightKg\": 900}"));
 
@@ -84,7 +85,7 @@ class WeightControllerTest {
     @Test
     void selectFloorWhenOverloadedReturnsConflict() throws Exception {
         mockMvc.perform(post("/elevators/1/open-doors"));
-        mockMvc.perform(post("/elevators/1/weight")
+        mockMvc.perform(put("/elevators/1/weight")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"weightKg\": 900}"));
 
@@ -97,12 +98,12 @@ class WeightControllerTest {
     @Test
     void reduceWeightResumesNormalOperation() throws Exception {
         mockMvc.perform(post("/elevators/1/open-doors"));
-        mockMvc.perform(post("/elevators/1/weight")
+        mockMvc.perform(put("/elevators/1/weight")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"weightKg\": 900}"));
 
         // Weight back below capacity
-        mockMvc.perform(post("/elevators/1/weight")
+        mockMvc.perform(put("/elevators/1/weight")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"weightKg\": 0}"))
                 .andExpect(status().isOk())
