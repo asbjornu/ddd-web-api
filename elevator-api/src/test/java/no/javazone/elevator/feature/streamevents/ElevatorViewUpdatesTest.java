@@ -36,7 +36,7 @@ class ElevatorViewUpdatesTest {
     private final ElevatorId id = new ElevatorId(1);
 
     private ElevatorView view(int currentFloor) {
-        return new ElevatorView(1, currentFloor, "idle", "none", "closed", false, 0, 800, null);
+        return new ElevatorView(currentFloor, "idle", "none", "closed", false, 0, 800, null);
     }
 
     @Test

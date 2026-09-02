@@ -1375,6 +1375,16 @@ flowchart LR
     </div>
   </div>
 
+  <div class="callout ok">
+    <p><strong>Closed all the way down, not just at the renderer.</strong>
+    <code class="inline">ElevatorRepresentations</code> already built every representation from an
+    explicit, hand-picked property list rather than serializing the read model wholesale, so the
+    surrogate key was never actually reaching a client — but <code class="inline">ElevatorView</code>,
+    the shared read model every renderer and the SSE payload are built from, still carried an unused
+    <code class="inline">id</code> field of its own, a loaded gun for whichever renderer gets added
+    next and forgets to leave it out. Removed: the shape itself now has nowhere to put one.</p>
+  </div>
+
   <h3>One more rule, in the same spirit: no verbs in the URL either</h3>
   <p>
     Opaque resource identifiers close one leak &mdash; the client stops being able to <em>construct</em> a
