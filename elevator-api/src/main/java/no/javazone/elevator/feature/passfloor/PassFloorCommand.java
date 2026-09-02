@@ -1,4 +1,4 @@
-package no.javazone.elevator.feature.reportfloorpassed;
+package no.javazone.elevator.feature.passfloor;
 
 import no.javazone.elevator.shared.domain.ElevatorId;
 import no.javazone.elevator.shared.domain.Floor;
@@ -14,5 +14,5 @@ import no.javazone.elevator.shared.domain.Floor;
  * business claiming a floor was physically passed, so nothing outside
  * it is given a way to.
  */
-public record ReportFloorPassedCommand(ElevatorId elevatorId, Floor floor) {
+public record PassFloorCommand(ElevatorId elevatorId, Floor floor) {
 }
