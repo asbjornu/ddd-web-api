@@ -7,8 +7,12 @@ full CRUD shape), `json-hypermedia` (`490305a`, an
 intermediate branch: the backend is fully hypermedia-driven and
 command-based, but elevator-ui is still a Vue SPA talking JSON
 through a BFF, with no HTML responses from elevator-api), and
-`main` (`045d0d0`, current tip: no BFF,
-elevator-api serves HTML directly, Datastar morphs it in place).
+`main` (`838ae5b`, current tip: no BFF,
+elevator-api serves HTML directly, Datastar morphs it in place --
+and, as of this pass, `elevator-ui` itself is no longer a Nuxt/Vue
+app at all: static HTML/CSS plus three vanilla TypeScript files,
+compiled by a bare `tsc`, no framework, no Node process in
+production, no bundler).
 Re-run this script any time any of the three refs moves.
 
 `json-hypermedia`'s own history shows its elevator-api side already
@@ -71,8 +75,8 @@ independent, separately testable unit:
 | `exitmaintenance` | 165 |
 | `closedoors` | 165 |
 | `reportload` | 170 |
-| `entermaintenance` | 179 |
 | `triggeremergencyrecall` | 179 |
+| `entermaintenance` | 179 |
 | `selectfloor` | 206 |
 | `streamevents` | 227 |
 | `callelevator` | 234 |
@@ -143,10 +147,12 @@ only the path segment and verb -- exactly the kind of repetition
 a client following hypermedia links never has to write, because
 it never constructs the URL or the verb itself.
 
-Deployable *service* count is unchanged throughout (the BFF lived
-inside the same Nuxt container, not a separate one) -- the
-removed cost was pure pass-through/proxy code and an extra hop,
-not a deployable.
+Removing the BFF's *code* didn't by itself remove a deployable --
+the BFF lived inside the same Nuxt container as everything else
+in `elevator-ui`, not a separate one, so the cost removed here was
+pure pass-through/proxy code and an extra hop, not a container.
+Section 11 measures what *did* eventually reduce the deployable
+count: removing the framework that container ran, entirely.
 
 ## 5. Duplication (whole-directory)
 
@@ -199,8 +205,8 @@ Total, `crud` -> `main`:
 | elevator-api | 217 | 10236 | 1901 | 186 | 4 | 27 |
 | elevator-ui | 45 | 2583 | 16237 | 7 | 10 | 28 |
 | elevator-auth | 1 | 1 | 0 | 0 | 1 | 0 |
-| docs | 14 | 19384 | 420 | 13 | 1 | 0 |
-| **whole repo** | **285** | **32576** | **18683** | | | |
+| docs | 14 | 19550 | 420 | 13 | 1 | 0 |
+| **whole repo** | **285** | **32742** | **18683** | | | |
 
 elevator-ui's diff is net-negative (more deleted than added) despite
 unchanged feature parity -- the BFF/store deletion in section 4.
@@ -212,7 +218,7 @@ Split into its two legs either side of `json-hypermedia` (+/- only):
 | elevator-api | +9192/-1892 | +1469/-473 |
 | elevator-ui | +995/-654 | +2583/-16578 |
 | elevator-auth | +0/-0 | +1/-0 |
-| docs | +4618/-420 | +14788/-22 |
+| docs | +4618/-420 | +14954/-22 |
 
 The first leg is almost entirely elevator-api (the backend
 migration); the second leg is almost entirely elevator-ui (BFF and
@@ -428,8 +434,8 @@ worktree's **elevator-api** suite, on this machine:
 | | `crud` | `json-hypermedia` | `main` |
 |---|---|---|---|
 | Tests executed | 47 | 199 | 214 |
-| Wall-clock time | 29.7s | 36.2s | 39.6s |
-| Avg per test | 631.2ms | 182.1ms | 185ms |
+| Wall-clock time | 28.2s | 33.8s | 38.1s |
+| Avg per test | 600.1ms | 169.8ms | 177.9ms |
 
 Total wall-clock time is a noisy number to trust run-to-run --
 it's dominated by fixed JVM/Gradle daemon startup, common to
@@ -440,7 +446,7 @@ real difference: 3.4x lower per test on the after side, while running
 paying Spring context startup: isolating just
 `shared/domain`'s own test suite
 (72 tests, no `@SpringBootTest` anywhere) runs in
-5.4s -- 75.4ms/test on average, including the JVM's own
+2.4s -- 33.4ms/test on average, including the JVM's own
 startup (this isolated run pays that cost too; a
 `@SpringBootTest`-backed test pays it again per context on top
 of an application context and an embedded H2 database, and (per
@@ -463,9 +469,33 @@ of what remains. This is expected, not
 a gap in the measurement: all three spec files say in their own
 comments that they deliberately never call elevator-api --
 `"renders ... regardless of whether elevator-api is reachable"`.
-Running the front-end tests does not strengthen the speed
-argument, because they are not built to exercise the thing that
-changed (the backend, and whether a BFF sits in front of it) --
-and reporting a null result honestly is worth more here than
-a number dressed up to look like it supports the story.
+Two claims, not one, and they point opposite ways. For *this*
+subsection's question -- does the backend/BFF question move
+front-end test speed -- the answer is still no: none of these
+specs exercise elevator-api, so `crud` vs `json-hypermedia`
+(same Nuxt front end, different backend) stays a null result,
+reported honestly rather than dressed up. But `main`'s
+measured speedup is real and belongs to a different, also-real
+finding: removing the framework itself (section 11) removes
+Nuxt's own dev-server/build overhead, framework or not.
+
+## 11. Deployables
+
+Docker Compose services defined per ref (`docker-compose.yml`):
+
+| | `crud` | `json-hypermedia` | `main` |
+|---|---|---|---|
+| Services | 3 | 4 | 3 |
+
+The count alone is a poor metric here -- it goes 3 -> 4 -> 3, which
+looks like nothing changed net. What each "3" actually *is* is the
+real story: `crud`'s three are elevator-api, a full
+Node/Nuxt SSR server for elevator-ui, and elevator-auth.
+`json-hypermedia` adds a fourth, Caddy, as a reverse proxy in front of
+the still-Node elevator-ui. `main`'s three drop
+elevator-ui as a service entirely -- Caddy now serves its compiled
+static output directly, so there is no Node process, no server-side
+runtime, and nothing left to crash, restart, or scale for the front
+end. The container count matches `crud`'s by
+coincidence; the thing running inside it does not.
 

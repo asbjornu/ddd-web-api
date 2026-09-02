@@ -325,6 +325,27 @@ function diffNameStatusCounts(a, b, pathspec) {
   return counts;
 }
 
+// --- deployables -----------------------------------------------------------
+
+function dockerComposeServices(dir) {
+  const composePath = path.join(dir, "docker-compose.yml");
+  if (!existsSync(composePath)) return [];
+  const lines = readFileSync(composePath, "utf8").split("\n");
+  const services = [];
+  let inServices = false;
+  for (const line of lines) {
+    if (/^services:\s*$/.test(line)) {
+      inServices = true;
+      continue;
+    }
+    if (!inServices) continue;
+    if (/^\S/.test(line)) break; // next top-level compose key
+    const m = /^ {2}([a-zA-Z][a-zA-Z0-9-]*):\s*$/.exec(line);
+    if (m) services.push(m[1]);
+  }
+  return services;
+}
+
 // --- main ------------------------------------------------------------------
 
 function main() {
@@ -530,6 +551,13 @@ function main() {
         diffShortstat(mid.sha, after.sha, app),
       ]),
     );
+
+    // --- deployables ---
+    const deployables = {
+      before: dockerComposeServices(before.dir),
+      mid: dockerComposeServices(mid.dir),
+      after: dockerComposeServices(after.dir),
+    };
 
     // --- versioning cost model ---
     // Anchor: Dubray's costing, cited via Ulsberg's "API Change Strategy"
@@ -774,6 +802,7 @@ function main() {
       diffs,
       diffsBeforeToMid,
       diffsMidToAfter,
+      deployables,
       wholeRepoShortstat,
       K,
       CONCURRENT_VERSIONS,
@@ -868,8 +897,16 @@ function renderMarkdown(m) {
     `\`${m.after.ref}\` (\`${m.after.sha.slice(0, 7)}\`, current tip: no BFF,`,
   );
   p(
-    `elevator-api serves HTML directly, Datastar morphs it in place).`,
+    `elevator-api serves HTML directly, Datastar morphs it in place --`,
   );
+  p(
+    `and, as of this pass, \`elevator-ui\` itself is no longer a Nuxt/Vue`,
+  );
+  p(
+    `app at all: static HTML/CSS plus three vanilla TypeScript files,`,
+  );
+  p(`compiled by a bare \`tsc\`, no framework, no Node process in`);
+  p(`production, no bundler).`);
   p(`Re-run this script any time any of the three refs moves.`);
   p();
   p(
@@ -1128,15 +1165,21 @@ function renderMarkdown(m) {
   p(`it never constructs the URL or the verb itself.`);
   p();
   p(
-    `Deployable *service* count is unchanged throughout (the BFF lived`,
+    `Removing the BFF's *code* didn't by itself remove a deployable --`,
   );
   p(
-    `inside the same Nuxt container, not a separate one) -- the`,
+    `the BFF lived inside the same Nuxt container as everything else`,
   );
   p(
-    `removed cost was pure pass-through/proxy code and an extra hop,`,
+    `in \`elevator-ui\`, not a separate one, so the cost removed here was`,
   );
-  p(`not a deployable.`);
+  p(
+    `pure pass-through/proxy code and an extra hop, not a container.`,
+  );
+  p(
+    `Section 11 measures what *did* eventually reduce the deployable`,
+  );
+  p(`count: removing the framework that container ran, entirely.`);
   p();
 
   p(`## 5. Duplication (whole-directory)`);
@@ -1840,18 +1883,30 @@ function renderMarkdown(m) {
       `\`"renders ... regardless of whether elevator-api is reachable"\`.`,
     );
     p(
-      `Running the front-end tests does not strengthen the speed`,
+      `Two claims, not one, and they point opposite ways. For *this*`,
     );
     p(
-      `argument, because they are not built to exercise the thing that`,
+      `subsection's question -- does the backend/BFF question move`,
     );
     p(
-      `changed (the backend, and whether a BFF sits in front of it) --`,
+      `front-end test speed -- the answer is still no: none of these`,
     );
     p(
-      `and reporting a null result honestly is worth more here than`,
+      `specs exercise elevator-api, so \`crud\` vs \`json-hypermedia\``,
     );
-    p(`a number dressed up to look like it supports the story.`);
+    p(
+      `(same Nuxt front end, different backend) stays a null result,`,
+    );
+    p(
+      `reported honestly rather than dressed up. But \`main\`'s`,
+    );
+    p(
+      `measured speedup is real and belongs to a different, also-real`,
+    );
+    p(
+      `finding: removing the framework itself (section 11) removes`,
+    );
+    p(`Nuxt's own dev-server/build overhead, framework or not.`);
     p();
   } else {
     p(`### Measured, not estimated`);
@@ -1867,6 +1922,55 @@ function renderMarkdown(m) {
     );
     p();
   }
+
+  p(`## 11. Deployables`);
+  p();
+  p(
+    `Docker Compose services defined per ref (\`docker-compose.yml\`):`,
+  );
+  p();
+  p(
+    `| | \`${m.before.ref}\` | \`${m.mid.ref}\` | \`${m.after.ref}\` |`,
+  );
+  p(`|---|---|---|---|`);
+  p(
+    `| Services | ${m.deployables.before.length} | ${m.deployables.mid.length} | ${m.deployables.after.length} |`,
+  );
+  p();
+  p(
+    `The count alone is a poor metric here -- it goes 3 -> 4 -> 3, which`,
+  );
+  p(
+    `looks like nothing changed net. What each "3" actually *is* is the`,
+  );
+  p(
+    `real story: \`${m.before.ref}\`'s three are elevator-api, a full`,
+  );
+  p(
+    `Node/Nuxt SSR server for elevator-ui, and elevator-auth.`,
+  );
+  p(
+    `\`${m.mid.ref}\` adds a fourth, Caddy, as a reverse proxy in front of`,
+  );
+  p(
+    `the still-Node elevator-ui. \`${m.after.ref}\`'s three drop`,
+  );
+  p(
+    `elevator-ui as a service entirely -- Caddy now serves its compiled`,
+  );
+  p(
+    `static output directly, so there is no Node process, no server-side`,
+  );
+  p(
+    `runtime, and nothing left to crash, restart, or scale for the front`,
+  );
+  p(
+    `end. The container count matches \`${m.before.ref}\`'s by`,
+  );
+  p(
+    `coincidence; the thing running inside it does not.`,
+  );
+  p();
 
   return lines.join("\n") + "\n";
 }
