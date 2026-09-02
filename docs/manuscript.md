@@ -5739,10 +5739,10 @@ necessary**.
 Measured result:
 
 ```text
-BFF + store files removed     16
-BFF + store lines removed     493
+BFF + store files removed     17
+BFF + store lines removed     699
 BFF route files               14
-BFF-route duplication         20.2%
+BFF-route duplication         23.8%
 logical hops per rider action 2 → 1
 ```
 
@@ -6112,7 +6112,7 @@ Measured result:
 
 ```text
 hard-coded /elevators/... literals
-34 → 0
+35 → 0
 ```
 
 The client does not learn a nicer URL scheme.
@@ -7533,7 +7533,7 @@ There is an intermediate architecture in this refactor that is useful precisely 
 
 `json-hypermedia` has already moved the backend to commands, DDD, CQRS, and hypermedia, but the client is still Vue + Pinia consuming JSON.
 
-`main` keeps that backend model and changes the delivery mechanism again: the API serves HTML directly and Datastar morphs it in place. The BFF disappears.
+`main` keeps that backend model and changes the delivery mechanism again: the API serves HTML directly and Datastar morphs it in place. The BFF disappears. Then the remaining Vue/Nuxt shell disappears too: `elevator-ui` becomes static HTML/CSS plus three small vanilla TypeScript files compiled by bare `tsc`, served directly by Caddy, with no framework, bundler, Node process, hydration, or client-side router in production.
 
 So we can ask a much better question:
 
@@ -7584,6 +7584,184 @@ That distinction matters because it stops us crediting every deletion to hyperme
 ------------------------------------------------------------------------
 
 # `</three-stages>`
+
+# `<framework-disappears>`
+
+------------------------------------------------------------------------
+
+## The framework was the last intermediary
+
+At the `json-hypermedia` milestone, the backend already speaks commands and hypermedia.
+
+But the browser still runs a Vue + Pinia application inside Nuxt.
+
+The client no longer has to rediscover most domain legality, but it still has to interpret the representation, maintain a store, render components, proxy some requests, and keep a framework runtime alive.
+
+------------------------------------------------------------------------
+
+## Hypermedia first removed knowledge
+
+The important sequence is:
+
+```text
+crud
+  Vue + Pinia + Nuxt BFF
+  client reconstructs domain rules
+
+        ↓ DDD + commands + JSON hypermedia
+
+json-hypermedia
+  Vue + Pinia + smaller Nuxt BFF
+  client interprets advertised operations
+
+        ↓ HTML hypermedia + Datastar
+
+main
+  static HTML/CSS + vanilla TypeScript
+  server renders the semantic interface
+```
+
+This is why the intermediate branch matters.
+
+The framework did not disappear because we rewrote Vue in vanilla JavaScript.
+
+It disappeared because, after moving domain decisions and semantic rendering to the server, there was progressively less application left for Vue and Nuxt to own.
+
+------------------------------------------------------------------------
+
+## What `elevator-ui` is now
+
+Two static HTML pages.
+
+One stylesheet.
+
+Three small vanilla TypeScript files.
+
+Compiled by bare `tsc`.
+
+No bundler.
+
+No Vue.
+
+No Nuxt.
+
+No hydration.
+
+No client-side router.
+
+No Node process in production.
+
+Caddy serves the compiled static output directly.
+
+------------------------------------------------------------------------
+
+## The bootstrap is HTML
+
+The rider page contains:
+
+```html
+<div id="entry-point" data-init="@get('/')"></div>
+```
+
+Datastar sees the attribute and performs the first request.
+
+Nothing in `shaft.ts` or `panels.ts` fetches the elevator API.
+
+The response contains the next `data-init`, which discovers the elevators collection, which discovers the elevator, which discovers its event stream.
+
+The client does not construct that navigation graph.
+
+The representations do.
+
+------------------------------------------------------------------------
+
+## The remaining TypeScript is interaction, not application state
+
+`panels.ts` finds forms by relation and submits the form the server rendered.
+
+`shaft.ts` reads the rendered DOM and turns presentation values into CSS custom properties for animation.
+
+`busy-indicator.ts` manages interaction feedback.
+
+There is no client-side domain store to synchronize with the server.
+
+The DOM is not a projection of a second client model.
+
+For the semantic UI, the DOM **is the representation**.
+
+------------------------------------------------------------------------
+
+## The production topology changed too
+
+`crud` ran a Node/Nuxt server for `elevator-ui`.
+
+`json-hypermedia` added Caddy in front of the still-running Node/Nuxt application.
+
+`main` removes the `elevator-ui` runtime service entirely.
+
+Caddy serves its static files and reverse-proxies the API.
+
+The service count happens to return from four to three, but the interesting fact is not the number.
+
+The front-end server process is gone.
+
+------------------------------------------------------------------------
+
+## And the client tests disappear with the client logic
+
+The CRUD client had 9 unit-test cases around its Pinia store.
+
+The JSON-hypermedia client had 17.
+
+The store grew from 229 to 461 lines because interpreting hypermedia was still real client logic.
+
+On `main`:
+
+```text
+client unit-test files   0
+client unit-test cases   0
+store lines              0
+BFF route files          0
+hard-coded elevator URLs 0
+```
+
+That is not evidence that testing became less important.
+
+It is evidence that the knowledge those tests protected moved to code that can be tested closer to its owner.
+
+------------------------------------------------------------------------
+
+## The browser still has code
+
+Do not overclaim this.
+
+There is still JavaScript.
+
+There is still CSS.
+
+There is still interaction logic.
+
+There is still a Playwright smoke test.
+
+Datastar is still a client runtime.
+
+But there is no general-purpose application framework reconstructing the elevator domain in the browser.
+
+------------------------------------------------------------------------
+
+## The sequence matters
+
+The lesson is not:
+
+**Vue bad. Vanilla TypeScript good.**
+
+The lesson is:
+
+**When the server owns behavior, legality, navigation, and semantic representation, the client can become dramatically less knowledgeable.**
+
+And when the client becomes less knowledgeable, a surprising amount of framework machinery can become unnecessary rather than merely rewritten.
+
+# `</framework-disappears>`
 
 # `<metrics>`
 
@@ -7787,7 +7965,7 @@ BFF + store lines removed:
 
 **493**
 
-The BFF route files average **12.4 lines** each.
+The BFF route files average **21.9 lines** each.
 
 At a clone-detection threshold suitable for files that small:
 
@@ -9865,6 +10043,30 @@ The new tests protect our understanding of the product.
 ------------------------------------------------------------------------
 
 # `</tests-as-knowledge>`
+
+
+
+------------------------------------------------------------------------
+
+## Current measured checkpoint — September 2026
+
+Latest `crud` → `json-hypermedia` → `main` measurements:
+
+```text
+API main files/lines       24/1039  → 132/6130 → 140/6870
+API tests                  47       → 199      → 214
+BFF + store files          17       → 6        → 0
+BFF + store lines          699      → 656      → 0
+BFF route files            14       → 4        → 0
+Pinia store lines          229      → 461      → 0
+Hard-coded elevator URLs   35       → 13       → 0
+Client unit-test cases     9        → 17       → 0
+```
+
+The middle point is the useful control group: the backend has already converged on commands, DDD and hypermedia while the Vue/Nuxt smart client still exists.
+
+The final point removes that smart client and then removes the framework runtime that no longer has application state to own.
+
 
 # `<closing>`
 
