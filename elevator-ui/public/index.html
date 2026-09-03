@@ -15,6 +15,15 @@
       <h1>Elevator</h1>
       <p class="tagline">Call it, ride it, and (with the right key) service it.</p>
       <div class="layout">
+        <!--
+        Looks like it re-fetches this very file. It doesn't: Datastar's
+        own Accept header (text/event-stream first, never text/html)
+        never matches the Caddyfile's @entryPoint rule, so this exact
+        path lands on elevator-api's hypermedia entry point instead of
+        Caddy's static file_server -- see docs/call-chain-call-elevator
+        -rest.md's "Step 0" for both requests, captured live, side by
+        side.
+      -->
         <div id="entry-point" data-init="@get('/')"></div>
         <div id="shaft"></div>
       </div>
