@@ -65,8 +65,8 @@ nav {
   flex-shrink: 0;
 }
 /* Replaced, visually, by the bespoke .call-panel/.status/.car-panel
-   boxes below (built and kept live by app/plugins/panels.client.ts and
-   shaft.client.ts) -- still the actual mechanism every click submits,
+   boxes below (built and kept live by src/panels.ts and
+   shaft.ts) -- still the actual mechanism every click submits,
    just never the thing rendered on screen, exactly as CallPanel/
    StatusDisplay/CarPanel were the only rendering of these commands
    before this refactoring. */
@@ -86,7 +86,7 @@ form[data-rel='trigger-emergency-recall'],
   display: none;
 }
 
-/* ── Busy indicator (see app/plugins/busy-indicator.client.ts):
+/* ── Busy indicator (see src/busy-indicator.ts):
    every bespoke control dims and stops responding to clicks while any
    command is in flight -- the same feedback the pre-refactoring
    store's own loading flag gave every button, since a click on one of
@@ -102,7 +102,7 @@ body.busy .car-panel input {
 }
 
 /* ── Shaft (purely decorative; markup built and kept live by
-   app/plugins/shaft.client.ts, styles carried over unchanged from the
+   src/shaft.ts, styles carried over unchanged from the
    pre-refactoring ElevatorShaft.vue component -- its *final* form, not
    its first draft: FLOOR_HEIGHT 108px, a 180px shaft, and a CarPanel
    riding beside the car -- so the shaft looks exactly as it did right
@@ -297,7 +297,7 @@ body.busy .car-panel input {
 /* Door states -- there is no distinct .door.closing style in the
    pre-refactoring original either: it fell back to these same base/
    .closed styles for the few seconds a real close takes, relying on
-   the delayed-door-state timing in shaft.client.ts, not a CSS state
+   the delayed-door-state timing in shaft.ts, not a CSS state
    of its own, to keep the doors looking shut while that plays out. */
 .door.open {
   transform: scaleX(0.08);
