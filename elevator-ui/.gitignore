@@ -17,6 +17,11 @@ logs
 .fleet
 .idea
 
+# Nuxt build/dev cache -- main's elevator-ui has no framework and
+# never produces this itself, but switching worktrees/branches to
+# crud or json-hypermedia (which still use Nuxt) leaves it behind
+.nuxt
+
 # Test artifacts
 playwright-report
 test-results
