@@ -153,7 +153,8 @@ People were already building machines to move things vertically.
 
 The elevator is not really a nineteenth-century invention.
 
-The nineteenth century is when it became a **safe, scalable interface for people**.
+The nineteenth century is when it became a **safe, scalable interface for
+people**.
 
 That distinction matters for the rest of this talk.
 
@@ -165,9 +166,11 @@ It is how much knowledge the person using it needed to have.
 
 ## 009 --- Third century BC: Archimedes
 
-The earliest commonly cited ancestor of the elevator goes back to ancient Greece.
+The earliest commonly cited ancestor of the elevator goes back to ancient
+Greece.
 
-Archimedes is generally credited with an elevator-like lifting device in the third century BC.
+Archimedes is generally credited with an elevator-like lifting device in
+the third century BC.
 
 Think rope.
 
@@ -201,9 +204,11 @@ The operator still supplied the protocol.
 
 And then the Romans scaled the idea.
 
-Under the Colosseum was the hypogeum: corridors, cages, scenery, people, animals... and lifting machinery.
+Under the Colosseum was the hypogeum: corridors, cages, scenery, people,
+animals... and lifting machinery.
 
-The archaeological park documents 28 windlass-operated freight elevators in the Flavian period.
+The archaeological park documents 28 windlass-operated freight elevators in
+the Flavian period.
 
 To operate all 28 at once required **224 people**.
 
@@ -229,17 +234,20 @@ And it had 224 threads.
 
 ## 010a --- The capability came first. The interface came much later.
 
-So by the time we reach the nineteenth century, lifting things vertically is not the new idea.
+So by the time we reach the nineteenth century, lifting things vertically
+is not the new idea.
 
 Humans have been doing that for more than two millennia.
 
 The hard problem for the passenger elevator is different:
 
-**How do we let an ordinary person safely express intent without understanding the machinery?**
+**How do we let an ordinary person safely express intent without
+understanding the machinery?**
 
 That is where the history becomes surprisingly relevant to API design.
 
-Because from here on, elevator innovation repeatedly moves knowledge out of the user...
+Because from here on, elevator innovation repeatedly moves knowledge out of
+the user...
 
 and into the system.
 
@@ -249,7 +257,8 @@ and into the system.
 
 Then Elisha Otis changed the safety model.
 
-At the 1854 Exhibition of the Industry of All Nations in New York's Crystal Palace, Otis stood on a lifting platform high above the crowd.
+At the 1854 Exhibition of the Industry of All Nations in New York's Crystal
+Palace, Otis stood on a lifting platform high above the crowd.
 
 He ordered the retaining rope to be cut.
 
@@ -267,7 +276,8 @@ The important innovation was not that the elevator could lift a person.
 
 Humans had been lifting people and cargo for thousands of years.
 
-The innovation was what happened when the thing everybody depended on **failed**.
+The innovation was what happened when the thing everybody depended on
+**failed**.
 
 The passenger no longer had to trust that the rope would never break.
 
@@ -275,15 +285,20 @@ The mechanism contained a constraint for what should happen when it did.
 
 That is a useful architectural distinction.
 
-**Safety moved from an assumption about the environment into a constraint enforced by the system.**
+**Safety moved from an assumption about the environment into a constraint
+enforced by the system.**
 
 We are going to do the same thing with domain rules.
 
-Research source: Otis, “History — In the beginning: ‘all safe’,” describing the 1854 Crystal Palace demonstration and the safety brake immediately halting the platform after the retaining rope was cut.
-https://www.otis.com/en/uk/our-company/history
+Research [source][otis-history-1854]: Otis, “History — In the
+beginning: ‘all safe’,” describing the 1854 Crystal Palace
+demonstration and the safety brake immediately halting the platform
+after the retaining rope was cut.
 
-Historical illustration source: “Elisha OTIS 1854.jpg,” Wikimedia Commons, unknown author, public domain; described as an old engraving of Otis demonstrating the free-fall prevention mechanism at the New York Crystal Palace.
-https://commons.wikimedia.org/wiki/File:Elisha_OTIS_1854.jpg
+Historical illustration [source][wikimedia-elisha-otis-1854]:
+“Elisha OTIS 1854.jpg,” Wikimedia Commons, unknown author, public
+domain; described as an old engraving of Otis demonstrating the
+free-fall prevention mechanism at the New York Crystal Palace.
 
 ------------------------------------------------------------------------
 
@@ -400,14 +415,14 @@ There was still quite a lot left for you to do.
 
 A passenger might have to:
 
-1.  press the hall button,
-2.  open the shaft and car doors,
-3.  enter,
-4.  close the doors,
-5.  press the destination,
-6.  open the doors at arrival,
-7.  exit,
-8.  close the doors.
+1. press the hall button,
+2. open the shaft and car doors,
+3. enter,
+4. close the doors,
+5. press the destination,
+6. open the doors at arrival,
+7. exit,
+8. close the doors.
 
 So yes.
 
@@ -897,7 +912,8 @@ API designed.
 
 ## 031a --- Did you notice anything wrong?
 
-Now did you notice anything wrong with the previous code examples or architecture?
+Now did you notice anything wrong with the previous code examples or
+architecture?
 
 It's not obvious.
 
@@ -907,7 +923,8 @@ A Vue component calls a store.
 
 The store calls an API route.
 
-The BFF validates the request, checks backend state, then forwards to the backend.
+The BFF validates the request, checks backend state, then forwards to the
+backend.
 
 A controller calls a service.
 
@@ -940,7 +957,8 @@ It knows there is a concept called `UP`.
 
 It knows that a call can be *pending*.
 
-And elsewhere it decides that "pending" means a call row whose `servedAt` is still `null`.
+And elsewhere it decides that "pending" means a call row whose `servedAt`
+is still `null`.
 
 That is not presentation knowledge.
 
@@ -1008,7 +1026,8 @@ We have copied domain validation across a network boundary.
 
 Then it gets more interesting.
 
-The BFF asks the Java API for the current status before it sends the command:
+The BFF asks the Java API for the current status before it sends the
+command:
 
 ```ts
 const status = await fetchStatusForValidation(config.serviceApiUrl, id)
@@ -1020,9 +1039,11 @@ if (isOutOfServiceOrRecall(status)) {
 }
 ```
 
-The Java service performs the same conflict check again when the `POST` finally arrives.
+The Java service performs the same conflict check again when the `POST`
+finally arrives.
 
-So the BFF now knows that `OUT_OF_SERVICE` and `EMERGENCY_RECALL` refuse a call.
+So the BFF now knows that `OUT_OF_SERVICE` and `EMERGENCY_RECALL` refuse a
+call.
 
 It doesn't merely know the API protocol.
 
@@ -1042,7 +1063,8 @@ check state
 POST call
 ```
 
-The Java service does the check and the write in the same request, against the same row.
+The Java service does the check and the write in the same request, against
+the same row.
 
 Between the BFF's `GET` and its `POST`, the elevator can change state.
 
@@ -1064,7 +1086,8 @@ There is another asymmetry.
 
 The Java behavior is exercised through `MockMvc`.
 
-But there is no test for the BFF's new `isValidFloor`, `isValidDirection`, or `isOutOfServiceOrRecall` path.
+But there is no test for the BFF's new `isValidFloor`, `isValidDirection`,
+or `isOutOfServiceOrRecall` path.
 
 So the duplicated rule is not only independently implemented.
 
@@ -1163,7 +1186,9 @@ So the client has to ask again.
 
 Twice.
 
-The mutation response and the useful application state are different representations because our API is shaped around persistence rather than interaction.
+The mutation response and the useful application state are different
+representations because our API is shaped around persistence rather than
+interaction.
 
 ------------------------------------------------------------------------
 
@@ -1181,11 +1206,13 @@ The server has an elevator state machine.
 
 But now the client needs to know which exact state names mean "moving" too.
 
-It has to interpret raw state in order to decide what behavior the interface should have.
+It has to interpret raw state in order to decide what behavior the
+interface should have.
 
 We didn't deliberately design two state machines.
 
-We got the second one as a consequence of sending state and making the client infer meaning.
+We got the second one as a consequence of sending state and making the
+client infer meaning.
 
 ------------------------------------------------------------------------
 
@@ -1219,7 +1246,8 @@ and the system still works.
 
 The UI simply lies.
 
-That is a particularly dangerous kind of duplication because disagreement is silent.
+That is a particularly dangerous kind of duplication because disagreement
+is silent.
 
 ------------------------------------------------------------------------
 
@@ -1253,7 +1281,8 @@ Timing lives in server configuration and a hand-copied client constant.
 
 "Pending" is reconstructed from persistence fields.
 
-The interaction only works because all of those independent pieces happen to agree.
+The interaction only works because all of those independent pieces happen
+to agree.
 
 ------------------------------------------------------------------------
 
@@ -1311,13 +1340,15 @@ Or floor ten is added.
 
 Or calls are no longer accepted during a new inspection state.
 
-Now both the Java service and the BFF pre-check need to agree about that state.
+Now both the Java service and the BFF pre-check need to agree about that
+state.
 
 Or "pending" gets a richer lifecycle than `servedAt === null`.
 
 How many places do we have to remember?
 
-That is the architectural cost hiding inside code that looked perfectly ordinary.
+That is the architectural cost hiding inside code that looked perfectly
+ordinary.
 
 The code isn't obviously bad.
 
@@ -1811,7 +1842,8 @@ It knows which elevator states refuse a call.
 
 It reproduces Java's status codes and messages.
 
-Other routes repeat the pattern: obstruction validates its shape; maintenance pre-checks conflicts that Java checks again.
+Other routes repeat the pattern: obstruction validates its shape;
+maintenance pre-checks conflicts that Java checks again.
 
 ------------------------------------------------------------------------
 
@@ -1873,7 +1905,8 @@ state-dependent legality,
 
 and error semantics.
 
-And because its state check happens before the command request, its copy can be stale.
+And because its state check happens before the command request, its copy
+can be stale.
 
 ------------------------------------------------------------------------
 
@@ -1891,7 +1924,8 @@ It is **evidence** of the original problem.
 
 But now the evidence is stronger.
 
-The API exposes state and refusal responses, but not enough current interaction semantics for the client side to simply follow.
+The API exposes state and refusal responses, but not enough current
+interaction semantics for the client side to simply follow.
 
 So knowledge migrates outward.
 
@@ -1907,9 +1941,11 @@ We did what teams often do when a client needs more help.
 
 We made the intermediary smarter.
 
-And in doing so, we created another implementation of rules the domain already owns.
+And in doing so, we created another implementation of rules the domain
+already owns.
 
-Perhaps the problem isn't that the BFF needs to understand the backend better.
+Perhaps the problem isn't that the BFF needs to understand the backend
+better.
 
 Perhaps the API needs to make the legal next actions explicit.
 
@@ -1935,13 +1971,15 @@ Perhaps the API is saying too little.
 
 ## 082a — Code smells are knowledge smells
 
-Before we go looking for a better model, I want to look inside the CRUD application once more.
+Before we go looking for a better model, I want to look inside the CRUD
+application once more.
 
 Not at the architecture diagram.
 
 At the code.
 
-Because there is another clue that we don't understand the domain well enough yet.
+Because there is another clue that we don't understand the domain well
+enough yet.
 
 Code smells.
 
@@ -2024,7 +2062,8 @@ And perhaps again in a test helper.
 
 The problem isn't validation itself.
 
-The problem is that we keep reconstructing the meaning that the primitive threw away.
+The problem is that we keep reconstructing the meaning that the primitive
+threw away.
 
 ------------------------------------------------------------------------
 
@@ -2041,13 +2080,15 @@ Load
 
 Those are not decorative wrapper classes.
 
-They reduce the number of meaningless values the rest of the application has to consider.
+They reduce the number of meaningless values the rest of the application
+has to consider.
 
 A `Floor` can refuse `-400`.
 
 `Direction` cannot become `"sideways"`.
 
-`Load` can own what overloaded means instead of sending a number everywhere and hoping every consumer remembers the threshold.
+`Load` can own what overloaded means instead of sending a number everywhere
+and hoping every consumer remembers the threshold.
 
 The larger the set of representable values...
 
@@ -2061,9 +2102,11 @@ A richer domain model can shrink that space.
 
 This is where Domain-Driven Security becomes interesting.
 
-Dan Bergh Johnsson, Daniel Deogun and others in that community have explored the security consequences of taking the domain model seriously.
+Dan Bergh Johnsson, Daniel Deogun and others in that community have
+explored the security consequences of taking the domain model seriously.
 
-Security bugs are not only malformed input, SQL injection, XSS, and broken crypto.
+Security bugs are not only malformed input, SQL injection, XSS, and broken
+crypto.
 
 Some attacks are made entirely out of technically legitimate operations.
 
@@ -2100,7 +2143,8 @@ The security question is not merely:
 
 It is:
 
-**Can this elevator perform this operation, in this state, for this actor, now?**
+**Can this elevator perform this operation, in this state, for this actor,
+now?**
 
 That is domain knowledge.
 
@@ -2112,7 +2156,8 @@ Probably several of them.
 
 Primitive obsession is therefore not just ugly code.
 
-It expands the number of meaningless states and inputs that every boundary has to defend against.
+It expands the number of meaningless states and inputs that every boundary
+has to defend against.
 
 ------------------------------------------------------------------------
 
@@ -2126,7 +2171,8 @@ direction
 timestamp
 ```
 
-Whenever the same values keep appearing together, I start wondering whether we're looking at several fields...
+Whenever the same values keep appearing together, I start wondering whether
+we're looking at several fields...
 
 or one concept that hasn't been named yet.
 
@@ -2169,7 +2215,8 @@ DOWN is a real direction.
 
 Together, in this building, they may be meaningless.
 
-Validation gets interesting where individually valid values form an invalid sentence.
+Validation gets interesting where individually valid values form an invalid
+sentence.
 
 A domain concept can validate the sentence.
 
@@ -2225,7 +2272,8 @@ And eventually we have several implementations of what the queue means.
 
 It matters for security for the same reason.
 
-A domain object that cannot protect its own rules turns every caller into a potential implementation of those rules.
+A domain object that cannot protect its own rules turns every caller into a
+potential implementation of those rules.
 
 The more interpreters we have...
 
@@ -2282,11 +2330,14 @@ and now every switch statement is a place we might forget to update.
 
 That is a maintenance problem.
 
-It is an API problem because we send clients a state label and expect them to infer what can happen next.
+It is an API problem because we send clients a state label and expect them
+to infer what can happen next.
 
-And it is a security problem because one forgotten state can become one forgotten restriction.
+And it is a security problem because one forgotten state can become one
+forgotten restriction.
 
-Every `switch(state)` outside the owner of the state machine is a place where the domain can drift.
+Every `switch(state)` outside the owner of the state machine is a place
+where the domain can drift.
 
 ------------------------------------------------------------------------
 
@@ -2314,7 +2365,8 @@ Into the service.
 
 Eventually `ElevatorService` means:
 
-> Everything about elevators that wasn't allowed to live anywhere more meaningful.
+> Everything about elevators that wasn't allowed to live anywhere more
+> meaningful.
 
 ------------------------------------------------------------------------
 
@@ -2339,9 +2391,11 @@ One endpoint.
 
 One little piece of the state machine exposed as RPC.
 
-The poor domain model and the poor API design are not two unrelated problems.
+The poor domain model and the poor API design are not two unrelated
+problems.
 
-The API is exposing the shape of the code we wrote because we never gave the domain a better shape to expose.
+The API is exposing the shape of the code we wrote because we never gave
+the domain a better shape to expose.
 
 ------------------------------------------------------------------------
 
@@ -2418,7 +2472,8 @@ Finally, look at a rule such as:
 
 **Only a technician may enter maintenance mode.**
 
-Before the refactoring, knowledge about privileged operations appears in several places:
+Before the refactoring, knowledge about privileged operations appears in
+several places:
 
 ```text
 backend
@@ -2450,13 +2505,15 @@ We have six opinions that we hope agree.
 
 And the security of the whole system is determined by the weakest one.
 
-This is why concentrating knowledge is not merely a maintainability improvement.
+This is why concentrating knowledge is not merely a maintainability
+improvement.
 
 It gives us fewer enforcement points.
 
 Fewer opportunities for disagreement.
 
-Fewer places for an attacker—or an AI-generated patch—to find the copy we forgot.
+Fewer places for an attacker—or an AI-generated patch—to find the copy we
+forgot.
 
 ------------------------------------------------------------------------
 
@@ -2505,7 +2562,8 @@ What concept or rule have we failed to model?
 
 **API:**
 
-What knowledge are we forcing across the network because the model doesn't own it?
+What knowledge are we forcing across the network because the model doesn't
+own it?
 
 **Security:**
 
@@ -2527,9 +2585,11 @@ REST asks:
 
 Domain-Driven Security asks:
 
-**Can invalid uses become harder to represent rather than something every layer repeatedly checks?**
+**Can invalid uses become harder to represent rather than something every
+layer repeatedly checks?**
 
-Later, when we talk about AI, we are going to ask almost exactly the same question again.
+Later, when we talk about AI, we are going to ask almost exactly the same
+question again.
 
 Don't put important knowledge in instructions...
 
@@ -3975,8 +4035,8 @@ Before, `elevator-ui/test/unit/elevatorStore.test.ts` was 182 lines.
 
 Its test names included:
 
--   `filters served calls out of pendingCalls`
--   `collects pending floors from both call types`
+- `filters served calls out of pendingCalls`
+- `collects pending floors from both call types`
 
 Those are domain questions.
 
@@ -7527,37 +7587,60 @@ Then delete every other copy.
 
 ## Three snapshots, not two
 
-There is an intermediate architecture in this refactor that is useful precisely because it separates two changes we otherwise tend to bundle together.
+There is an intermediate architecture in this refactor that is useful
+precisely because it separates two changes we otherwise tend to bundle
+together.
 
 `crud` is the original REST-ish CRUD application.
 
-`json-hypermedia` has already moved the backend to commands, DDD, CQRS, and hypermedia, but the client is still Vue + Pinia consuming JSON.
+`json-hypermedia` has already moved the backend to commands, DDD, CQRS, and
+hypermedia, but the client is still Vue + Pinia consuming JSON.
 
-`main` keeps that backend model and changes the delivery mechanism again: the API serves HTML directly and Datastar morphs it in place. The BFF disappears. Then the remaining Vue/Nuxt shell disappears too: `elevator-ui` becomes static HTML/CSS plus three small vanilla TypeScript files compiled by bare `tsc`, served directly by Caddy, with no framework, bundler, Node process, hydration, or client-side router in production.
+`main` keeps that backend model and changes the delivery mechanism again:
+the API serves HTML directly and Datastar morphs it in place. The BFF
+disappears. Then the remaining Vue/Nuxt shell disappears too: `elevator-ui`
+becomes static HTML/CSS plus three small vanilla TypeScript files compiled
+by bare `tsc`, served directly by Caddy, with no framework, bundler, Node
+process, hydration, or client-side router in production.
 
 So we can ask a much better question:
 
-**What did domain modeling and hypermedia buy us before server-rendered HTML entered the picture?**
+**What did domain modeling and hypermedia buy us before server-rendered
+HTML entered the picture?**
 
 ------------------------------------------------------------------------
 
 ## CallElevator: knowledge moves in stages
 
-In `crud`, the client hard-codes the endpoint, posts a row-shaped request, then performs follow-up reads to discover what happened. It also owns state-machine knowledge such as the moving-state names and a hand-copied travel-time constant.
+In `crud`, the client hard-codes the endpoint, posts a row-shaped request,
+then performs follow-up reads to discover what happened. It also owns
+state-machine knowledge such as the moving-state names and a hand-copied
+travel-time constant.
 
-In `json-hypermedia`, the client discovers the command from the representation and posts to the operation's advertised `href`. The backend is already the same command/handler/aggregate architecture as `main`. But one gap remains visible: the JSON operation does not enumerate the floor range, so the Vue client still carries `BUILDING_FLOORS`.
+In `json-hypermedia`, the client discovers the command from the
+representation and posts to the operation's advertised `href`. The backend
+is already the same command/handler/aggregate architecture as `main`. But
+one gap remains visible: the JSON operation does not enumerate the floor
+range, so the Vue client still carries `BUILDING_FLOORS`.
 
-In `main`, the HTML form carries the URI, field names, direction options, and floor options. The client submits the form it was given. The remaining state-name comparisons are presentation decisions, not legality decisions.
+In `main`, the HTML form carries the URI, field names, direction options,
+and floor options. The client submits the form it was given. The remaining
+state-name comparisons are presentation decisions, not legality decisions.
 
 ------------------------------------------------------------------------
 
 ## ObstructDoors: discover by looking
 
-In `crud`, `DOORS_OPEN && !obstructed` is re-derived in the Vue component while the server has its own separate behavior.
+In `crud`, `DOORS_OPEN && !obstructed` is re-derived in the Vue component
+while the server has its own separate behavior.
 
-In `json-hypermedia`, the client no longer asks whether obstruction is legal. It asks whether the latest representation contains an `obstruct-doors` operation.
+In `json-hypermedia`, the client no longer asks whether obstruction is
+legal. It asks whether the latest representation contains an
+`obstruct-doors` operation.
 
-In `main`, the same seam becomes a DOM lookup for a form with `data-rel="obstruct-doors"`. The domain rule did not move from JSON to HTML; only its representation did.
+In `main`, the same seam becomes a DOM lookup for a form with
+`data-rel="obstruct-doors"`. The domain rule did not move from JSON to
+HTML; only its representation did.
 
 ------------------------------------------------------------------------
 
@@ -7565,21 +7648,31 @@ In `main`, the same seam becomes a DOM lookup for a form with `data-rel="obstruc
 
 This is where the intermediate snapshot is most revealing.
 
-The `json-hypermedia` backend already has the same authorization rule and command architecture as `main`, but the browser still needs the Nuxt BFF to turn the technician key exchange into a credential it can use. The BFF is smaller and more consolidated, but not gone.
+The `json-hypermedia` backend already has the same authorization rule and
+command architecture as `main`, but the browser still needs the Nuxt BFF to
+turn the technician key exchange into a credential it can use. The BFF is
+smaller and more consolidated, but not gone.
 
-`main` changes that last delivery constraint: the key-switch session is same-origin, the authorized representation renders the emergency-recall affordance, and the client never needs to inspect a scope or construct an Authorization header.
+`main` changes that last delivery constraint: the key-switch session is
+same-origin, the authorized representation renders the emergency-recall
+affordance, and the client never needs to inspect a scope or construct an
+Authorization header.
 
-The BFF was not removed by DDD alone. It became unnecessary only after the representation and credential flow changed too.
+The BFF was not removed by DDD alone. It became unnecessary only after the
+representation and credential flow changed too.
 
 ------------------------------------------------------------------------
 
 ## The useful decomposition
 
-`crud` → `json-hypermedia` answers: **what happens when the server owns behavior and advertises it?**
+`crud` → `json-hypermedia` answers: **what happens when the server owns
+behavior and advertises it?**
 
-`json-hypermedia` → `main` answers: **what happens when the server also owns the semantic UI representation?**
+`json-hypermedia` → `main` answers: **what happens when the server also
+owns the semantic UI representation?**
 
-That distinction matters because it stops us crediting every deletion to hypermedia, or every simplification to HTML.
+That distinction matters because it stops us crediting every deletion to
+hypermedia, or every simplification to HTML.
 
 ------------------------------------------------------------------------
 
@@ -7591,11 +7684,14 @@ That distinction matters because it stops us crediting every deletion to hyperme
 
 ## The framework was the last intermediary
 
-At the `json-hypermedia` milestone, the backend already speaks commands and hypermedia.
+At the `json-hypermedia` milestone, the backend already speaks commands and
+hypermedia.
 
 But the browser still runs a Vue + Pinia application inside Nuxt.
 
-The client no longer has to rediscover most domain legality, but it still has to interpret the representation, maintain a store, render components, proxy some requests, and keep a framework runtime alive.
+The client no longer has to rediscover most domain legality, but it still
+has to interpret the representation, maintain a store, render components,
+proxy some requests, and keep a framework runtime alive.
 
 ------------------------------------------------------------------------
 
@@ -7623,9 +7719,12 @@ main
 
 This is why the intermediate branch matters.
 
-The framework did not disappear because we rewrote Vue in vanilla JavaScript.
+The framework did not disappear because we rewrote Vue in vanilla
+JavaScript.
 
-It disappeared because, after moving domain decisions and semantic rendering to the server, there was progressively less application left for Vue and Nuxt to own.
+It disappeared because, after moving domain decisions and semantic
+rendering to the server, there was progressively less application left for
+Vue and Nuxt to own.
 
 ------------------------------------------------------------------------
 
@@ -7667,7 +7766,8 @@ Datastar sees the attribute and performs the first request.
 
 Nothing in `shaft.ts` or `panels.ts` fetches the elevator API.
 
-The response contains the next `data-init`, which discovers the elevators collection, which discovers the elevator, which discovers its event stream.
+The response contains the next `data-init`, which discovers the elevators
+collection, which discovers the elevator, which discovers its event stream.
 
 The client does not construct that navigation graph.
 
@@ -7677,9 +7777,11 @@ The representations do.
 
 ## The remaining TypeScript is interaction, not application state
 
-`panels.ts` finds forms by relation and submits the form the server rendered.
+`panels.ts` finds forms by relation and submits the form the server
+rendered.
 
-`shaft.ts` reads the rendered DOM and turns presentation values into CSS custom properties for animation.
+`shaft.ts` reads the rendered DOM and turns presentation values into CSS
+custom properties for animation.
 
 `busy-indicator.ts` manages interaction feedback.
 
@@ -7695,13 +7797,15 @@ For the semantic UI, the DOM **is the representation**.
 
 `crud` ran a Node/Nuxt server for `elevator-ui`.
 
-`json-hypermedia` added Caddy in front of the still-running Node/Nuxt application.
+`json-hypermedia` added Caddy in front of the still-running Node/Nuxt
+application.
 
 `main` removes the `elevator-ui` runtime service entirely.
 
 Caddy serves its static files and reverse-proxies the API.
 
-The service count happens to return from four to three, but the interesting fact is not the number.
+The service count happens to return from four to three, but the interesting
+fact is not the number.
 
 The front-end server process is gone.
 
@@ -7713,7 +7817,8 @@ The CRUD client had 9 unit-test cases around its Pinia store.
 
 The JSON-hypermedia client had 17.
 
-The store grew from 229 to 461 lines because interpreting hypermedia was still real client logic.
+The store grew from 229 to 461 lines because interpreting hypermedia was
+still real client logic.
 
 On `main`:
 
@@ -7727,7 +7832,8 @@ hard-coded elevator URLs 0
 
 That is not evidence that testing became less important.
 
-It is evidence that the knowledge those tests protected moved to code that can be tested closer to its owner.
+It is evidence that the knowledge those tests protected moved to code that
+can be tested closer to its owner.
 
 ------------------------------------------------------------------------
 
@@ -7745,7 +7851,8 @@ There is still a Playwright smoke test.
 
 Datastar is still a client runtime.
 
-But there is no general-purpose application framework reconstructing the elevator domain in the browser.
+But there is no general-purpose application framework reconstructing the
+elevator domain in the browser.
 
 ------------------------------------------------------------------------
 
@@ -7757,9 +7864,11 @@ The lesson is not:
 
 The lesson is:
 
-**When the server owns behavior, legality, navigation, and semantic representation, the client can become dramatically less knowledgeable.**
+**When the server owns behavior, legality, navigation, and semantic
+representation, the client can become dramatically less knowledgeable.**
 
-And when the client becomes less knowledgeable, a surprising amount of framework machinery can become unnecessary rather than merely rewritten.
+And when the client becomes less knowledgeable, a surprising amount of
+framework machinery can become unnecessary rather than merely rewritten.
 
 # `</framework-disappears>`
 
@@ -10063,9 +10172,12 @@ Hard-coded elevator URLs   35       → 13       → 0
 Client unit-test cases     9        → 17       → 0
 ```
 
-The middle point is the useful control group: the backend has already converged on commands, DDD and hypermedia while the Vue/Nuxt smart client still exists.
+The middle point is the useful control group: the backend has already
+converged on commands, DDD and hypermedia while the Vue/Nuxt smart client
+still exists.
 
-The final point removes that smart client and then removes the framework runtime that no longer has application state to own.
+The final point removes that smart client and then removes the framework
+runtime that no longer has application state to own.
 
 
 # `<closing>`
@@ -10426,10 +10538,29 @@ Content-Type: application/json
 
 These notes are source material, not intended to be spoken verbatim.
 
-- The CRUD/refactoring plan explicitly identifies these smell-to-model moves: Primitive Obsession → `Floor`, `Load`, `ElevatorId`; Data Clumps → `LandingCall`, `TravelPlan`; Feature Envy → SCAN/LOOK ordering on `RequestQueue`; Switch Statements → sealed `ElevatorState`; God Object → deletion of `ElevatorService`; Long Method → replacement of `recomputeState` / `recomputeMovement` with scheduled events; Shotgun Surgery → authority represented once by a validated `Principal`.
-- The original API exposes command-like paths such as `/calls`, `/car-calls`, `/open-doors`, `/close-doors`, `/obstruct-doors`, `/clear-obstruction`, `/weight`, and `/maintenance`; the refactored API submits named commands through the elevator resource and lets clients discover them through hypermedia.
-- Domain-Driven Security is used here as a conceptual bridge: technically valid input and authenticated requests can still express semantically invalid or dangerous domain operations. The manuscript deliberately extends the familiar “make invalid values harder to represent” idea from domain primitives to valid combinations and state transitions.
-- Attribution note: Dan Bergh Johnsson and John Wilander coined “Domain-Driven Security”; Dan Bergh Johnsson, Daniel Deogun, and Daniel Sawano later developed the broader Secure by Design material. In the spoken talk, reference Dan Bergh Johnsson and Daniel Deogun's Domain-Driven Security work without implying that the term itself was coined by those two alone.
+- The CRUD/refactoring plan explicitly identifies these smell-to-model
+  moves: Primitive Obsession → `Floor`, `Load`, `ElevatorId`; Data Clumps →
+  `LandingCall`, `TravelPlan`; Feature Envy → SCAN/LOOK ordering on
+  `RequestQueue`; Switch Statements → sealed `ElevatorState`; God Object →
+  deletion of `ElevatorService`; Long Method → replacement of
+  `recomputeState` / `recomputeMovement` with scheduled events; Shotgun
+  Surgery → authority represented once by a validated `Principal`.
+- The original API exposes command-like paths such as `/calls`,
+  `/car-calls`, `/open-doors`, `/close-doors`, `/obstruct-doors`,
+  `/clear-obstruction`, `/weight`, and `/maintenance`; the refactored API
+  submits named commands through the elevator resource and lets clients
+  discover them through hypermedia.
+- Domain-Driven Security is used here as a conceptual bridge: technically
+  valid input and authenticated requests can still express semantically
+  invalid or dangerous domain operations. The manuscript deliberately
+  extends the familiar “make invalid values harder to represent” idea from
+  domain primitives to valid combinations and state transitions.
+- Attribution note: Dan Bergh Johnsson and John Wilander coined
+  “Domain-Driven Security”; Dan Bergh Johnsson, Daniel Deogun, and Daniel
+  Sawano later developed the broader Secure by Design material. In the
+  spoken talk, reference Dan Bergh Johnsson and Daniel Deogun's
+  Domain-Driven Security work without implying that the term itself was
+  coined by those two alone.
 
 ------------------------------------------------------------------------
 
@@ -10437,81 +10568,138 @@ These notes are source material, not intended to be spoken verbatim.
 
 ### Early elevator history additions
 
-- **Archimedes:** Otis describes Archimedes as generally credited with creating the first elevator-like device in the third century BC. This is best presented as a commonly credited origin, not as a surviving machine whose exact construction is known. Source: Otis, *High-Rise Safety Systems*, https://www.otis.com/en/us/tools-resources/high-rise-safety-systems/
+- **Archimedes:** Otis describes Archimedes as generally credited with
+  creating the first elevator-like device in the third century BC. This is
+  best presented as a commonly credited origin, not as a surviving machine
+  whose exact construction is known. Source: Otis, *High-Rise Safety
+  Systems*, [source][otis-high-rise-safety-systems]
 
-- **Colosseum hypogeum:** The official Parco archeologico del Colosseo documents 28 windlasses and freight elevators in the Flavian period, requiring 224 people to operate simultaneously, plus 20 mobile scenery platforms. In the Severan period the system was replaced by 60 smaller lifts for people and animals. Source: Parco archeologico del Colosseo, *Elevators and platforms, or the machinery behind the show*, https://colosseo.it/en/opere/elevators-and-platforms-or-the-machinery-behind-the-show/
+- **Colosseum hypogeum:** The official Parco archeologico del Colosseo
+  documents 28 windlasses and freight elevators in the Flavian period,
+  requiring 224 people to operate simultaneously, plus 20 mobile scenery
+  platforms. In the Severan period the system was replaced by 60 smaller
+  lifts for people and animals. Source: Parco archeologico del Colosseo,
+  *Elevators and platforms, or the machinery behind the show*,
+  [source][colosseo-elevators-platforms]
 
-- **Visual reference:** Hyun-seon, *View on the Hypogeum in the Colosseum*, Wikimedia Commons, CC0 1.0, https://commons.wikimedia.org/wiki/File:Vue_sur_l%27hypog%C3%A9e_du_Colis%C3%A9e.jpg
+- **Visual reference:** Hyun-seon, *View on the Hypogeum in the Colosseum*,
+  Wikimedia Commons, CC0 1.0, [source][wikimedia-hypogeum-colosseo]
 
-- **Archimedes visual reference:** Nicolò Barabino, *Archimedes*, public-domain painting/reproduction, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Archimedes.jpg
+- **Archimedes visual reference:** Nicolò Barabino, *Archimedes*,
+  public-domain painting/reproduction, Wikimedia Commons,
+  [source][wikimedia-archimedes-painting]
 
 
 These notes are source material, not intended to be spoken verbatim.
 
--   **1897 / 1902 push-button control:** John D. Ihlder filed patents in
-    December 1897 for one-, two- and three-button systems. The
-    single-button design automatically traveled to and stopped at a
-    selected floor, with door/gate safety interlocks. Otis' January 1902
-    residential-elevator brochure promoted push-button operation as
-    simple enough that a child could operate the car safely. Source: Lee
-    Gray, *The History of Operatorless Elevators: John D. Ihlder*,
-    Elevator World, 2023.
+- **1897 / 1902 push-button control:** John D. Ihlder filed patents in
+  December 1897 for one-, two- and three-button systems. The
+  single-button design automatically traveled to and stopped at a
+  selected floor, with door/gate safety interlocks. Otis' January 1902
+  residential-elevator brochure promoted push-button operation as
+  simple enough that a child could operate the car safely. Source: Lee
+  Gray, *The History of Operatorless Elevators: John D. Ihlder*,
+  Elevator World, 2023.
 
--   **Early self-service protocol:** Early passenger-operated elevators
-    could require the passenger to summon the car, manually open and
-    close doors, select the destination, and again open and close doors
-    on arrival. Collective-control work in the mid-1920s reduced these
-    responsibilities and improved traffic handling. Source: Lee Gray,
-    *The History of Operatorless Elevators: Traffic Control Systems
-    (Part Two)*, Elevator World, 2023.
+- **Early self-service protocol:** Early passenger-operated elevators
+  could require the passenger to summon the car, manually open and
+  close doors, select the destination, and again open and close doors
+  on arrival. Collective-control work in the mid-1920s reduced these
+  responsibilities and improved traffic handling. Source: Lee Gray,
+  *The History of Operatorless Elevators: Traffic Control Systems
+  (Part Two)*, Elevator World, 2023.
 
--   **1948 Elevoice:** Otis offered a prerecorded voice while elevators
-    still had attendants, two years before attendant-free Autotronic
-    systems. It could tell passengers holding the door to let it close
-    because they were delaying service. Source: Otis history timeline.
+- **1948 Elevoice:** Otis offered a prerecorded voice while elevators
+  still had attendants, two years before attendant-free Autotronic
+  systems. It could tell passengers holding the door to let it close
+  because they were delaying service. Source: Otis history timeline.
 
--   **1948 elevator music:** Otis says Chicago's Palmolive Building was
-    the first building where it piped music into elevators;
-    psychologists theorized that soft music might distract passengers
-    from building sway. Source: Otis history timeline.
+- **1948 elevator music:** Otis says Chicago's Palmolive Building was
+  the first building where it piped music into elevators;
+  psychologists theorized that soft music might distract passengers
+  from building sway. Source: Otis history timeline.
 
--   **1950 operatorless high-speed elevator:** Otis says the Atlantic
-    Refining Building in Dallas was the world's first building with its
-    high-speed no-operator Autotronic elevators. Source: Otis history
-    timeline.
+- **1950 operatorless high-speed elevator:** Otis says the Atlantic
+  Refining Building in Dallas was the world's first building with its
+  high-speed no-operator Autotronic elevators. Source: Otis history
+  timeline.
 
--   **AI guardrails / enforced architecture:** Nick Tune argues that
-    architectural constraints should be mechanically enforced rather
-    than merely documented in Markdown, ADRs, or agent skills; his
-    examples include package classification, layer rules,
-    domain-boundary rules, and build failures for violations. Source:
-    Nick Tune, *Enforced application architecture for agents and
-    humans*, 13 August 2026.
+- **AI guardrails / enforced architecture:** Nick Tune argues that
+  architectural constraints should be mechanically enforced rather
+  than merely documented in Markdown, ADRs, or agent skills; his
+  examples include package classification, layer rules,
+  domain-boundary rules, and build failures for violations. Source:
+  Nick Tune, *Enforced application architecture for agents and
+  humans*, 13 August 2026.
 
--   **Agent workflows as domain models:** Tune models coding-agent
-    workflows as explicit state machines/aggregates with allowed
-    operations, transition guards, type safety, and unit tests. He
-    summarizes the principle as "code guides, agents follow": use code
-    rather than relying on an agent to remember instructions. Source:
-    Nick Tune, *Claude Code workflows as DSL-driven domain models*, 1
-    March 2026.
+- **Agent workflows as domain models:** Tune models coding-agent
+  workflows as explicit state machines/aggregates with allowed
+  operations, transition guards, type safety, and unit tests. He
+  summarizes the principle as "code guides, agents follow": use code
+  rather than relying on an agent to remember instructions. Source:
+  Nick Tune, *Claude Code workflows as DSL-driven domain models*, 1
+  March 2026.
 
 
 ## Image sourcing policy
 
-All presentation imagery must be sourced from real, reusable online material. Do not use AI-generated or newly fabricated pseudo-historical illustrations. Historical claims should use genuine photographs of surviving sites/objects, archival photographs, patent drawings, or clearly identified later artworks. When no authentic depiction of the claimed object survives, the slide must say so rather than presenting a reconstruction as evidence. Image creator, license, and source URL belong in the speaker notes.
+All presentation imagery must be sourced from real, reusable online
+material. Do not use AI-generated or newly fabricated pseudo-historical
+illustrations. Historical claims should use genuine photographs of
+surviving sites/objects, archival photographs, patent drawings, or clearly
+identified later artworks. When no authentic depiction of the claimed
+object survives, the slide must say so rather than presenting a
+reconstruction as evidence. Image creator, license, and source URL belong
+in the speaker notes.
 
 ### Sourced visual references
 
-- **Archimedes:** *Portret van Archimedes, RP-P-1909-1141*, Rijksmuseum; engraving dated 1615–1647; Wikimedia Commons; CC0. This is a later portrait of Archimedes, **not** a depiction of his elevator. https://commons.wikimedia.org/wiki/File:Portret_van_Archimedes,_RP-P-1909-1141.jpg
-- **Colosseum hypogeum:** Hyun-seon, *Vue sur l'hypogée du Colisée*, 2015; Wikimedia Commons; CC0. This is a modern photograph of the surviving hypogeum where the lift machinery operated. https://commons.wikimedia.org/wiki/File:Vue_sur_l%27hypog%C3%A9e_du_Colis%C3%A9e.jpg
-- **Elevator operator:** U.S. National Archives, *Elevator operator in New York City wearing mask*, 1918; Wikimedia Commons; public domain. https://commons.wikimedia.org/wiki/File:Medical_Department_-_Influenza_Epidemic_1918_-_MASKS_FOR_PROTECTION_AGAINST_INFLUENZA._Elevator_operator_in_New_York_City,_N.Y.,_wearing_mask_-_NARA_-_45499395.jpg
-- **Old elevator button:** Dejan Krsmanovic, *Old Elevator Button*, 2019; Wikimedia Commons/Flickr; CC BY 2.0. https://commons.wikimedia.org/wiki/File:Old_Elevator_Button_(40125399803).jpg
-- **Otis patent:** U.S. National Archives, *Elisha Otis's Elevator Patent Drawing*, 1861; Wikimedia Commons; public domain. https://commons.wikimedia.org/wiki/File:Elisha_Otis%27s_Elevator_Patent_Drawing_-_NARA_-_305889.jpg
-- **Event Storming:** Carsten Engel, *Event Storming Stickies*, 2018; Wikimedia Commons; CC BY-SA 4.0. https://commons.wikimedia.org/wiki/File:Event_Storming_Stickies.png
-- **Code smells / corrosion:** W.carter, *Very rusty chain*, 2017; Wikimedia Commons; CC0. https://commons.wikimedia.org/wiki/File:Very_rusty_chain.jpg
-- **Domain/security constraints:** Metropolitan Museum of Art, *Padlock and key*, Wikimedia Commons; CC0. https://commons.wikimedia.org/wiki/File:Padlock_and_key_MET_DP-13615-067.jpg
-- **Navigation/context metaphor:** Lorenzo Cafaro, Pexels, *Adventure City Country Destination*. https://www.pexels.com/photo/adventure-city-country-destination-240834/
-- **Affordance/direction metaphor:** Pixabay via Pexels, *Art Background Brick Brick Texture*. https://www.pexels.com/photo/art-background-brick-brick-texture-272254/
-- **State/constraint metaphor:** PhotoMIX Ltd., Pexels, *Traffic Lights with Red Light On*. https://www.pexels.com/photo/traffic-lights-with-red-light-on-190448/
-- **Guardrail metaphor:** Frans Van Heerden, Pexels, *Yellow and Black Road Concrete Barrier*. https://www.pexels.com/photo/yellow-and-black-road-concrete-barrier-638487/
+- **Archimedes:** *Portret van Archimedes, RP-P-1909-1141*, Rijksmuseum;
+  engraving dated 1615–1647; Wikimedia Commons; CC0. This is a later
+  portrait of Archimedes, **not** a depiction of his elevator.
+  [source][wikimedia-archimedes-portrait]
+- **Colosseum hypogeum:** Hyun-seon, *Vue sur l'hypogée du Colisée*, 2015;
+  Wikimedia Commons; CC0. This is a modern photograph of the surviving
+  hypogeum where the lift machinery operated.
+  [source][wikimedia-hypogeum-colosseo]
+- **Elevator operator:** U.S. National Archives, *Elevator operator in New
+  York City wearing mask*, 1918; Wikimedia Commons; public domain.
+  [source][wikimedia-elevator-operator-mask]
+- **Old elevator button:** Dejan Krsmanovic, *Old Elevator Button*, 2019;
+  Wikimedia Commons/Flickr; CC BY 2.0.
+  [source][wikimedia-old-elevator-button]
+- **Otis patent:** U.S. National Archives, *Elisha Otis's Elevator Patent
+  Drawing*, 1861; Wikimedia Commons; public domain.
+  [source][wikimedia-otis-patent]
+- **Event Storming:** Carsten Engel, *Event Storming Stickies*, 2018;
+  Wikimedia Commons; CC BY-SA 4.0. [source][wikimedia-event-storming]
+- **Code smells / corrosion:** W.carter, *Very rusty chain*, 2017;
+  Wikimedia Commons; CC0. [source][wikimedia-rusty-chain]
+- **Domain/security constraints:** Metropolitan Museum of Art, *Padlock and
+  key*, Wikimedia Commons; CC0. [source][wikimedia-padlock-key]
+- **Navigation/context metaphor:** Lorenzo Cafaro, Pexels, *Adventure City
+  Country Destination*. [source][pexels-adventure-city]
+- **Affordance/direction metaphor:** Pixabay via Pexels, *Art Background
+  Brick Brick Texture*. [source][pexels-brick-texture]
+- **State/constraint metaphor:** PhotoMIX Ltd., Pexels, *Traffic Lights
+  with Red Light On*. [source][pexels-traffic-lights]
+- **Guardrail metaphor:** Frans Van Heerden, Pexels, *Yellow and Black Road
+  Concrete Barrier*. [source][pexels-road-barrier]
+
+[otis-history-1854]: https://www.otis.com/en/uk/our-company/history
+[wikimedia-elisha-otis-1854]: https://commons.wikimedia.org/wiki/File:Elisha_OTIS_1854.jpg
+[otis-high-rise-safety-systems]: https://www.otis.com/en/us/tools-resources/high-rise-safety-systems/
+[colosseo-elevators-platforms]: https://colosseo.it/en/opere/elevators-and-platforms-or-the-machinery-behind-the-show/
+[wikimedia-hypogeum-colosseo]: https://commons.wikimedia.org/wiki/File:Vue_sur_l%27hypog%C3%A9e_du_Colis%C3%A9e.jpg
+[wikimedia-archimedes-painting]: https://commons.wikimedia.org/wiki/File:Archimedes.jpg
+[wikimedia-archimedes-portrait]: https://commons.wikimedia.org/wiki/File:Portret_van_Archimedes,_RP-P-1909-1141.jpg
+[wikimedia-elevator-operator-mask]: https://commons.wikimedia.org/wiki/File:Medical_Department_-_Influenza_Epidemic_1918_-_MASKS_FOR_PROTECTION_AGAINST_INFLUENZA._Elevator_operator_in_New_York_City,_N.Y.,_wearing_mask_-_NARA_-_45499395.jpg
+[wikimedia-old-elevator-button]: https://commons.wikimedia.org/wiki/File:Old_Elevator_Button_(40125399803).jpg
+[wikimedia-otis-patent]: https://commons.wikimedia.org/wiki/File:Elisha_Otis%27s_Elevator_Patent_Drawing_-_NARA_-_305889.jpg
+[wikimedia-event-storming]: https://commons.wikimedia.org/wiki/File:Event_Storming_Stickies.png
+[wikimedia-rusty-chain]: https://commons.wikimedia.org/wiki/File:Very_rusty_chain.jpg
+[wikimedia-padlock-key]: https://commons.wikimedia.org/wiki/File:Padlock_and_key_MET_DP-13615-067.jpg
+[pexels-adventure-city]: https://www.pexels.com/photo/adventure-city-country-destination-240834/
+[pexels-brick-texture]: https://www.pexels.com/photo/art-background-brick-brick-texture-272254/
+[pexels-traffic-lights]: https://www.pexels.com/photo/traffic-lights-with-red-light-on-190448/
+[pexels-road-barrier]: https://www.pexels.com/photo/yellow-and-black-road-concrete-barrier-638487/
