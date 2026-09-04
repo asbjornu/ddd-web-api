@@ -137,6 +137,39 @@ behind the shared Caddy origin above. Running `npm run dev` standalone,
 without Docker Compose in front of it, will show "Unable to reach the
 elevator" until it is proxied the same way.
 
+## Branches
+
+This repository keeps three long-lived branches, one per milestone of the
+refactor described in [`docs/architecture.md`][architecture]'s "Roadmap"
+section, so the talk can show a live before/after rather than just
+diagrams:
+
+- `crud` -- the starting point: a REST-ish CRUD API (`elevator-api`'s
+  original `controller`/`service`/`repository`/`model` layers) fronted
+  by a Nuxt/Vue/Pinia single-page application that owns most of the
+  domain and state-machine knowledge itself.
+- `json-hypermedia` -- the backend has already moved to commands, DDD,
+  CQRS, and hypermedia (`elevator-api`'s vertical-slice
+  `feature`/`shared` layout), but the client is still the same
+  Vue/Pinia application, now consuming JSON hypermedia instead of
+  hard-coded REST endpoints. This branch is a useful control group: it
+  isolates what domain modeling and hypermedia bought on their own,
+  before the delivery mechanism changed too.
+- `main` -- keeps that same backend and changes the delivery mechanism
+  again: `elevator-api` serves HTML directly and Datastar morphs it in
+  place, so both the BFF and the Vue/Nuxt shell disappear.
+  `elevator-ui` becomes two static pages plus three small vanilla
+  TypeScript files compiled by bare `tsc`, served directly by Caddy,
+  with no framework, bundler, Node process, hydration, or client-side
+  router in production. This is the branch demonstrated live in the
+  talk, and the one this readme otherwise describes.
+
+Each branch's `docker-compose.yml` defaults its own `IMAGE_TAG` to that
+branch's name, so `docker compose build` run on each in turn tags its
+images correctly. `npm run build:demo` (from the repository root, run
+from `main`) automates building and tagging all three ahead of a
+presentation -- see "Before presenting" in [`AGENTS.md`][2].
+
 ## Technician key
 
 The elevator's key-switch actions -- enter/exit maintenance and emergency
