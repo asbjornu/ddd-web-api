@@ -1,7 +1,7 @@
 # Domain-driven web APIs
 
-This repository is for the talk "Domain-driven web APIs" given by Asbjørn
-Ulsberg at JavaZone 2026.
+This repository is for the talk [Domain-driven web APIs][ddd-web-apis]
+given by Asbjørn Ulsberg at JavaZone 2026.
 
 ## Abstract
 
@@ -34,8 +34,8 @@ and more adaptable to change.
 ## Domain
 
 The demo application models a single elevator (lift) control system. See
-[`docs/architecture.md`][1] for the full domain description, personas, and
-layered architecture.
+[`docs/architecture.md`][architecture] for the full domain description,
+personas, and layered architecture.
 
 ### Elevator state machine
 
@@ -84,7 +84,7 @@ Notes:
 ## Repository structure
 
 This is a monorepo with three applications, described in full in
-[`docs/architecture.md`][1]:
+[`docs/architecture.md`][architecture]:
 
 - `elevator-api/`: Java 21 + Spring Boot 4 (Gradle Kotlin DSL) -- the
   hypermedia API
@@ -95,7 +95,7 @@ This is a monorepo with three applications, described in full in
 - `elevator-auth/`: Spring Authorization Server; issues the
   technician's scoped tokens and nothing else
 
-See [`AGENTS.md`][2] for coding conventions and more detailed run/test
+See [`AGENTS.md`][agents] for coding conventions and more detailed run/test
 instructions.
 
 ## Running locally
@@ -111,12 +111,17 @@ This starts `elevator-api`, `elevator-auth`, and a Caddy reverse proxy
 (which also serves `elevator-ui`'s own static output directly -- there
 is no separate `elevator-ui` container) on `http://localhost:8000` --
 the individual services no longer publish their own ports (see
-[`docs/architecture.md`][1]'s "Roadmap" -- slice 0). Visit
+[`docs/architecture.md`][architecture]'s "Roadmap" -- slice 0). Visit
 `http://localhost:8000` for the rider console; `elevator-api`'s own
 endpoints are reachable at the same origin under `/elevators` and
 `/rels`.
 
 To run the applications directly, without Docker:
+
+```sh
+cd elevator-auth
+./gradlew bootRun
+```
 
 ```sh
 cd elevator-api
@@ -187,7 +192,8 @@ The dev credential is `dev-secret-key`, configured on `elevator-auth` via
 `TECHNICIAN_CLIENT_SECRET`. It is the OAuth client secret for the
 registered `elevator-technician` client -- a simplification, since client
 secrets are not meant to be typed by humans, and one that
-[`docs/architecture.md`][1] records as deliberate.
+[`docs/architecture.md`][architecture] records as deliberate.
 
-[1]: docs/architecture.md
-[2]: AGENTS.md
+[architecture]: docs/architecture.md
+[agents]: AGENTS.md
+[ddd-web-apis]: https://2026.javazone.no/program/89812007-74b9-422e-a7fc-fcf5b25a1022/
